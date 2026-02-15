@@ -117,11 +117,15 @@
   .monomerItem{padding:4px 6px; margin:2px 0; background:#070b12; border-left:3px solid #a855f7; border-radius:4px;}
   .alignmentBox{font-family: ui-monospace, monospace; font-size:9px; color:#d1d5db; white-space:pre; overflow-x:auto; max-height:300px; overflow-y:auto; background:#070b12; padding:8px; border-radius:6px; line-height:1.3;}
   .monomerMap-label{font-family: ui-monospace, monospace; font-size:9px; fill:#9ca3af;}
-  .monomerMap-arrow{stroke-width:1; cursor:pointer; opacity:0.9;}
-  .monomerMap-arrow:hover{opacity:1; filter:brightness(1.3);}
+  .monomerMap-arrow{stroke-width:1; cursor:pointer; opacity:0.9; transition: opacity 0.1s, filter 0.1s;}
+  .monomerMap-arrow:hover, .monomerMap-arrow.hl{opacity:1; filter:brightness(1.4) drop-shadow(0 0 3px rgba(255,255,255,0.4));}
+  .monomerMap-arrow.dim{opacity:0.3;}
   .msaBlock{overflow-x:auto; font-family:'Courier New',ui-monospace,monospace; font-size:10px; line-height:1.15; background:#070b12; padding:4px 6px; border-radius:6px; margin-bottom:6px; white-space:nowrap;}
-  .msaBlock .msaRow{white-space:nowrap; height:1.15em;}
-  .msaBlock .msaName{color:#9ca3af; display:inline-block; width:14ch; text-align:left; flex-shrink:0;}
+  .msaBlock .msaRow{white-space:nowrap; height:1.15em; transition: opacity 0.1s;}
+  .msaBlock .msaRow.hl{background:#1a1a3a;}
+  .msaBlock .msaRow.dim{opacity:0.3;}
+  .msaBlock .msaSpacer{color:#666; font-style:italic; height:1.15em; white-space:nowrap;}
+  .msaBlock .msaName{color:#9ca3af; display:inline-block; width:26ch; text-align:left; flex-shrink:0; overflow:hidden; text-overflow:ellipsis;}
   .msaBlock .msaBase{display:inline-block; width:1ch; text-align:center;}
   .msaBlock .msaMatch{background:#0c2a0c; color:#34d399;}
   .msaBlock .msaMismatch{font-weight:bold;}
@@ -722,11 +726,15 @@ function drawMonomerMap(containerId, result, locusStart, locusEnd) {
 
       const pctId = (m.identity * 100).toFixed(1);
       const clsatLabel = m.clsat || '?';
+      const monId = 'mon-' + ai + '-' + mi;
       svg.append('polygon')
         .attr('points', points.map(p => p.join(',')).join(' '))
         .attr('fill', clsatColor)
         .attr('stroke', d3.color(clsatColor).darker(0.5))
         .attr('class', 'monomerMap-arrow')
+        .attr('data-monid', monId)
+        .on('mouseenter', function() { highlightMonomer(monId, true); })
+        .on('mouseleave', function() { highlightMonomer(null, false); })
         .append('title')
         .text(clsatLabel + ' #' + (mi + 1) + ': ' + gStart.toLocaleString() + '-' + gEnd.toLocaleString() +
               ' (' + m.length + ' bp, ' + pctId + '% identity)');
@@ -749,21 +757,24 @@ function drawMonomerMap(containerId, result, locusStart, locusEnd) {
  * Per-ARRAY blocks showing consensus-anchored MSA with ±100bp flanks
  * on the first/last monomers to visualize satellite-to-flank transitions.
  */
-function renderMonomerMSA(containerId, result, rawSeq) {
+function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldName) {
   const container = document.getElementById(containerId);
   if (!container || !result || !result.success || !result.arrays.length) {
     if (container) container.innerHTML = '';
     return;
   }
+  const gOff = genomicStart || 0;
+  const scfName = scaffoldName || '';
   const ntCol = {A:'#27ae60',C:'#2980b9',G:'#d35400',T:'#c0392b'};
   const FLANK_SIZE = 100;
 
-  // Helper: render one base span
-  function baseSpan(b, c, isFlank) {
-    if (isFlank) return '<span class="msaBase" style="background:#12151f; color:' + (ntCol[b]||'#555') + '; opacity:0.8;">' + b + '</span>';
-    if (b === '-') return '<span class="msaBase msaGap">-</span>';
-    if (b === c) return '<span class="msaBase msaMatch">' + b + '</span>';
-    return '<span class="msaBase msaMismatch" style="background:#2a0c0c; color:' + (ntCol[b]||'#888') + ';">' + b + '</span>';
+  // Helper: render one base span with optional tooltip
+  function baseSpan(b, c, isFlank, title) {
+    const t = title ? ' title="' + title + '"' : '';
+    if (isFlank) return '<span class="msaBase"' + t + ' style="background:#12151f; color:' + (ntCol[b]||'#555') + '; opacity:0.8;">' + b + '</span>';
+    if (b === '-') return '<span class="msaBase msaGap"' + t + '>-</span>';
+    if (b === c) return '<span class="msaBase msaMatch"' + t + '>' + b + '</span>';
+    return '<span class="msaBase msaMismatch"' + t + ' style="background:#2a0c0c; color:' + (ntCol[b]||'#888') + ';">' + b + '</span>';
   }
   const sepSpan = '<span class="msaBase" style="color:#f59e0b; font-weight:bold;">\u2502</span>';
 
@@ -811,26 +822,24 @@ function renderMonomerMSA(containerId, result, rawSeq) {
     html += '</div>';
     html += '<div class="msaBlock">';
 
-    // Scale ruler
+    // Scale ruler — right-justified tick labels
     html += '<div class="msaRow"><span class="msaName"></span>';
     // left flank ruler
-    for (let k = 0; k < nBefore; k++) {
-      const pos = -(nBefore - k);
-      if (pos % 10 === 0 && k > 0) html += '<span class="msaBase" style="color:#333;">' + pos + '</span>';
-      else html += '<span class="msaBase"> </span>';
+    { const r = new Array(nBefore).fill(' ');
+      for (let k = 0; k < nBefore; k++) { const p = -(nBefore - k); if (p % 10 === 0 && p !== 0) { const s = String(p); const st = k - s.length + 1; if (st >= 0) for (let d = 0; d < s.length; d++) r[st+d] = s[d]; } }
+      for (let k = 0; k < nBefore; k++) html += '<span class="msaBase" style="color:' + (r[k] !== ' ' ? '#555' : 'transparent') + ';">' + r[k] + '</span>';
     }
     if (nBefore > 0) html += '<span class="msaBase" style="color:#f59e0b;">\u2502</span>';
     // consensus ruler
-    for (let k = 0; k < consLen; k++) {
-      if ((k+1) % 10 === 0) html += '<span class="msaBase" style="color:#555;">' + ((k+1)%100===0? String(k+1) : String((k+1)%10)) + '</span>';
-      else if ((k+1) % 5 === 0) html += '<span class="msaBase" style="color:#333;">.</span>';
-      else html += '<span class="msaBase"> </span>';
+    { const r = new Array(consLen).fill(' ');
+      for (let k = 0; k < consLen; k++) { const p = k + 1; if (p % 10 === 0) { const s = String(p); const st = k - s.length + 1; if (st >= 0) for (let d = 0; d < s.length; d++) r[st+d] = s[d]; } else if (p % 5 === 0 && r[k] === ' ') r[k] = '.'; }
+      for (let k = 0; k < consLen; k++) { if (r[k] === '.') html += '<span class="msaBase" style="color:#333;">.</span>'; else if (r[k] !== ' ') html += '<span class="msaBase" style="color:#555;">' + r[k] + '</span>'; else html += '<span class="msaBase"> </span>'; }
     }
     if (nAfter > 0) html += '<span class="msaBase" style="color:#f59e0b;">\u2502</span>';
     // right flank ruler
-    for (let k = 0; k < nAfter; k++) {
-      if ((k+1) % 10 === 0) html += '<span class="msaBase" style="color:#333;">' + (k+1) + '</span>';
-      else html += '<span class="msaBase"> </span>';
+    { const r = new Array(nAfter).fill(' ');
+      for (let k = 0; k < nAfter; k++) { const p = k + 1; if (p % 10 === 0) { const s = String(p); const st = k - s.length + 1; if (st >= 0) for (let d = 0; d < s.length; d++) r[st+d] = s[d]; } }
+      for (let k = 0; k < nAfter; k++) html += '<span class="msaBase" style="color:' + (r[k] !== ' ' ? '#555' : 'transparent') + ';">' + r[k] + '</span>';
     }
     html += '</div>';
 
@@ -843,18 +852,29 @@ function renderMonomerMSA(containerId, result, rawSeq) {
     for (let k = 0; k < nAfter; k++) html += '<span class="msaBase" style="color:#1a1a2e;">\u00b7</span>';
     html += '</div>';
 
+    // Display order: reading direction (left-to-right for +, right-to-left for -)
+    // Build display indices that map back to original arr.hits indices
+    const displayIndices = strand === '-'
+      ? arr.hits.map((_,i) => i).reverse()
+      : arr.hits.map((_,i) => i);
+    const displayHits = displayIndices.map(i => arr.hits[i]);
+
     // Align each monomer and build rows
     const projRows = [];
-    arr.hits.forEach((m, mi) => {
+    displayHits.forEach((m, mi) => {
       globalIdx++;
+      const origIdx = displayIndices[mi]; // original index in arr.hits
       let monSeq = rawSeq.substring(m.start, m.end + 1);
       if (strand === '-') monSeq = revComp(monSeq);
 
-      // Extend first/last monomers with flanks
+      // Extend boundary monomers with flanks
+      // After display-order reversal, mi===0 IS reading-first, mi===last IS reading-last
+      // flankBefore is contiguous with reading-first (left extension)
+      // flankAfter  is contiguous with reading-last  (right extension)
       let extLeft = '';
       let extRight = '';
       if (mi === 0 && nBefore > 0) extLeft = flankBefore;
-      if (mi === arr.hits.length - 1 && nAfter > 0) extRight = flankAfter;
+      if (mi === displayHits.length - 1 && nAfter > 0) extRight = flankAfter;
 
       const extSeq = extLeft + monSeq + extRight;
       const aln = pairwiseAlign(consensus, extSeq);
@@ -872,26 +892,69 @@ function renderMonomerMSA(containerId, result, rawSeq) {
 
       const strandChar = strand === '+' ? '+' : '-';
       const clsatLabel = m.clsat || dominantClsat;
+      const gStart = m.start + gOff;
+      const gEnd = m.end + gOff;
+      const label = '#' + globalIdx + ' ' + gStart + '-' + gEnd + '(' + strandChar + ')';
+      const hoverTitle = scfName + ':' + gStart + '-' + gEnd + ' (' + clsatLabel + ', ' + (m.end - m.start + 1) + ' bp, ' + (aln.identity*100).toFixed(1) + '%)';
+      const monId = 'mon-' + ai + '-' + origIdx;
+
+      // Detect spacer BEFORE this monomer (in genomic order)
+      // In display order, consecutive means genomic-adjacent in reading direction
+      let spacerSeq = '';
+      let spacerLen = 0;
+      if (mi > 0) {
+        const prevM = displayHits[mi - 1];
+        // Gap in genomic coordinates between previous and current (in original order)
+        const gapStartGenomic = Math.min(prevM.end, m.end) + 1;
+        const gapEndGenomic = Math.max(prevM.start, m.start) - 1;
+        if (gapEndGenomic >= gapStartGenomic) {
+          spacerLen = gapEndGenomic - gapStartGenomic + 1;
+          spacerSeq = rawSeq.substring(gapStartGenomic, gapEndGenomic + 1);
+          if (strand === '-') spacerSeq = revComp(spacerSeq);
+        }
+      }
+
       projRows.push({
-        name: '#' + globalIdx + '(' + strandChar + ')',
+        name: label, hoverTitle, monId,
         bases: proj, identity: aln.identity,
         unalnLeft, unalnRight,
-        isFirst: mi === 0, isLast: mi === arr.hits.length - 1,
+        isFirst: mi === 0, isLast: mi === displayHits.length - 1,
         clsat: clsatLabel,
+        spacerSeq, spacerLen,
+        gStart, gEnd,
       });
     });
 
-    // Monomer rows
-    projRows.forEach(row => {
+    // Monomer rows with hover tooltips and spacer rows
+    projRows.forEach((row, ri) => {
+      // Insert spacer row if there's a gap between this and previous monomer
+      if (row.spacerLen > 0) {
+        html += '<div class="msaSpacer"><span class="msaName" style="color:#666; font-size:9px;">\u00b7\u00b7\u00b7 ' + row.spacerLen + 'bp spacer</span>';
+        // Pad left flank + separator columns
+        if (nBefore > 0) { for (let k = 0; k <= nBefore; k++) html += '<span class="msaBase"> </span>'; }
+        // Show spacer sequence in the consensus area (centered, faint)
+        // Pad to consensus width
+        for (let k = 0; k < consLen; k++) {
+          if (k < row.spacerSeq.length) {
+            const b = row.spacerSeq[k].toUpperCase();
+            html += '<span class="msaBase" title="spacer pos ' + (k+1) + '" style="background:#0f0f1a; color:' + (ntCol[b]||'#555') + '; opacity:0.6;">' + b + '</span>';
+          } else {
+            html += '<span class="msaBase"> </span>';
+          }
+        }
+        html += '</div>';
+      }
+
       const clsatCol = CLSAT_COLORS[row.clsat] || '#888';
-      html += '<div class="msaRow"><span class="msaName" style="color:' + clsatCol + ';">' + row.name + '</span>';
+      html += '<div class="msaRow" data-monid="' + row.monId + '"><span class="msaName" title="' + row.hoverTitle + '" style="color:' + clsatCol + ';">' + row.name + '</span>';
 
       // Left flank columns
       if (row.isFirst && nBefore > 0) {
         const padCount = nBefore - row.unalnLeft.length;
         for (let k = 0; k < padCount; k++) html += '<span class="msaBase"> </span>';
         for (let k = 0; k < row.unalnLeft.length; k++) {
-          html += baseSpan(row.unalnLeft[k], '', true);
+          const dist = -(row.unalnLeft.length - k);
+          html += baseSpan(row.unalnLeft[k], '', true, 'flank ' + dist);
         }
         html += sepSpan;
       } else if (nBefore > 0) {
@@ -899,17 +962,20 @@ function renderMonomerMSA(containerId, result, rawSeq) {
         html += '<span class="msaBase"> </span>';
       }
 
-      // Consensus-projected bases
+      // Consensus-projected bases with gap-excluded position hover
+      let gapFreePos = 0;
       for (let k = 0; k < consLen; k++) {
         const b = row.bases[k] || '-';
-        html += baseSpan(b, consU[k], false);
+        let tip = '';
+        if (b !== '-') { gapFreePos++; tip = 'pos ' + gapFreePos; }
+        html += baseSpan(b, consU[k], false, tip);
       }
 
       // Right flank columns
       if (row.isLast && nAfter > 0) {
         html += sepSpan;
         for (let k = 0; k < row.unalnRight.length; k++) {
-          html += baseSpan(row.unalnRight[k], '', true);
+          html += baseSpan(row.unalnRight[k], '', true, 'flank +' + (k+1));
         }
         const padCount = nAfter - row.unalnRight.length;
         for (let k = 0; k < padCount; k++) html += '<span class="msaBase"> </span>';
@@ -923,7 +989,7 @@ function renderMonomerMSA(containerId, result, rawSeq) {
     });
 
     // Conservation row (consensus region only)
-    html += '<div class="msaRow"><span class="msaName" style="font-size:9px;">conserv.</span>';
+    html += '<div class="msaRow"><span class="msaName">conserv.</span>';
     if (nBefore > 0) { for (let k = 0; k <= nBefore; k++) html += '<span class="msaBase"> </span>'; }
     for (let k = 0; k < consLen; k++) {
       let mc = 0;
@@ -940,6 +1006,28 @@ function renderMonomerMSA(containerId, result, rawSeq) {
   });
 
   container.innerHTML = html;
+
+  // Wire up cross-highlighting from MSA rows → arrow map
+  container.querySelectorAll('.msaRow[data-monid]').forEach(row => {
+    row.addEventListener('mouseenter', () => highlightMonomer(row.dataset.monid, true));
+    row.addEventListener('mouseleave', () => highlightMonomer(null, false));
+  });
+}
+
+/** Cross-highlight a monomer in both the arrow map and the MSA */
+function highlightMonomer(monId, on) {
+  // Arrow map
+  document.querySelectorAll('.monomerMap-arrow[data-monid]').forEach(el => {
+    if (!on) { el.classList.remove('hl','dim'); }
+    else if (el.dataset.monid === monId) { el.classList.add('hl'); el.classList.remove('dim'); }
+    else { el.classList.add('dim'); el.classList.remove('hl'); }
+  });
+  // MSA rows
+  document.querySelectorAll('.msaRow[data-monid]').forEach(el => {
+    if (!on) { el.classList.remove('hl','dim'); }
+    else if (el.dataset.monid === monId) { el.classList.add('hl'); el.classList.remove('dim'); }
+    else { el.classList.add('dim'); el.classList.remove('hl'); }
+  });
 }
 
 /**
@@ -1933,7 +2021,7 @@ function bindUIOnce(){
 
       // Render MSA-style alignment (pairwise to consensus, stacked)
       const rawSeq = sequence.replace(/^>.*\n/gm, '').replace(/\s/g, '').toUpperCase();
-      renderMonomerMSA('monomerMSA', result, rawSeq);
+      renderMonomerMSA('monomerMSA', result, rawSeq, start, scf);
 
       // Store result on locus for strand track overlay on detail chart
       if (currentLocus) {
