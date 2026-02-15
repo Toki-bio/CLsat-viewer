@@ -484,14 +484,64 @@ function splitIntoArrays(hits, minTandems = 3) {
  * @param {number} minIdentity - minimum identity to keep a hit (0-1, default 0.75)
  * @returns {object} result with monomers, arrays, stats
  */
-function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
-  const consensus = CONSENSUS_SEQS[consensusName];
-  if (!consensus) return { success: false, message: "Unknown consensus: " + consensusName };
+/**
+ * Run SW-based monomer scan for ONE consensus against a cleaned sequence.
+ * Returns an array of hits (not filtered into arrays yet), each tagged with clsat.
+ */
+function scanOneConsensus(seq, consName, minIdentity) {
+  const consensus = CONSENSUS_SEQS[consName];
+  if (!consensus) return [];
+  const seqLen = seq.length;
+  const consLen = consensus.length;
+  const Slf = 0.9;
+  const minLen = Math.floor(Slf * consLen);
 
+  const fwdHits = smithWaterman(consensus, seq);
+  fwdHits.forEach(h => { h.strand = '+'; h.clsat = consName; });
+
+  const rcSeq = revComp(seq);
+  const rcHitsRaw = smithWaterman(consensus, rcSeq);
+  const rcHits = rcHitsRaw.map(h => ({
+    ...h,
+    start: seqLen - h.end - 1,
+    end: seqLen - h.start - 1,
+    strand: '-',
+    clsat: consName,
+  }));
+
+  return [...fwdHits, ...rcHits]
+    .filter(h => h.identity >= minIdentity && h.length >= minLen);
+}
+
+/**
+ * Resolve overlapping hits from different CLsat scans: keep the one with the best score.
+ */
+function resolveOverlaps(hits) {
+  if (!hits.length) return hits;
+  hits.sort((a, b) => a.start - b.start || b.score - a.score);
+  const kept = [hits[0]];
+  for (let i = 1; i < hits.length; i++) {
+    const prev = kept[kept.length - 1];
+    const cur = hits[i];
+    // If overlapping by >50% of shorter hit, keep best score
+    const overlapStart = Math.max(prev.start, cur.start);
+    const overlapEnd = Math.min(prev.end, cur.end);
+    const overlap = Math.max(0, overlapEnd - overlapStart + 1);
+    const shorter = Math.min(prev.length, cur.length);
+    if (overlap > shorter * 0.5) {
+      // Replace prev if cur is better
+      if (cur.score > prev.score) kept[kept.length - 1] = cur;
+    } else {
+      kept.push(cur);
+    }
+  }
+  return kept;
+}
+
+function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
   const seq = sequence.replace(/^>.*\n/gm, '').replace(/\s/g, '').toUpperCase();
   const seqLen = seq.length;
 
-  // Guard: SW matrix is O(consLen * seqLen) — warn above 50kb
   if (seqLen > 50000) {
     console.warn("[SW] Large sequence (" + seqLen + " bp) — analysis may take a while");
   }
@@ -499,38 +549,34 @@ function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
     return { success: false, message: "Sequence too large (" + (seqLen/1000).toFixed(0) + " kb). Zoom in to <50 kb first." };
   }
 
-  const consLen = consensus.length;
-  const Slf = 0.9; // minimum length fraction (searsat16 default)
-  const minLen = Math.floor(Slf * consLen);
+  // Determine which consensus(es) to scan
+  let scanNames;
+  if (consensusName === 'SEED_CONFLICT') {
+    scanNames = Object.keys(CONSENSUS_SEQS); // all 4
+    console.log("[SW] SEED_CONFLICT locus — scanning all consensuses:", scanNames.join(', '));
+  } else {
+    const consensus = CONSENSUS_SEQS[consensusName];
+    if (!consensus) return { success: false, message: "Unknown consensus: " + consensusName };
+    scanNames = [consensusName];
+  }
 
-  console.log("[SW] Sequence: " + seqLen + " bp, Consensus: " + consensusName + " (" + consLen + " bp)");
-  console.log("[SW] Min identity: " + (minIdentity*100).toFixed(0) + "%, Min length: " + minLen + " bp");
+  // Scan with each consensus
+  let allHits = [];
+  for (const cn of scanNames) {
+    const hits = scanOneConsensus(seq, cn, minIdentity);
+    console.log("[SW] " + cn + ": " + hits.length + " raw hits");
+    allHits.push(...hits);
+  }
 
-  // Run Smith-Waterman on forward strand
-  const fwdHits = smithWaterman(consensus, seq);
-  console.log("[SW] Forward hits (raw): " + fwdHits.length);
+  // If multi-consensus, resolve overlaps (keep best score)
+  if (scanNames.length > 1) {
+    allHits = resolveOverlaps(allHits);
+    console.log("[SW] After overlap resolution: " + allHits.length + " hits");
+  }
 
-  // Run on reverse complement
-  const rcSeq = revComp(seq);
-  const rcHitsRaw = smithWaterman(consensus, rcSeq);
-  // Convert RC coordinates back to forward strand
-  const rcHits = rcHitsRaw.map(h => ({
-    ...h,
-    start: seqLen - h.end - 1,
-    end: seqLen - h.start - 1,
-    strand: '-',
-  }));
-  console.log("[SW] Reverse hits (raw): " + rcHits.length);
+  allHits.sort((a, b) => a.start - b.start);
 
-  // Tag forward hits
-  fwdHits.forEach(h => h.strand = '+');
-
-  // Combine, filter by identity and length
-  const allHits = [...fwdHits, ...rcHits]
-    .filter(h => h.identity >= minIdentity && h.length >= minLen)
-    .sort((a, b) => a.start - b.start);
-
-  console.log("[SW] Filtered hits: " + allHits.length + " (identity >= " + (minIdentity*100).toFixed(0) + "%, length >= " + minLen + ")");
+  console.log("[SW] Sequence: " + seqLen + " bp, Filtered hits: " + allHits.length);
 
   if (allHits.length === 0) {
     return {
@@ -563,13 +609,19 @@ function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
   const totalIdent = allMonomers.reduce((s,m) => s + m.identity, 0);
   const avgIdent = allMonomers.length > 0 ? totalIdent / allMonomers.length : 0;
 
+  // Determine consensus_name for the result
+  const usedClsats = [...new Set(allMonomers.map(m => m.clsat))];
+  const resultConsName = usedClsats.length === 1 ? usedClsats[0] : usedClsats.join('+');
+
   return {
     success: true,
-    message: "Found " + allMonomers.length + " monomers in " + allArrays.length + " tandem array(s)",
+    message: "Found " + allMonomers.length + " monomers in " + allArrays.length + " tandem array(s)" +
+             (usedClsats.length > 1 ? " (" + usedClsats.join(', ') + ")" : ""),
     monomer_count: allMonomers.length,
     array_count: allArrays.length,
-    consensus_name: consensusName,
-    consensus_length: consLen,
+    consensus_name: resultConsName,
+    consensus_names: usedClsats,
+    consensus_length: CONSENSUS_SEQS[usedClsats[0]]?.length || 146,
     avg_identity: avgIdent,
     monomers: allMonomers,
     arrays: allArrays,
@@ -643,6 +695,9 @@ function drawMonomerMap(containerId, result, locusStart, locusEnd) {
       const w = Math.max(xEnd - xStart, 2); // minimum 2px
       const arrowTip = Math.min(6, w * 0.3);
 
+      // Color by CLsat type
+      const clsatColor = CLSAT_COLORS[m.clsat] || color;
+
       // Build arrow polygon
       let points;
       if (strand === '+') {
@@ -666,13 +721,14 @@ function drawMonomerMap(containerId, result, locusStart, locusEnd) {
       }
 
       const pctId = (m.identity * 100).toFixed(1);
+      const clsatLabel = m.clsat || '?';
       svg.append('polygon')
         .attr('points', points.map(p => p.join(',')).join(' '))
-        .attr('fill', color)
-        .attr('stroke', d3.color(color).darker(0.5))
+        .attr('fill', clsatColor)
+        .attr('stroke', d3.color(clsatColor).darker(0.5))
         .attr('class', 'monomerMap-arrow')
         .append('title')
-        .text('#' + (mi + 1) + ': ' + gStart.toLocaleString() + '-' + gEnd.toLocaleString() +
+        .text(clsatLabel + ' #' + (mi + 1) + ': ' + gStart.toLocaleString() + '-' + gEnd.toLocaleString() +
               ' (' + m.length + ' bp, ' + pctId + '% identity)');
     });
 
@@ -699,21 +755,45 @@ function renderMonomerMSA(containerId, result, rawSeq) {
     if (container) container.innerHTML = '';
     return;
   }
-  const consensus = CONSENSUS_SEQS[result.consensus_name];
-  if (!consensus) return;
-  const consU = consensus.toUpperCase();
   const ntCol = {A:'#27ae60',C:'#2980b9',G:'#d35400',T:'#c0392b'};
-  let html = '';
 
+  // Collect all monomers with their CLsat assignment across all arrays
+  const allMons = [];
+  let globalIdx = 0;
   result.arrays.forEach((arr, ai) => {
-    html += '<div style="margin-top:8px; color:#a855f7; font-weight:bold; font-size:10px;">';
-    html += 'Array ' + (ai+1) + ' — ' + arr.hits.length + ' monomers (' + arr.strand + ' strand) — pairwise alignment to ' + result.consensus_name;
+    arr.hits.forEach((m, mi) => {
+      globalIdx++;
+      allMons.push({
+        m, strand: arr.strand, arrayIdx: ai,
+        clsat: m.clsat || result.consensus_name,
+        label: '#' + globalIdx,
+      });
+    });
+  });
+
+  // Group by CLsat type
+  const clsatGroups = {};
+  for (const mon of allMons) {
+    if (!clsatGroups[mon.clsat]) clsatGroups[mon.clsat] = [];
+    clsatGroups[mon.clsat].push(mon);
+  }
+
+  let html = '';
+  for (const [clsatName, mons] of Object.entries(clsatGroups)) {
+    const consensus = CONSENSUS_SEQS[clsatName];
+    if (!consensus) continue;
+    const consU = consensus.toUpperCase();
+    const consLen = consU.length;
+    const clsatColor = CLSAT_COLORS[clsatName] || '#a855f7';
+
+    html += '<div style="margin-top:8px; color:' + clsatColor + '; font-weight:bold; font-size:10px;">';
+    html += clsatName + ' — ' + mons.length + ' monomers — consensus-anchored MSA';
     html += '</div>';
     html += '<div class="msaBlock">';
 
     // Scale ruler
     html += '<div class="msaRow"><span class="msaName"></span>';
-    for (let k = 0; k < consU.length; k++) {
+    for (let k = 0; k < consLen; k++) {
       if ((k+1) % 10 === 0) html += '<span class="msaBase" style="color:#555;">' + ((k+1)%100===0? String(k+1) : String((k+1)%10)) + '</span>';
       else if ((k+1) % 5 === 0) html += '<span class="msaBase" style="color:#333;">.</span>';
       else html += '<span class="msaBase"> </span>';
@@ -721,31 +801,31 @@ function renderMonomerMSA(containerId, result, rawSeq) {
     html += '</div>';
 
     // Consensus row
-    html += '<div class="msaRow"><span class="msaName" style="color:#a855f7; font-weight:bold;">Consensus</span>';
-    for (let k = 0; k < consU.length; k++) {
+    html += '<div class="msaRow"><span class="msaName" style="color:' + clsatColor + '; font-weight:bold;">' + clsatName + '</span>';
+    for (let k = 0; k < consLen; k++) {
       html += '<span class="msaBase msaCons">' + consU[k] + '</span>';
     }
     html += '</div>';
 
-    // Align each monomer and project to consensus coordinates
+    // Align each monomer to consensus and project
     const projRows = [];
-    arr.hits.forEach((m, mi) => {
-      let monSeq = rawSeq.substring(m.start, m.end + 1);
-      if (arr.strand === '-') monSeq = revComp(monSeq);
+    mons.forEach(mon => {
+      let monSeq = rawSeq.substring(mon.m.start, mon.m.end + 1);
+      if (mon.strand === '-') monSeq = revComp(monSeq);
       const aln = pairwiseAlign(consensus, monSeq);
-      // Project: keep only consensus-position bases
       const proj = [];
       for (let k = 0; k < aln.qAln.length; k++) {
         if (aln.qAln[k] !== '-') proj.push(aln.sAln[k]);
       }
-      while (proj.length < consU.length) proj.push('-');
-      projRows.push({name: '#' + (mi+1), bases: proj, identity: aln.identity});
+      while (proj.length < consLen) proj.push('-');
+      const strandChar = mon.strand === '+' ? '+' : '-';
+      projRows.push({name: mon.label + '(' + strandChar + ')', bases: proj, identity: aln.identity});
     });
 
     // Monomer rows
     projRows.forEach(row => {
       html += '<div class="msaRow"><span class="msaName">' + row.name + '</span>';
-      for (let k = 0; k < consU.length; k++) {
+      for (let k = 0; k < consLen; k++) {
         const b = row.bases[k] || '-';
         const c = consU[k];
         if (b === '-') {
@@ -762,7 +842,7 @@ function renderMonomerMSA(containerId, result, rawSeq) {
 
     // Conservation row
     html += '<div class="msaRow"><span class="msaName" style="font-size:9px;">conserv.</span>';
-    for (let k = 0; k < consU.length; k++) {
+    for (let k = 0; k < consLen; k++) {
       let mc = 0;
       for (const r of projRows) { if (r.bases[k] === consU[k]) mc++; }
       const pct = projRows.length > 0 ? mc / projRows.length : 0;
@@ -774,7 +854,7 @@ function renderMonomerMSA(containerId, result, rawSeq) {
     html += '</div>';
 
     html += '</div>';
-  });
+  }
 
   container.innerHTML = html;
 }
@@ -800,8 +880,8 @@ function renderStrandTrack() {
   const locusStart = currentLocus.start;
 
   result.arrays.forEach(arr => {
-    const color = arr.strand === '+' ? plusColor : minusColor;
     arr.hits.forEach(m => {
+      const clsatColor = CLSAT_COLORS[m.clsat] || (arr.strand === '+' ? plusColor : minusColor);
       const gStart = m.start + locusStart;
       const gEnd = m.end + locusStart;
       const x1 = xScaleDetail(gStart);
@@ -812,7 +892,7 @@ function renderStrandTrack() {
       gStrand.append('rect')
         .attr('x', x1).attr('y', trackY)
         .attr('width', w).attr('height', trackH)
-        .attr('fill', color).attr('opacity', 0.6)
+        .attr('fill', clsatColor).attr('opacity', 0.6)
         .attr('rx', 2);
 
       // Arrow indicator if wide enough
@@ -1752,11 +1832,12 @@ function bindUIOnce(){
           '</div>';
         arr.hits.forEach((m, mi) => {
           const arrow = arr.strand === '+' ? '\u2192' : '\u2190';
-          const strandColor = arr.strand === '+' ? '#34d399' : '#f472b6';
+          const clsatColor = CLSAT_COLORS[m.clsat] || (arr.strand === '+' ? '#34d399' : '#f472b6');
           const gStart = m.start + start;
           const gEnd = m.end + start;
           html += '<div class="monomerItem">' +
-            '<span style="color:' + strandColor + '; font-weight:bold;">' + arrow + '</span> ' +
+            '<span style="color:' + clsatColor + '; font-weight:bold;">' + arrow + '</span> ' +
+            '<span style="color:' + clsatColor + '; font-size:9px;">' + (m.clsat || '') + '</span> ' +
             '#' + (mi + 1) + ': ' + gStart.toLocaleString() + '-' + gEnd.toLocaleString() +
             ' (' + m.length + ' bp, ' + (m.identity * 100).toFixed(1) + '%)' +
             '</div>';
@@ -1781,10 +1862,10 @@ function bindUIOnce(){
       const summaryLines = ['# Monomer analysis: ' + consensusName + ' in ' + scf + ':' + start + '-' + end];
       summaryLines.push('# ' + result.message);
       summaryLines.push('# Average identity: ' + avgPct + '%');
-      summaryLines.push('# scaffold\tstart\tend\tlength\tidentity\tstrand\tarray');
+      summaryLines.push('# scaffold\tstart\tend\tlength\tidentity\tstrand\tarray\tclsat');
       result.arrays.forEach((arr, ai) => {
         arr.hits.forEach(m => {
-          summaryLines.push(scf + '\t' + (m.start + start) + '\t' + (m.end + start) + '\t' + m.length + '\t' + (m.identity * 100).toFixed(1) + '\t' + arr.strand + '\t' + (ai + 1));
+          summaryLines.push(scf + '\t' + (m.start + start) + '\t' + (m.end + start) + '\t' + m.length + '\t' + (m.identity * 100).toFixed(1) + '\t' + arr.strand + '\t' + (ai + 1) + '\t' + (m.clsat || consensusName));
         });
       });
       const summaryText = summaryLines.join('\n');
