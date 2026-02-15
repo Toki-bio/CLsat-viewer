@@ -383,15 +383,15 @@ function revComp(seq) {
   return seq.split('').reverse().map(c => comp[c] || c).join('');
 }
 
-/** Merge overlapping/adjacent hits (like bedtools merge -d -1) */
+/** Merge overlapping hits (like bedtools merge -s -d -1: overlap required, adjacent stays separate) */
 function mergeHits(hits) {
   if (!hits.length) return [];
   const sorted = [...hits].sort((a, b) => a.start - b.start);
-  const merged = [sorted[0]];
+  const merged = [{...sorted[0]}];
   for (let i = 1; i < sorted.length; i++) {
     const prev = merged[merged.length - 1];
     const cur = sorted[i];
-    if (cur.start <= prev.end + 1) { // overlapping or adjacent
+    if (cur.start <= prev.end) { // overlapping only (not adjacent) — matches bedtools -d -1
       prev.end = Math.max(prev.end, cur.end);
       prev.length = prev.end - prev.start + 1;
       prev.score = Math.max(prev.score, cur.score);
@@ -1283,7 +1283,7 @@ function bindUIOnce(){
     console.log("[FASTA] Coordinates:", start, "-", end, "(length:", length, "bp)");
     
     // Warning for large sequences
-    if (length > 3000) {
+    if (length > 15000) {
       const proceed = confirm(
         `Warning: This will fetch ${length.toLocaleString()} nucleotides from NCBI.\n\n` +
         `Large sequences may take time to download and display.\n\n` +
