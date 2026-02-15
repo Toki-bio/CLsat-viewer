@@ -1242,44 +1242,6 @@ function bindUIOnce(){
 
   const CONTROL_BASE = "http://127.0.0.1:9001"; // kept for reference only
 
-  async function checkControlServer(){
-    // Control server no longer needed — monomer analysis is client-side
-    return false;
-    }
-  }
-
-  // Toggle start/stop via control server
-  document.getElementById("serverToggleBtn").addEventListener("click", async ()=>{
-    const btn = document.getElementById("serverToggleBtn");
-    btn.disabled = true;
-    try {
-      // Query current control status
-      const s = await fetch(CONTROL_BASE + "/status", {cache: "no-store"}).catch(()=>null);
-      const json = s && s.ok ? await s.json() : {running:false};
-      if (json.running) {
-        // Stop
-        await fetch(CONTROL_BASE + "/stop");
-        btn.textContent = 'Start Server';
-        setStatus('Requested monomer server stop');
-      } else {
-        // Start
-        await fetch(CONTROL_BASE + "/start");
-        btn.textContent = 'Stop Server';
-        setStatus('Requested monomer server start');
-      }
-      // Give some time for server to come up/down then refresh status
-      setTimeout(()=>{ checkMonomerServer(); checkControlServer(); }, 1200);
-    } catch (e) {
-      const hint = 'Control server not available. Start it by running:\n\npython server_control.py\n\nor use start_server_control.bat in the viewer folder.';
-      setStatus(hint);
-      const ss = document.getElementById('serverStatus');
-      if (ss) ss.innerHTML = '<span style="color:#fb7185;">✗ Control offline — run start_server_control.bat or: python server_control.py</span>';
-      console.error('Server control error', e);
-    } finally {
-      btn.disabled = false;
-    }
-  });
-
   // Server polling disabled — monomer analysis is now client-side
 
   document.getElementById("copyBedBtn").addEventListener("click", ()=>{
