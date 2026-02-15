@@ -121,7 +121,7 @@
   .monomerMap-arrow:hover{opacity:1; filter:brightness(1.3);}
   .msaBlock{overflow-x:auto; font-family:'Courier New',ui-monospace,monospace; font-size:10px; line-height:1.15; background:#070b12; padding:4px 6px; border-radius:6px; margin-bottom:6px; white-space:nowrap;}
   .msaBlock .msaRow{white-space:nowrap; height:1.15em;}
-  .msaBlock .msaName{color:#9ca3af; display:inline-block; min-width:14ch; text-align:left;}
+  .msaBlock .msaName{color:#9ca3af; display:inline-block; width:14ch; text-align:left; flex-shrink:0;}
   .msaBlock .msaBase{display:inline-block; width:1ch; text-align:center;}
   .msaBlock .msaMatch{background:#0c2a0c; color:#34d399;}
   .msaBlock .msaMismatch{font-weight:bold;}
@@ -437,7 +437,7 @@ function pairwiseAlign(query, subject) {
     else break;
   }
   qA.reverse(); sA.reverse();
-  return {qAln:qA.join(''),sAln:sA.join(''),score:maxVal,identity:alignLen>0?matches/alignLen:0,matches,alignLen};
+  return {qAln:qA.join(''),sAln:sA.join(''),score:maxVal,identity:alignLen>0?matches/alignLen:0,matches,alignLen,sStart:cj,sEnd:maxJ};
 }
 
 /** Merge overlapping hits (like bedtools merge -s -d -1: overlap required, adjacent stays separate) */
@@ -745,9 +745,9 @@ function drawMonomerMap(containerId, result, locusStart, locusEnd) {
 }
 
 /**
- * Render monomer alignment as MSA (inspired by MSA-viewer).
- * Each monomer is pairwise-aligned to consensus, then projected
- * onto consensus coordinates to create a stacked MSA view.
+ * Render monomer alignment as MSA with integrated flanks.
+ * Per-ARRAY blocks showing consensus-anchored MSA with ±100bp flanks
+ * on the first/last monomers to visualize satellite-to-flank transitions.
  */
 function renderMonomerMSA(containerId, result, rawSeq) {
   const container = document.getElementById(containerId);
@@ -756,92 +756,175 @@ function renderMonomerMSA(containerId, result, rawSeq) {
     return;
   }
   const ntCol = {A:'#27ae60',C:'#2980b9',G:'#d35400',T:'#c0392b'};
+  const FLANK_SIZE = 100;
 
-  // Collect all monomers with their CLsat assignment across all arrays
-  const allMons = [];
-  let globalIdx = 0;
-  result.arrays.forEach((arr, ai) => {
-    arr.hits.forEach((m, mi) => {
-      globalIdx++;
-      allMons.push({
-        m, strand: arr.strand, arrayIdx: ai,
-        clsat: m.clsat || result.consensus_name,
-        label: '#' + globalIdx,
-      });
-    });
-  });
-
-  // Group by CLsat type
-  const clsatGroups = {};
-  for (const mon of allMons) {
-    if (!clsatGroups[mon.clsat]) clsatGroups[mon.clsat] = [];
-    clsatGroups[mon.clsat].push(mon);
+  // Helper: render one base span
+  function baseSpan(b, c, isFlank) {
+    if (isFlank) return '<span class="msaBase" style="background:#12151f; color:' + (ntCol[b]||'#555') + '; opacity:0.8;">' + b + '</span>';
+    if (b === '-') return '<span class="msaBase msaGap">-</span>';
+    if (b === c) return '<span class="msaBase msaMatch">' + b + '</span>';
+    return '<span class="msaBase msaMismatch" style="background:#2a0c0c; color:' + (ntCol[b]||'#888') + ';">' + b + '</span>';
   }
+  const sepSpan = '<span class="msaBase" style="color:#f59e0b; font-weight:bold;">\u2502</span>';
 
   let html = '';
-  for (const [clsatName, mons] of Object.entries(clsatGroups)) {
-    const consensus = CONSENSUS_SEQS[clsatName];
-    if (!consensus) continue;
+  let globalIdx = 0;
+
+  // Per-ARRAY MSA blocks with integrated flanks
+  result.arrays.forEach((arr, ai) => {
+    const strand = arr.strand;
+    const firstStart = arr.hits[0].start;
+    const lastEnd = arr.hits[arr.hits.length - 1].end;
+
+    // Dominant CLsat for this array
+    const clsatCounts = {};
+    arr.hits.forEach(m => { const c = m.clsat || '?'; clsatCounts[c] = (clsatCounts[c]||0)+1; });
+    const dominantClsat = Object.entries(clsatCounts).sort((a,b) => b[1]-a[1])[0][0];
+    const consensus = CONSENSUS_SEQS[dominantClsat];
+    if (!consensus) return;
     const consU = consensus.toUpperCase();
     const consLen = consU.length;
-    const clsatColor = CLSAT_COLORS[clsatName] || '#a855f7';
+    const clsatColor = CLSAT_COLORS[dominantClsat] || '#a855f7';
 
-    html += '<div style="margin-top:8px; color:' + clsatColor + '; font-weight:bold; font-size:10px;">';
-    html += clsatName + ' — ' + mons.length + ' monomers — consensus-anchored MSA';
+    // Extract flanks (in genomic/forward orientation)
+    const leftFlankStart = Math.max(0, firstStart - FLANK_SIZE);
+    const leftFlank = rawSeq.substring(leftFlankStart, firstStart);
+    const rightFlankEnd = Math.min(rawSeq.length, lastEnd + 1 + FLANK_SIZE);
+    const rightFlank = rawSeq.substring(lastEnd + 1, rightFlankEnd);
+
+    // For minus-strand arrays, the "left" genomic flank is actually the
+    // 3' end (right side after revcomp), and vice versa.
+    // We orient flanks to match the monomer reading direction.
+    let flankBefore, flankAfter;
+    if (strand === '-') {
+      flankBefore = revComp(rightFlank); // genomic right = reading-order left
+      flankAfter = revComp(leftFlank);   // genomic left = reading-order right
+    } else {
+      flankBefore = leftFlank;
+      flankAfter = rightFlank;
+    }
+    const nBefore = flankBefore.length;
+    const nAfter = flankAfter.length;
+
+    html += '<div style="margin-top:10px; color:' + clsatColor + '; font-weight:bold; font-size:10px;">';
+    html += 'Array ' + (ai+1) + ' \u2014 ' + arr.hits.length + ' monomers (' + strand + ' strand, ' + dominantClsat + ') \u2014 flanks + consensus-anchored MSA';
     html += '</div>';
     html += '<div class="msaBlock">';
 
     // Scale ruler
     html += '<div class="msaRow"><span class="msaName"></span>';
+    // left flank ruler
+    for (let k = 0; k < nBefore; k++) {
+      const pos = -(nBefore - k);
+      if (pos % 10 === 0 && k > 0) html += '<span class="msaBase" style="color:#333;">' + pos + '</span>';
+      else html += '<span class="msaBase"> </span>';
+    }
+    if (nBefore > 0) html += '<span class="msaBase" style="color:#f59e0b;">\u2502</span>';
+    // consensus ruler
     for (let k = 0; k < consLen; k++) {
       if ((k+1) % 10 === 0) html += '<span class="msaBase" style="color:#555;">' + ((k+1)%100===0? String(k+1) : String((k+1)%10)) + '</span>';
       else if ((k+1) % 5 === 0) html += '<span class="msaBase" style="color:#333;">.</span>';
       else html += '<span class="msaBase"> </span>';
     }
-    html += '</div>';
-
-    // Consensus row
-    html += '<div class="msaRow"><span class="msaName" style="color:' + clsatColor + '; font-weight:bold;">' + clsatName + '</span>';
-    for (let k = 0; k < consLen; k++) {
-      html += '<span class="msaBase msaCons">' + consU[k] + '</span>';
+    if (nAfter > 0) html += '<span class="msaBase" style="color:#f59e0b;">\u2502</span>';
+    // right flank ruler
+    for (let k = 0; k < nAfter; k++) {
+      if ((k+1) % 10 === 0) html += '<span class="msaBase" style="color:#333;">' + (k+1) + '</span>';
+      else html += '<span class="msaBase"> </span>';
     }
     html += '</div>';
 
-    // Align each monomer to consensus and project
+    // Consensus row
+    html += '<div class="msaRow"><span class="msaName" style="color:' + clsatColor + '; font-weight:bold;">' + dominantClsat + '</span>';
+    for (let k = 0; k < nBefore; k++) html += '<span class="msaBase" style="color:#1a1a2e;">\u00b7</span>';
+    if (nBefore > 0) html += sepSpan;
+    for (let k = 0; k < consLen; k++) html += '<span class="msaBase msaCons">' + consU[k] + '</span>';
+    if (nAfter > 0) html += sepSpan;
+    for (let k = 0; k < nAfter; k++) html += '<span class="msaBase" style="color:#1a1a2e;">\u00b7</span>';
+    html += '</div>';
+
+    // Align each monomer and build rows
     const projRows = [];
-    mons.forEach(mon => {
-      let monSeq = rawSeq.substring(mon.m.start, mon.m.end + 1);
-      if (mon.strand === '-') monSeq = revComp(monSeq);
-      const aln = pairwiseAlign(consensus, monSeq);
+    arr.hits.forEach((m, mi) => {
+      globalIdx++;
+      let monSeq = rawSeq.substring(m.start, m.end + 1);
+      if (strand === '-') monSeq = revComp(monSeq);
+
+      // Extend first/last monomers with flanks
+      let extLeft = '';
+      let extRight = '';
+      if (mi === 0 && nBefore > 0) extLeft = flankBefore;
+      if (mi === arr.hits.length - 1 && nAfter > 0) extRight = flankAfter;
+
+      const extSeq = extLeft + monSeq + extRight;
+      const aln = pairwiseAlign(consensus, extSeq);
+
+      // Project consensus-aligned bases
       const proj = [];
       for (let k = 0; k < aln.qAln.length; k++) {
         if (aln.qAln[k] !== '-') proj.push(aln.sAln[k]);
       }
       while (proj.length < consLen) proj.push('-');
-      const strandChar = mon.strand === '+' ? '+' : '-';
-      projRows.push({name: mon.label + '(' + strandChar + ')', bases: proj, identity: aln.identity});
+
+      // Get unaligned flank portions
+      const unalnLeft = extSeq.substring(0, aln.sStart);
+      const unalnRight = extSeq.substring(aln.sEnd);
+
+      const strandChar = strand === '+' ? '+' : '-';
+      const clsatLabel = m.clsat || dominantClsat;
+      projRows.push({
+        name: '#' + globalIdx + '(' + strandChar + ')',
+        bases: proj, identity: aln.identity,
+        unalnLeft, unalnRight,
+        isFirst: mi === 0, isLast: mi === arr.hits.length - 1,
+        clsat: clsatLabel,
+      });
     });
 
     // Monomer rows
     projRows.forEach(row => {
-      html += '<div class="msaRow"><span class="msaName">' + row.name + '</span>';
+      const clsatCol = CLSAT_COLORS[row.clsat] || '#888';
+      html += '<div class="msaRow"><span class="msaName" style="color:' + clsatCol + ';">' + row.name + '</span>';
+
+      // Left flank columns
+      if (row.isFirst && nBefore > 0) {
+        const padCount = nBefore - row.unalnLeft.length;
+        for (let k = 0; k < padCount; k++) html += '<span class="msaBase"> </span>';
+        for (let k = 0; k < row.unalnLeft.length; k++) {
+          html += baseSpan(row.unalnLeft[k], '', true);
+        }
+        html += sepSpan;
+      } else if (nBefore > 0) {
+        for (let k = 0; k < nBefore; k++) html += '<span class="msaBase"> </span>';
+        html += '<span class="msaBase"> </span>';
+      }
+
+      // Consensus-projected bases
       for (let k = 0; k < consLen; k++) {
         const b = row.bases[k] || '-';
-        const c = consU[k];
-        if (b === '-') {
-          html += '<span class="msaBase msaGap">-</span>';
-        } else if (b === c) {
-          html += '<span class="msaBase msaMatch">' + b + '</span>';
-        } else {
-          html += '<span class="msaBase msaMismatch" style="background:#2a0c0c; color:' + (ntCol[b]||'#888') + ';">' + b + '</span>';
-        }
+        html += baseSpan(b, consU[k], false);
       }
+
+      // Right flank columns
+      if (row.isLast && nAfter > 0) {
+        html += sepSpan;
+        for (let k = 0; k < row.unalnRight.length; k++) {
+          html += baseSpan(row.unalnRight[k], '', true);
+        }
+        const padCount = nAfter - row.unalnRight.length;
+        for (let k = 0; k < padCount; k++) html += '<span class="msaBase"> </span>';
+      } else if (nAfter > 0) {
+        html += '<span class="msaBase"> </span>';
+        for (let k = 0; k < nAfter; k++) html += '<span class="msaBase"> </span>';
+      }
+
       html += '<span class="msaIdent">' + (row.identity*100).toFixed(0) + '%</span>';
       html += '</div>';
     });
 
-    // Conservation row
+    // Conservation row (consensus region only)
     html += '<div class="msaRow"><span class="msaName" style="font-size:9px;">conserv.</span>';
+    if (nBefore > 0) { for (let k = 0; k <= nBefore; k++) html += '<span class="msaBase"> </span>'; }
     for (let k = 0; k < consLen; k++) {
       let mc = 0;
       for (const r of projRows) { if (r.bases[k] === consU[k]) mc++; }
@@ -852,134 +935,6 @@ function renderMonomerMSA(containerId, result, rawSeq) {
       else html += '<span class="msaBase" style="color:#333;"> </span>';
     }
     html += '</div>';
-
-    html += '</div>';
-  }
-
-  // === Per-array flank analysis (searsat16-style ±100bp) ===
-  const FLANK_SIZE = 100;
-  result.arrays.forEach((arr, ai) => {
-    const firstStart = arr.hits[0].start;
-    const lastEnd = arr.hits[arr.hits.length - 1].end;
-    const strand = arr.strand;
-
-    // Extract left and right flanks from rawSeq
-    const leftFlankStart = Math.max(0, firstStart - FLANK_SIZE);
-    const leftFlank = rawSeq.substring(leftFlankStart, firstStart);
-    const rightFlankEnd = Math.min(rawSeq.length, lastEnd + 1 + FLANK_SIZE);
-    const rightFlank = rawSeq.substring(lastEnd + 1, rightFlankEnd);
-
-    // Scan flanks against all consensuses to find partial/degraded monomers
-    function scanFlank(flankSeq, label) {
-      if (flankSeq.length < 10) return null;
-      let bestHit = null;
-      for (const [cn, cons] of Object.entries(CONSENSUS_SEQS)) {
-        // Try forward
-        const fwdAln = pairwiseAlign(cons, flankSeq);
-        if (fwdAln.alignLen >= 20 && (!bestHit || fwdAln.score > bestHit.score)) {
-          bestHit = { clsat: cn, score: fwdAln.score, identity: fwdAln.identity,
-                      alignLen: fwdAln.alignLen, matches: fwdAln.matches, strand: '+',
-                      qAln: fwdAln.qAln, sAln: fwdAln.sAln };
-        }
-        // Try reverse complement
-        const rcFlank = revComp(flankSeq);
-        const rcAln = pairwiseAlign(cons, rcFlank);
-        if (rcAln.alignLen >= 20 && (!bestHit || rcAln.score > bestHit.score)) {
-          bestHit = { clsat: cn, score: rcAln.score, identity: rcAln.identity,
-                      alignLen: rcAln.alignLen, matches: rcAln.matches, strand: '-',
-                      qAln: rcAln.qAln, sAln: rcAln.sAln };
-        }
-      }
-      return bestHit;
-    }
-
-    const leftHit = scanFlank(leftFlank, 'left');
-    const rightHit = scanFlank(rightFlank, 'right');
-
-    // Determine dominant CLsat of this array
-    const clsatCounts = {};
-    arr.hits.forEach(m => { const c = m.clsat || '?'; clsatCounts[c] = (clsatCounts[c]||0)+1; });
-    const dominantClsat = Object.entries(clsatCounts).sort((a,b) => b[1]-a[1])[0][0];
-    const arrColor = CLSAT_COLORS[dominantClsat] || '#a855f7';
-
-    html += '<div style="margin-top:10px; padding:6px 8px; border:1px solid #333; border-radius:4px; background:#0a0f1a;">';
-    html += '<div style="color:' + arrColor + '; font-weight:bold; font-size:10px; margin-bottom:4px;">';
-    html += 'Array ' + (ai+1) + ' flanks (' + strand + ' strand, ' + arr.hits.length + ' monomers, ' + dominantClsat + ')';
-    html += '</div>';
-
-    // Render a flank section
-    function renderFlankSeq(label, seq, hit, isRight) {
-      if (seq.length === 0) {
-        html += '<div style="color:#6b7280; font-size:9px; padding:2px 0;">' + label + ': (at locus boundary)</div>';
-        return;
-      }
-      const pctColor = hit ? (hit.identity >= 0.5 ? '#eab308' : '#6b7280') : '#6b7280';
-      const hitInfo = hit && hit.alignLen >= 20
-        ? ' — partial ' + hit.clsat + ' match: ' + (hit.identity*100).toFixed(0) + '% id over ' + hit.alignLen + 'bp (' + hit.strand + ')'
-        : ' — no satellite match';
-      html += '<div style="font-size:9px; padding:2px 0;">';
-      html += '<span style="color:#9ca3af; font-weight:bold;">' + label + '</span>';
-      html += '<span style="color:' + pctColor + ';">' + hitInfo + '</span>';
-      html += '</div>';
-      // Show raw nucleotide sequence with coloring
-      html += '<div style="font-family:ui-monospace,monospace; font-size:10px; word-break:break-all; padding:2px 4px; background:#0d1117; border-radius:3px; margin-bottom:4px;">';
-      for (let k = 0; k < seq.length; k++) {
-        const b = seq[k];
-        const col = ntCol[b] || '#888';
-        html += '<span style="color:' + col + ';">' + b + '</span>';
-      }
-      html += ' <span style="color:#555;">(' + seq.length + ' bp)</span>';
-      html += '</div>';
-
-      // If partial hit found, show the alignment detail
-      if (hit && hit.identity >= 0.3 && hit.alignLen >= 20) {
-        const clsatCol = CLSAT_COLORS[hit.clsat] || '#a855f7';
-        html += '<div style="font-size:9px; color:#6b7280; padding:1px 4px;">Alignment to ' +
-          '<span style="color:' + clsatCol + ';">' + hit.clsat + '</span> consensus (' + hit.strand + '):</div>';
-        html += '<div class="msaBlock" style="margin:2px 0 6px 0;">';
-        // Consensus row from alignment
-        html += '<div class="msaRow"><span class="msaName" style="color:' + clsatCol + '; font-size:8px;">' + hit.clsat + '</span>';
-        for (let k = 0; k < hit.qAln.length; k++) {
-          const b = hit.qAln[k];
-          html += '<span class="msaBase msaCons">' + b + '</span>';
-        }
-        html += '</div>';
-        // Flank row from alignment
-        html += '<div class="msaRow"><span class="msaName" style="font-size:8px;">' + label.replace(/ .*/, '') + '</span>';
-        for (let k = 0; k < hit.sAln.length; k++) {
-          const b = hit.sAln[k];
-          const c = hit.qAln[k];
-          if (b === '-') {
-            html += '<span class="msaBase msaGap">-</span>';
-          } else if (b === c) {
-            html += '<span class="msaBase msaMatch">' + b + '</span>';
-          } else {
-            html += '<span class="msaBase msaMismatch" style="background:#2a0c0c; color:' + (ntCol[b]||'#888') + ';">' + b + '</span>';
-          }
-        }
-        html += '<span class="msaIdent">' + (hit.identity*100).toFixed(0) + '%</span>';
-        html += '</div>';
-        html += '</div>';
-      }
-    }
-
-    renderFlankSeq('Left flank (' + leftFlank.length + ' bp)', leftFlank, leftHit, false);
-
-    // Brief topology summary
-    html += '<div style="font-size:9px; color:#555; padding:1px 4px;">';
-    html += '···[ ';
-    arr.hits.forEach((m, mi) => {
-      const c = CLSAT_COLORS[m.clsat] || '#888';
-      html += '<span style="color:' + c + ';">' + (m.clsat||'?') + '</span>';
-      if (mi < arr.hits.length - 1) {
-        const gap = arr.hits[mi+1].start - m.end - 1;
-        if (gap > 5) html += ' <span style="color:#444;">(' + gap + 'bp gap)</span> ';
-        else html += ' ';
-      }
-    });
-    html += ' ]···</div>';
-
-    renderFlankSeq('Right flank (' + rightFlank.length + ' bp)', rightFlank, rightHit, true);
 
     html += '</div>';
   });
