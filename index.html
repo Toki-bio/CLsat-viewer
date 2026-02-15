@@ -119,6 +119,15 @@
   .monomerMap-label{font-family: ui-monospace, monospace; font-size:9px; fill:#9ca3af;}
   .monomerMap-arrow{stroke-width:1; cursor:pointer; opacity:0.9;}
   .monomerMap-arrow:hover{opacity:1; filter:brightness(1.3);}
+  .msaBlock{overflow-x:auto; font-family:'Courier New',ui-monospace,monospace; font-size:10px; line-height:1.15; background:#070b12; padding:4px 6px; border-radius:6px; margin-bottom:6px; white-space:nowrap;}
+  .msaBlock .msaRow{white-space:nowrap; height:1.15em;}
+  .msaBlock .msaName{color:#9ca3af; display:inline-block; min-width:14ch; text-align:left;}
+  .msaBlock .msaBase{display:inline-block; width:1ch; text-align:center;}
+  .msaBlock .msaMatch{background:#0c2a0c; color:#34d399;}
+  .msaBlock .msaMismatch{font-weight:bold;}
+  .msaBlock .msaGap{color:#444;}
+  .msaBlock .msaCons{color:#9ca3af;}
+  .msaBlock .msaIdent{color:#666; font-size:9px; margin-left:4px;}
 </style>
 </head>
 
@@ -231,6 +240,7 @@
         </div>
         <div class="monomerList" id="monomerList"></div>
         <div id="monomerMap" style="margin:8px 0; overflow-x:auto;"></div>
+        <div id="monomerMSA" style="margin:8px 0;"></div>
         <div class="alignmentBox" id="alignmentBox"></div>
       </div>
       <div class="hint" id="detailHint">Bars show bitscore at each scan window position. Colors = CLsat consensus.</div>
@@ -385,6 +395,49 @@ function smithWaterman(query, subject, opts = {}) {
 function revComp(seq) {
   const comp = {A:'T', T:'A', G:'C', C:'G', N:'N', a:'t', t:'a', g:'c', c:'g', n:'n'};
   return seq.split('').reverse().map(c => comp[c] || c).join('');
+}
+
+/**
+ * Pairwise SW alignment of two short sequences with full traceback.
+ * Returns aligned strings for query and subject.
+ */
+function pairwiseAlign(query, subject) {
+  const match = 2, mismatch = -2, gapOpen = -13, gapExt = -3;
+  const qLen = query.length, sLen = subject.length;
+  const w = sLen + 1;
+  const qU = query.toUpperCase(), sU = subject.toUpperCase();
+  const H = new Float32Array((qLen+1)*(sLen+1));
+  const E = new Float32Array((qLen+1)*(sLen+1));
+  const F = new Float32Array((qLen+1)*(sLen+1));
+  const tr = new Uint8Array((qLen+1)*(sLen+1));
+  let maxVal=0, maxI=0, maxJ=0;
+  for (let i=1;i<=qLen;i++){
+    for (let j=1;j<=sLen;j++){
+      const idx=i*w+j;
+      const sc=(qU[i-1]===sU[j-1]&&qU[i-1]!=='N')?match:mismatch;
+      E[idx]=Math.max(H[i*w+(j-1)]+gapOpen+gapExt, E[i*w+(j-1)]+gapExt);
+      F[idx]=Math.max(H[(i-1)*w+j]+gapOpen+gapExt, F[(i-1)*w+j]+gapExt);
+      const diag=H[(i-1)*w+(j-1)]+sc;
+      const best=Math.max(0,diag,E[idx],F[idx]);
+      H[idx]=best;
+      if(best===0) tr[idx]=0;
+      else if(best===diag) tr[idx]=1;
+      else if(best===F[idx]) tr[idx]=2;
+      else tr[idx]=3;
+      if(best>maxVal){maxVal=best;maxI=i;maxJ=j;}
+    }
+  }
+  const qA=[],sA=[];
+  let ci=maxI,cj=maxJ,matches=0,alignLen=0;
+  while(ci>0&&cj>0&&H[ci*w+cj]>0){
+    const t=tr[ci*w+cj];
+    if(t===1){qA.push(qU[ci-1]);sA.push(sU[cj-1]);if(qU[ci-1]===sU[cj-1]&&qU[ci-1]!=='N')matches++;alignLen++;ci--;cj--;}
+    else if(t===2){qA.push(qU[ci-1]);sA.push('-');alignLen++;ci--;}
+    else if(t===3){qA.push('-');sA.push(sU[cj-1]);alignLen++;cj--;}
+    else break;
+  }
+  qA.reverse(); sA.reverse();
+  return {qAln:qA.join(''),sAln:sA.join(''),score:maxVal,identity:alignLen>0?matches/alignLen:0,matches,alignLen};
 }
 
 /** Merge overlapping hits (like bedtools merge -s -d -1: overlap required, adjacent stays separate) */
@@ -633,6 +686,154 @@ function drawMonomerMap(containerId, result, locusStart, locusEnd) {
       .style('fill', color).style('font-size', '8px').style('font-family', 'ui-monospace, monospace')
       .text('Array ' + (ai + 1) + ' (' + arr.hits.length + '×' + strand + ')');
   });
+}
+
+/**
+ * Render monomer alignment as MSA (inspired by MSA-viewer).
+ * Each monomer is pairwise-aligned to consensus, then projected
+ * onto consensus coordinates to create a stacked MSA view.
+ */
+function renderMonomerMSA(containerId, result, rawSeq) {
+  const container = document.getElementById(containerId);
+  if (!container || !result || !result.success || !result.arrays.length) {
+    if (container) container.innerHTML = '';
+    return;
+  }
+  const consensus = CONSENSUS_SEQS[result.consensus_name];
+  if (!consensus) return;
+  const consU = consensus.toUpperCase();
+  const ntCol = {A:'#27ae60',C:'#2980b9',G:'#d35400',T:'#c0392b'};
+  let html = '';
+
+  result.arrays.forEach((arr, ai) => {
+    html += '<div style="margin-top:8px; color:#a855f7; font-weight:bold; font-size:10px;">';
+    html += 'Array ' + (ai+1) + ' — ' + arr.hits.length + ' monomers (' + arr.strand + ' strand) — pairwise alignment to ' + result.consensus_name;
+    html += '</div>';
+    html += '<div class="msaBlock">';
+
+    // Scale ruler
+    html += '<div class="msaRow"><span class="msaName"></span>';
+    for (let k = 0; k < consU.length; k++) {
+      if ((k+1) % 10 === 0) html += '<span class="msaBase" style="color:#555;">' + ((k+1)%100===0? String(k+1) : String((k+1)%10)) + '</span>';
+      else if ((k+1) % 5 === 0) html += '<span class="msaBase" style="color:#333;">.</span>';
+      else html += '<span class="msaBase"> </span>';
+    }
+    html += '</div>';
+
+    // Consensus row
+    html += '<div class="msaRow"><span class="msaName" style="color:#a855f7; font-weight:bold;">Consensus</span>';
+    for (let k = 0; k < consU.length; k++) {
+      html += '<span class="msaBase msaCons">' + consU[k] + '</span>';
+    }
+    html += '</div>';
+
+    // Align each monomer and project to consensus coordinates
+    const projRows = [];
+    arr.hits.forEach((m, mi) => {
+      let monSeq = rawSeq.substring(m.start, m.end + 1);
+      if (arr.strand === '-') monSeq = revComp(monSeq);
+      const aln = pairwiseAlign(consensus, monSeq);
+      // Project: keep only consensus-position bases
+      const proj = [];
+      for (let k = 0; k < aln.qAln.length; k++) {
+        if (aln.qAln[k] !== '-') proj.push(aln.sAln[k]);
+      }
+      while (proj.length < consU.length) proj.push('-');
+      projRows.push({name: '#' + (mi+1), bases: proj, identity: aln.identity});
+    });
+
+    // Monomer rows
+    projRows.forEach(row => {
+      html += '<div class="msaRow"><span class="msaName">' + row.name + '</span>';
+      for (let k = 0; k < consU.length; k++) {
+        const b = row.bases[k] || '-';
+        const c = consU[k];
+        if (b === '-') {
+          html += '<span class="msaBase msaGap">-</span>';
+        } else if (b === c) {
+          html += '<span class="msaBase msaMatch">' + b + '</span>';
+        } else {
+          html += '<span class="msaBase msaMismatch" style="background:#2a0c0c; color:' + (ntCol[b]||'#888') + ';">' + b + '</span>';
+        }
+      }
+      html += '<span class="msaIdent">' + (row.identity*100).toFixed(0) + '%</span>';
+      html += '</div>';
+    });
+
+    // Conservation row
+    html += '<div class="msaRow"><span class="msaName" style="font-size:9px;">conserv.</span>';
+    for (let k = 0; k < consU.length; k++) {
+      let mc = 0;
+      for (const r of projRows) { if (r.bases[k] === consU[k]) mc++; }
+      const pct = projRows.length > 0 ? mc / projRows.length : 0;
+      if (pct >= 0.95) html += '<span class="msaBase" style="color:#34d399;">*</span>';
+      else if (pct >= 0.7) html += '<span class="msaBase" style="color:#eab308;">:</span>';
+      else if (pct >= 0.4) html += '<span class="msaBase" style="color:#ef4444;">.</span>';
+      else html += '<span class="msaBase" style="color:#333;"> </span>';
+    }
+    html += '</div>';
+
+    html += '</div>';
+  });
+
+  container.innerHTML = html;
+}
+
+/**
+ * Draw monomer strand overlay on the detail chart.
+ * Shows colored markers below the bars to indicate strand direction.
+ */
+function renderStrandTrack() {
+  if (!currentLocus || !currentLocus._monomerResult || !svgDetail) return;
+  const result = currentLocus._monomerResult;
+  if (!result.success || !result.arrays.length) return;
+
+  const {innerW, innerH, margin} = getDetailSize();
+  const trackH = 14;
+  const trackY = innerH - trackH - 2;
+
+  // Remove previous strand track
+  gMainDetail.selectAll('.strandTrack').remove();
+  const gStrand = gMainDetail.append('g').attr('class', 'strandTrack');
+
+  const plusColor = '#34d399', minusColor = '#f472b6';
+  const locusStart = currentLocus.start;
+
+  result.arrays.forEach(arr => {
+    const color = arr.strand === '+' ? plusColor : minusColor;
+    arr.hits.forEach(m => {
+      const gStart = m.start + locusStart;
+      const gEnd = m.end + locusStart;
+      const x1 = xScaleDetail(gStart);
+      const x2 = xScaleDetail(gEnd);
+      const w = Math.max(x2 - x1, 2);
+      if (x2 < 0 || x1 > innerW) return; // off-screen
+
+      gStrand.append('rect')
+        .attr('x', x1).attr('y', trackY)
+        .attr('width', w).attr('height', trackH)
+        .attr('fill', color).attr('opacity', 0.6)
+        .attr('rx', 2);
+
+      // Arrow indicator if wide enough
+      if (w > 8) {
+        const arrowX = arr.strand === '+' ? x1 + w - 4 : x1 + 2;
+        const arrowChar = arr.strand === '+' ? '\u25B6' : '\u25C0';
+        gStrand.append('text')
+          .attr('x', arrowX).attr('y', trackY + trackH - 3)
+          .attr('fill', '#fff').attr('font-size', '8px')
+          .attr('pointer-events', 'none')
+          .text(arrowChar);
+      }
+    });
+  });
+
+  // Legend
+  gStrand.append('text')
+    .attr('x', -4).attr('y', trackY + trackH - 3)
+    .attr('text-anchor', 'end').attr('fill', '#9ca3af')
+    .attr('font-size', '8px').attr('font-family', 'ui-monospace, monospace')
+    .text('strand');
 }
 
 function getBaseUrl() {
@@ -1247,6 +1448,9 @@ function renderDetail(){
   const start = Math.floor(xmin);
   const end = Math.ceil(xmax);
   bedCoord.textContent = `${currentLocus.scf}\t${start}\t${end}`;
+
+  // Render strand track if monomer analysis was done for this locus
+  renderStrandTrack();
 }
 
 /* ============================================================================
@@ -1528,6 +1732,7 @@ function bindUIOnce(){
         mStatusEl.textContent = "No monomers found";
         listEl.innerHTML = '<div style="color:#fb7185; padding:8px;">' + result.message + '</div>';
         document.getElementById('monomerMap').innerHTML = '';
+        document.getElementById('monomerMSA').innerHTML = '';
         setStatus("Monomer analysis: " + result.message);
         return;
       }
@@ -1561,6 +1766,16 @@ function bindUIOnce(){
 
       // Draw visual monomer direction map
       drawMonomerMap('monomerMap', result, start, end);
+
+      // Render MSA-style alignment (pairwise to consensus, stacked)
+      const rawSeq = sequence.replace(/^>.*\n/gm, '').replace(/\s/g, '').toUpperCase();
+      renderMonomerMSA('monomerMSA', result, rawSeq);
+
+      // Store result on locus for strand track overlay on detail chart
+      if (currentLocus) {
+        currentLocus._monomerResult = result;
+        renderStrandTrack();
+      }
 
       // Generate a simple text summary for copy
       const summaryLines = ['# Monomer analysis: ' + consensusName + ' in ' + scf + ':' + start + '-' + end];
