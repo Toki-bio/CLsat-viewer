@@ -116,6 +116,9 @@
   .monomerList{font-family: ui-monospace, monospace; font-size:10px; color:#d1d5db; max-height:150px; overflow-y:auto; margin-bottom:8px;}
   .monomerItem{padding:4px 6px; margin:2px 0; background:#070b12; border-left:3px solid #a855f7; border-radius:4px;}
   .alignmentBox{font-family: ui-monospace, monospace; font-size:9px; color:#d1d5db; white-space:pre; overflow-x:auto; max-height:300px; overflow-y:auto; background:#070b12; padding:8px; border-radius:6px; line-height:1.3;}
+  .monomerMap-label{font-family: ui-monospace, monospace; font-size:9px; fill:#9ca3af;}
+  .monomerMap-arrow{stroke-width:1; cursor:pointer; opacity:0.9;}
+  .monomerMap-arrow:hover{opacity:1; filter:brightness(1.3);}
 </style>
 </head>
 
@@ -227,6 +230,7 @@
           <button class="copyBtn" id="copyAlignmentBtn" style="display:none;">Copy Alignment</button>
         </div>
         <div class="monomerList" id="monomerList"></div>
+        <div id="monomerMap" style="margin:8px 0; overflow-x:auto;"></div>
         <div class="alignmentBox" id="alignmentBox"></div>
       </div>
       <div class="hint" id="detailHint">Bars show bitscore at each scan window position. Colors = CLsat consensus.</div>
@@ -517,6 +521,118 @@ function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
     monomers: allMonomers,
     arrays: allArrays,
   };
+}
+
+/**
+ * Draw a visual monomer map with directional arrows.
+ * @param {string} containerId - DOM id of the container div
+ * @param {object} result - analyzeMonomersSW result object
+ * @param {number} locusStart - genomic start coordinate
+ * @param {number} locusEnd - genomic end coordinate
+ */
+function drawMonomerMap(containerId, result, locusStart, locusEnd) {
+  const container = document.getElementById(containerId);
+  if (!container || !result || !result.success || !result.arrays.length) {
+    if (container) container.innerHTML = '';
+    return;
+  }
+
+  const margin = { left: 50, right: 20, top: 12, bottom: 24 };
+  const W = Math.max(container.clientWidth || 500, 400);
+  const trackH = 22;
+  const gap = 6;
+  // One track per array
+  const nTracks = result.arrays.length;
+  const H = margin.top + nTracks * (trackH + gap) + margin.bottom;
+  const innerW = W - margin.left - margin.right;
+
+  container.innerHTML = '';
+  const svg = d3.select('#' + containerId).append('svg')
+    .attr('width', W).attr('height', H)
+    .style('background', '#070b12').style('border-radius', '6px');
+
+  // X scale: genomic coordinates
+  const x = d3.scaleLinear()
+    .domain([locusStart, locusEnd])
+    .range([margin.left, margin.left + innerW]);
+
+  // Axis
+  const axisG = svg.append('g')
+    .attr('transform', 'translate(0,' + (H - margin.bottom) + ')');
+  const axis = d3.axisBottom(x).ticks(6).tickFormat(d => (d/1e6).toFixed(3) + 'M');
+  axisG.call(axis);
+  axisG.selectAll('text').style('fill', '#9ca3af').style('font-size', '9px');
+  axisG.selectAll('line, path').style('stroke', '#374151');
+
+  // Color + arrow function
+  const plusColor = '#34d399';
+  const minusColor = '#f472b6';
+
+  result.arrays.forEach((arr, ai) => {
+    const yTop = margin.top + ai * (trackH + gap);
+    const strand = arr.strand;
+    const color = strand === '+' ? plusColor : minusColor;
+
+    // Track label
+    svg.append('text')
+      .attr('x', margin.left - 6)
+      .attr('y', yTop + trackH / 2 + 3)
+      .attr('text-anchor', 'end')
+      .attr('class', 'monomerMap-label')
+      .text(strand === '+' ? '→+' : '←−');
+
+    // Draw each monomer as a directed arrow/rectangle
+    arr.hits.forEach((m, mi) => {
+      const gStart = m.start + locusStart;
+      const gEnd = m.end + locusStart;
+      const xStart = x(gStart);
+      const xEnd = x(gEnd);
+      const w = Math.max(xEnd - xStart, 2); // minimum 2px
+      const arrowTip = Math.min(6, w * 0.3);
+
+      // Build arrow polygon
+      let points;
+      if (strand === '+') {
+        // Right-pointing arrow
+        points = [
+          [xStart, yTop],
+          [xStart + w - arrowTip, yTop],
+          [xStart + w, yTop + trackH / 2],
+          [xStart + w - arrowTip, yTop + trackH],
+          [xStart, yTop + trackH]
+        ];
+      } else {
+        // Left-pointing arrow
+        points = [
+          [xStart + arrowTip, yTop],
+          [xStart + w, yTop],
+          [xStart + w, yTop + trackH],
+          [xStart + arrowTip, yTop + trackH],
+          [xStart, yTop + trackH / 2]
+        ];
+      }
+
+      const pctId = (m.identity * 100).toFixed(1);
+      svg.append('polygon')
+        .attr('points', points.map(p => p.join(',')).join(' '))
+        .attr('fill', color)
+        .attr('stroke', d3.color(color).darker(0.5))
+        .attr('class', 'monomerMap-arrow')
+        .append('title')
+        .text('#' + (mi + 1) + ': ' + gStart.toLocaleString() + '-' + gEnd.toLocaleString() +
+              ' (' + m.length + ' bp, ' + pctId + '% identity)');
+    });
+
+    // Array bracket label
+    const arrStart = arr.hits[0].start + locusStart;
+    const arrEnd = arr.hits[arr.hits.length - 1].end + locusStart;
+    svg.append('text')
+      .attr('x', x((arrStart + arrEnd) / 2))
+      .attr('y', yTop - 2)
+      .attr('text-anchor', 'middle')
+      .style('fill', color).style('font-size', '8px').style('font-family', 'ui-monospace, monospace')
+      .text('Array ' + (ai + 1) + ' (' + arr.hits.length + '×' + strand + ')');
+  });
 }
 
 function getBaseUrl() {
@@ -1411,6 +1527,7 @@ function bindUIOnce(){
       if (!result.success) {
         mStatusEl.textContent = "No monomers found";
         listEl.innerHTML = '<div style="color:#fb7185; padding:8px;">' + result.message + '</div>';
+        document.getElementById('monomerMap').innerHTML = '';
         setStatus("Monomer analysis: " + result.message);
         return;
       }
@@ -1441,6 +1558,9 @@ function bindUIOnce(){
         });
       });
       listEl.innerHTML = html;
+
+      // Draw visual monomer direction map
+      drawMonomerMap('monomerMap', result, start, end);
 
       // Generate a simple text summary for copy
       const summaryLines = ['# Monomer analysis: ' + consensusName + ' in ' + scf + ':' + start + '-' + end];
