@@ -856,6 +856,134 @@ function renderMonomerMSA(containerId, result, rawSeq) {
     html += '</div>';
   }
 
+  // === Per-array flank analysis (searsat16-style ±100bp) ===
+  const FLANK_SIZE = 100;
+  result.arrays.forEach((arr, ai) => {
+    const firstStart = arr.hits[0].start;
+    const lastEnd = arr.hits[arr.hits.length - 1].end;
+    const strand = arr.strand;
+
+    // Extract left and right flanks from rawSeq
+    const leftFlankStart = Math.max(0, firstStart - FLANK_SIZE);
+    const leftFlank = rawSeq.substring(leftFlankStart, firstStart);
+    const rightFlankEnd = Math.min(rawSeq.length, lastEnd + 1 + FLANK_SIZE);
+    const rightFlank = rawSeq.substring(lastEnd + 1, rightFlankEnd);
+
+    // Scan flanks against all consensuses to find partial/degraded monomers
+    function scanFlank(flankSeq, label) {
+      if (flankSeq.length < 10) return null;
+      let bestHit = null;
+      for (const [cn, cons] of Object.entries(CONSENSUS_SEQS)) {
+        // Try forward
+        const fwdAln = pairwiseAlign(cons, flankSeq);
+        if (fwdAln.alignLen >= 20 && (!bestHit || fwdAln.score > bestHit.score)) {
+          bestHit = { clsat: cn, score: fwdAln.score, identity: fwdAln.identity,
+                      alignLen: fwdAln.alignLen, matches: fwdAln.matches, strand: '+',
+                      qAln: fwdAln.qAln, sAln: fwdAln.sAln };
+        }
+        // Try reverse complement
+        const rcFlank = revComp(flankSeq);
+        const rcAln = pairwiseAlign(cons, rcFlank);
+        if (rcAln.alignLen >= 20 && (!bestHit || rcAln.score > bestHit.score)) {
+          bestHit = { clsat: cn, score: rcAln.score, identity: rcAln.identity,
+                      alignLen: rcAln.alignLen, matches: rcAln.matches, strand: '-',
+                      qAln: rcAln.qAln, sAln: rcAln.sAln };
+        }
+      }
+      return bestHit;
+    }
+
+    const leftHit = scanFlank(leftFlank, 'left');
+    const rightHit = scanFlank(rightFlank, 'right');
+
+    // Determine dominant CLsat of this array
+    const clsatCounts = {};
+    arr.hits.forEach(m => { const c = m.clsat || '?'; clsatCounts[c] = (clsatCounts[c]||0)+1; });
+    const dominantClsat = Object.entries(clsatCounts).sort((a,b) => b[1]-a[1])[0][0];
+    const arrColor = CLSAT_COLORS[dominantClsat] || '#a855f7';
+
+    html += '<div style="margin-top:10px; padding:6px 8px; border:1px solid #333; border-radius:4px; background:#0a0f1a;">';
+    html += '<div style="color:' + arrColor + '; font-weight:bold; font-size:10px; margin-bottom:4px;">';
+    html += 'Array ' + (ai+1) + ' flanks (' + strand + ' strand, ' + arr.hits.length + ' monomers, ' + dominantClsat + ')';
+    html += '</div>';
+
+    // Render a flank section
+    function renderFlankSeq(label, seq, hit, isRight) {
+      if (seq.length === 0) {
+        html += '<div style="color:#6b7280; font-size:9px; padding:2px 0;">' + label + ': (at locus boundary)</div>';
+        return;
+      }
+      const pctColor = hit ? (hit.identity >= 0.5 ? '#eab308' : '#6b7280') : '#6b7280';
+      const hitInfo = hit && hit.alignLen >= 20
+        ? ' — partial ' + hit.clsat + ' match: ' + (hit.identity*100).toFixed(0) + '% id over ' + hit.alignLen + 'bp (' + hit.strand + ')'
+        : ' — no satellite match';
+      html += '<div style="font-size:9px; padding:2px 0;">';
+      html += '<span style="color:#9ca3af; font-weight:bold;">' + label + '</span>';
+      html += '<span style="color:' + pctColor + ';">' + hitInfo + '</span>';
+      html += '</div>';
+      // Show raw nucleotide sequence with coloring
+      html += '<div style="font-family:ui-monospace,monospace; font-size:10px; word-break:break-all; padding:2px 4px; background:#0d1117; border-radius:3px; margin-bottom:4px;">';
+      for (let k = 0; k < seq.length; k++) {
+        const b = seq[k];
+        const col = ntCol[b] || '#888';
+        html += '<span style="color:' + col + ';">' + b + '</span>';
+      }
+      html += ' <span style="color:#555;">(' + seq.length + ' bp)</span>';
+      html += '</div>';
+
+      // If partial hit found, show the alignment detail
+      if (hit && hit.identity >= 0.3 && hit.alignLen >= 20) {
+        const clsatCol = CLSAT_COLORS[hit.clsat] || '#a855f7';
+        html += '<div style="font-size:9px; color:#6b7280; padding:1px 4px;">Alignment to ' +
+          '<span style="color:' + clsatCol + ';">' + hit.clsat + '</span> consensus (' + hit.strand + '):</div>';
+        html += '<div class="msaBlock" style="margin:2px 0 6px 0;">';
+        // Consensus row from alignment
+        html += '<div class="msaRow"><span class="msaName" style="color:' + clsatCol + '; font-size:8px;">' + hit.clsat + '</span>';
+        for (let k = 0; k < hit.qAln.length; k++) {
+          const b = hit.qAln[k];
+          html += '<span class="msaBase msaCons">' + b + '</span>';
+        }
+        html += '</div>';
+        // Flank row from alignment
+        html += '<div class="msaRow"><span class="msaName" style="font-size:8px;">' + label.replace(/ .*/, '') + '</span>';
+        for (let k = 0; k < hit.sAln.length; k++) {
+          const b = hit.sAln[k];
+          const c = hit.qAln[k];
+          if (b === '-') {
+            html += '<span class="msaBase msaGap">-</span>';
+          } else if (b === c) {
+            html += '<span class="msaBase msaMatch">' + b + '</span>';
+          } else {
+            html += '<span class="msaBase msaMismatch" style="background:#2a0c0c; color:' + (ntCol[b]||'#888') + ';">' + b + '</span>';
+          }
+        }
+        html += '<span class="msaIdent">' + (hit.identity*100).toFixed(0) + '%</span>';
+        html += '</div>';
+        html += '</div>';
+      }
+    }
+
+    renderFlankSeq('Left flank (' + leftFlank.length + ' bp)', leftFlank, leftHit, false);
+
+    // Brief topology summary
+    html += '<div style="font-size:9px; color:#555; padding:1px 4px;">';
+    html += '···[ ';
+    arr.hits.forEach((m, mi) => {
+      const c = CLSAT_COLORS[m.clsat] || '#888';
+      html += '<span style="color:' + c + ';">' + (m.clsat||'?') + '</span>';
+      if (mi < arr.hits.length - 1) {
+        const gap = arr.hits[mi+1].start - m.end - 1;
+        if (gap > 5) html += ' <span style="color:#444;">(' + gap + 'bp gap)</span> ';
+        else html += ' ';
+      }
+    });
+    html += ' ]···</div>';
+
+    renderFlankSeq('Right flank (' + rightFlank.length + ' bp)', rightFlank, rightHit, true);
+
+    html += '</div>';
+  });
+
   container.innerHTML = html;
 }
 
