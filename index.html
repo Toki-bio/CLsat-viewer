@@ -117,7 +117,7 @@
   .monomerItem{padding:4px 6px; margin:2px 0; background:#070b12; border-left:3px solid #a855f7; border-radius:4px;}
   .alignmentBox{font-family: ui-monospace, monospace; font-size:9px; color:#d1d5db; white-space:pre; overflow-x:auto; max-height:300px; overflow-y:auto; background:#070b12; padding:8px; border-radius:6px; line-height:1.3;}
   .monomerMap-label{font-family: ui-monospace, monospace; font-size:9px; fill:#9ca3af;}
-  .monomerMap-arrow{stroke-width:1; cursor:pointer; opacity:0.9; transition: opacity 0.15s, filter 0.15s;}
+  .monomerMap-arrow{stroke-width:1; cursor:pointer; opacity:0.9;}
   .monomerMap-arrow:hover, .monomerMap-arrow.hl{opacity:1; filter:brightness(1.4) drop-shadow(0 0 3px rgba(255,255,255,0.4));}
   .monomerMap-arrow.dim{opacity:0.3;}
   .msaBlock{overflow-x:auto; font-family:'Courier New',ui-monospace,monospace; font-size:10px; line-height:1.15; background:#070b12; padding:4px 6px; border-radius:6px; margin-bottom:6px; white-space:nowrap;}
@@ -1012,7 +1012,13 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
               partProj[bAln.qStart - fill + k] = preBases[preBases.length - fill + k];
             }
           }
-          const trueFlank = boundarySeq.substring(bAln.sEnd);
+          let trueFlank = boundarySeq.substring(bAln.sEnd);
+          // Fill trailing consensus gaps with post-alignment bases
+          if (trueFlank.length > 0 && bAln.qEnd < consLen) {
+            const fill = Math.min(trueFlank.length, consLen - bAln.qEnd);
+            for (let k = 0; k < fill; k++) partProj[bAln.qEnd + k] = trueFlank[k];
+            trueFlank = trueFlank.substring(fill);
+          }
           projRows.push({
             name: '#' + globalIdx + ' partial(' + lastRow.clsat[lastRow.clsat.length-1] + ')',
             hoverTitle: 'Partial repeat at boundary',
@@ -1055,7 +1061,13 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
               partProj[bAln.qEnd + k] = postBases[k];
             }
           }
-          const trueFlank = boundarySeq.substring(0, bAln.sStart);
+          let trueFlank = boundarySeq.substring(0, bAln.sStart);
+          // Fill leading consensus gaps with pre-alignment bases
+          if (trueFlank.length > 0 && bAln.qStart > 0) {
+            const fill = Math.min(trueFlank.length, bAln.qStart);
+            for (let k = 0; k < fill; k++) partProj[bAln.qStart - fill + k] = trueFlank[trueFlank.length - fill + k];
+            trueFlank = trueFlank.substring(0, trueFlank.length - fill);
+          }
           projRows.unshift({
             name: '#0 partial(' + firstRow.clsat[firstRow.clsat.length-1] + ')',
             hoverTitle: 'Partial repeat at boundary',
@@ -1078,6 +1090,31 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
     // The nBefore/nAfter column widths remain constant (matching scale ruler).
     // Partial detection may change isFirst/isLast but column sizes stay.
 
+    // --- Absorb very short flanks (<10bp) into the boundary row projection ---
+    // These are usually scaffold-edge remnants of CLsat, not real flanks.
+    const firstRowFinal = projRows.find(r => r.isFirst);
+    if (firstRowFinal && firstRowFinal.flankLeftStr.length > 0 && firstRowFinal.flankLeftStr.length < 10) {
+      let leadGaps = 0;
+      for (let k = 0; k < consLen; k++) { if (firstRowFinal.bases[k] === '-') leadGaps++; else break; }
+      if (leadGaps > 0) {
+        const fl = firstRowFinal.flankLeftStr;
+        const fill = Math.min(fl.length, leadGaps);
+        for (let k = 0; k < fill; k++) firstRowFinal.bases[leadGaps - fill + k] = fl[fl.length - fill + k];
+        firstRowFinal.flankLeftStr = fl.substring(0, fl.length - fill);
+      }
+    }
+    const lastRowFinal = projRows.find(r => r.isLast);
+    if (lastRowFinal && lastRowFinal.flankRightStr.length > 0 && lastRowFinal.flankRightStr.length < 10) {
+      let trailGaps = 0;
+      for (let k = consLen - 1; k >= 0; k--) { if (lastRowFinal.bases[k] === '-') trailGaps++; else break; }
+      if (trailGaps > 0) {
+        const fl = lastRowFinal.flankRightStr;
+        const fill = Math.min(fl.length, trailGaps);
+        for (let k = 0; k < fill; k++) lastRowFinal.bases[consLen - trailGaps + k] = fl[k];
+        lastRowFinal.flankRightStr = fl.substring(fill);
+      }
+    }
+
     // --- Build FASTA data for copy ---
     fastaLines.push('>consensus_' + dominantClsat);
     fastaLines.push(consU);
@@ -1091,25 +1128,64 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
     projRows.forEach((row, ri) => {
       // Insert spacer row if there's a gap between this and previous monomer
       if (row.spacerLen > 0) {
-        html += '<div class="msaRow"><span class="msaName" style="color:#666;">\u2502 ' + row.spacerLen + 'bp spacer</span>';
-        if (nBefore > 0) { for (let k = 0; k <= nBefore; k++) html += '<span class="msaBase"> </span>'; }
-        let displaySpacer = row.spacerSeq.toUpperCase();
-        if (row.spacerLen > 100) {
-          const left50 = displaySpacer.substring(0, 50);
-          const right50 = displaySpacer.substring(displaySpacer.length - 50);
-          const gapLabel = '(' + (row.spacerLen - 100) + 'bp)';
-          for (let k = 0; k < 50; k++) html += baseSpan(left50[k], '', 'spacer', 'spacer pos ' + (k+1));
-          html += '<span class="msaBase" style="color:#f59e0b; font-weight:bold;">\u2502</span>';
-          const gapChars = gapLabel.split('');
-          for (let k = 0; k < gapChars.length; k++) html += '<span class="msaBase" style="color:#666;">' + gapChars[k] + '</span>';
-          html += '<span class="msaBase" style="color:#f59e0b; font-weight:bold;">\u2502</span>';
-          for (let k = 0; k < 50; k++) html += baseSpan(right50[k], '', 'spacer', 'spacer pos ' + (row.spacerLen - 50 + k + 1));
-        } else {
-          for (let k = 0; k < displaySpacer.length; k++) {
-            html += baseSpan(displaySpacer[k], '', 'spacer', 'spacer pos ' + (k+1));
+        // Check if the spacer is actually a degraded CLsat monomer
+        const spU = row.spacerSeq.toUpperCase();
+        const spAln = pairwiseAlign(consensus, spU);
+        if (spAln.identity > 0.4 && spAln.alignLen > 30) {
+          // Render as degraded monomer projected onto consensus columns
+          const degProj = new Array(consLen).fill('-');
+          let dpq = spAln.qStart;
+          for (let k = 0; k < spAln.qAln.length; k++) {
+            if (spAln.qAln[k] !== '-') {
+              if (dpq < consLen) degProj[dpq] = spAln.sAln[k];
+              dpq++;
+            }
           }
+          // Fill-up leading gaps
+          if (spAln.sStart > 0 && spAln.qStart > 0) {
+            const ov = spU.substring(0, spAln.sStart);
+            const fill = Math.min(ov.length, spAln.qStart);
+            for (let k = 0; k < fill; k++) degProj[spAln.qStart - fill + k] = ov[ov.length - fill + k];
+          }
+          // Fill-up trailing gaps
+          if (spAln.sEnd < spU.length && spAln.qEnd < consLen) {
+            const ov = spU.substring(spAln.sEnd);
+            const fill = Math.min(ov.length, consLen - spAln.qEnd);
+            for (let k = 0; k < fill; k++) degProj[spAln.qEnd + k] = ov[k];
+          }
+          html += '<div class="msaRow"><span class="msaName" style="color:#666;">\u2020 ' + row.spacerLen + 'bp degraded</span>';
+          if (nBefore > 0) { for (let k = 0; k <= nBefore; k++) html += '<span class="msaBase"> </span>'; }
+          let gfp = 0;
+          for (let k = 0; k < consLen; k++) {
+            const b = degProj[k];
+            let tip = '';
+            if (b !== '-') { gfp++; tip = 'pos ' + gfp; }
+            html += baseSpan(b, consU[k], null, tip);
+          }
+          html += '<span class="msaIdent" style="color:#666;">' + (spAln.identity*100).toFixed(0) + '%</span>';
+          html += '</div>';
+        } else {
+          // Regular spacer display (non-CLsat content)
+          html += '<div class="msaRow"><span class="msaName" style="color:#666;">\u2502 ' + row.spacerLen + 'bp spacer</span>';
+          if (nBefore > 0) { for (let k = 0; k <= nBefore; k++) html += '<span class="msaBase"> </span>'; }
+          let displaySpacer = row.spacerSeq.toUpperCase();
+          if (row.spacerLen > 100) {
+            const left50 = displaySpacer.substring(0, 50);
+            const right50 = displaySpacer.substring(displaySpacer.length - 50);
+            const gapLabel = '(' + (row.spacerLen - 100) + 'bp)';
+            for (let k = 0; k < 50; k++) html += baseSpan(left50[k], '', 'spacer', 'spacer pos ' + (k+1));
+            html += '<span class="msaBase" style="color:#f59e0b; font-weight:bold;">\u2502</span>';
+            const gapChars = gapLabel.split('');
+            for (let k = 0; k < gapChars.length; k++) html += '<span class="msaBase" style="color:#666;">' + gapChars[k] + '</span>';
+            html += '<span class="msaBase" style="color:#f59e0b; font-weight:bold;">\u2502</span>';
+            for (let k = 0; k < 50; k++) html += baseSpan(right50[k], '', 'spacer', 'spacer pos ' + (row.spacerLen - 50 + k + 1));
+          } else {
+            for (let k = 0; k < displaySpacer.length; k++) {
+              html += baseSpan(displaySpacer[k], '', 'spacer', 'spacer pos ' + (k+1));
+            }
+          }
+          html += '</div>';
         }
-        html += '</div>';
       }
 
       const clsatCol = CLSAT_COLORS[row.clsat] || '#888';
@@ -1210,7 +1286,7 @@ function highlightMonomer(monId, on) {
     _hlTimer = setTimeout(() => {
       document.querySelectorAll('.monomerMap-arrow.hl,.monomerMap-arrow.dim').forEach(el => el.classList.remove('hl','dim'));
       document.querySelectorAll('.msaRow.hl,.msaRow.dim').forEach(el => el.classList.remove('hl','dim'));
-    }, 80);
+    }, 200);
     return;
   }
   // Arrow map
