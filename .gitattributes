@@ -1,0 +1,3 @@
+# TSV files are large (27-34 MB each) but under GitHub's 100 MB limit
+# No LFS needed — GitHub Pages doesn't serve LFS files
+*.tsv text=auto

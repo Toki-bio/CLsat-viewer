@@ -1,0 +1,1603 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>CLsat Locus Detail Viewer – Per-window Bitscores</title>
+
+<!-- D3.js - load from CDN -->
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+
+<style>
+  :root{
+    --bg:#0b0e14;
+    --panel:#111827;
+    --panel2:#0f172a;
+    --text:#e5e7eb;
+    --muted:#9ca3af;
+    --grid:#1f2937;
+    --okFill: rgba(34,197,94,0.35);
+    --compFill: rgba(245,158,11,0.40);
+    --contraFill: rgba(239,68,68,0.45);
+    --conflictFill: rgba(168,85,247,0.40);
+    --strokeContra:#ef4444;
+    --strokeComp:#f59e0b;
+    --strokeOk:#22c55e;
+  }
+  html,body{height:100%; margin:0; background:var(--bg); color:var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;}
+  .wrap{display:grid; grid-template-columns: 340px 1fr; gap:12px; height:100%; padding:12px; box-sizing:border-box;}
+  .sidebar{
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid #1f2937;
+    border-radius:14px;
+    padding:12px;
+    overflow:auto;
+  }
+  .main{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    min-width:0;
+  }
+  .chartPanel{
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid #1f2937;
+    border-radius:14px;
+    padding:12px;
+    display:flex;
+    flex-direction:column;
+  }
+  .topChart{flex:0 0 auto; height:200px;}
+  .detailChart{flex:1; min-height:300px;}
+  h1{font-size:16px; margin:0 0 8px 0;}
+  h2{font-size:13px; margin:14px 0 8px 0; color:var(--muted); font-weight:600; letter-spacing:.02em;}
+  .row{display:flex; gap:8px; align-items:center; margin:6px 0;}
+  label{font-size:12px; color:var(--muted); width:100px;}
+  select,input,button{
+    background:#0b1220;
+    color:var(--text);
+    border:1px solid #243044;
+    border-radius:10px;
+    padding:8px 10px;
+    font-size:12px;
+    outline:none;
+  }
+  select,input{flex:1;}
+  button{cursor:pointer; border-color:#2b3a55; white-space:nowrap;}
+  button:hover{border-color:#3b82f6;}
+  .pill{display:inline-block; font-size:11px; padding:4px 8px; border:1px solid #243044; border-radius:999px; color:var(--muted);}
+  .status{
+    white-space:pre-wrap;
+    background:#0b1220;
+    border:1px solid #243044;
+    border-radius:12px;
+    padding:10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size:11px;
+    color:#d1d5db;
+    line-height:1.35;
+    margin-top:10px;
+    max-height:180px;
+    overflow:auto;
+  }
+  .small{font-size:11px; color:var(--muted); line-height:1.35;}
+  .legend{display:flex; flex-wrap:wrap; gap:10px; margin-top:8px;}
+  .legendItem{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted);}
+  .swatch{width:14px; height:14px; border-radius:4px; border:1px solid #243044;}
+  .chartTop{display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:6px;}
+  .chartInfo{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+  .kpi{font-size:11px; color:var(--muted);}
+  .kpi b{color:var(--text); font-weight:600;}
+  .hint{font-size:10px; color:var(--muted); margin-top:4px;}
+  .ok{color:#34d399;}
+  .err{color:#fb7185;}
+  .chartBox{border:1px solid #243044; border-radius:14px; overflow:hidden; background:#070b12; flex:1; min-height:0;}
+  .panelTitle{font-size:13px; font-weight:600; margin-bottom:6px; display:flex; align-items:center; gap:8px;}
+  .bedBox{background:#0b1220; border:1px solid #243044; border-radius:10px; padding:10px; margin-top:6px; display:flex; align-items:center; gap:8px;}
+  .bedCoord{font-family: ui-monospace, monospace; font-size:12px; color:#60a5fa; flex:1; user-select:all;}
+  .copyBtn{padding:6px 12px; font-size:11px; cursor:pointer; background:#1e3a5f; border:1px solid #2563eb; border-radius:6px; color:#60a5fa;}
+  .copyBtn:hover{background:#2563eb; color:#fff;}
+  .copyBtn:active{transform:scale(0.95);}
+  .fastaBtn{padding:6px 12px; font-size:11px; cursor:pointer; background:#1e4d3f; border:1px solid #10b981; border-radius:6px; color:#34d399;}
+  .fastaBtn:hover{background:#10b981; color:#fff;}
+  .fastaBtn:active{transform:scale(0.95);}
+  .fastaBtn:disabled{opacity:0.5; cursor:not-allowed;}
+  .fastaResult{background:#0b1220; border:1px solid #243044; border-radius:10px; padding:10px; margin-top:6px; display:none;}
+  .fastaResult.show{display:block;}
+  .fastaHeader{font-size:11px; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;}
+  .fastaSeq{font-family: ui-monospace, monospace; font-size:11px; color:#d1d5db; white-space:pre-wrap; word-break:break-all; max-height:200px; overflow-y:auto; user-select:all;}
+  .monomerBtn{padding:6px 12px; font-size:11px; cursor:pointer; background:#4d1e3f; border:1px solid #a855f7; border-radius:6px; color:#c084fc;}
+  .monomerBtn:hover{background:#a855f7; color:#fff;}
+  .monomerBtn:active{transform:scale(0.95);}
+  .monomerBtn:disabled{opacity:0.5; cursor:not-allowed;}
+  .monomerResult{background:#0b1220; border:1px solid #243044; border-radius:10px; padding:10px; margin-top:6px; display:none;}
+  .monomerResult.show{display:block;}
+  .monomerHeader{font-size:11px; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;}
+  .monomerList{font-family: ui-monospace, monospace; font-size:10px; color:#d1d5db; max-height:150px; overflow-y:auto; margin-bottom:8px;}
+  .monomerItem{padding:4px 6px; margin:2px 0; background:#070b12; border-left:3px solid #a855f7; border-radius:4px;}
+  .alignmentBox{font-family: ui-monospace, monospace; font-size:9px; color:#d1d5db; white-space:pre; overflow-x:auto; max-height:300px; overflow-y:auto; background:#070b12; padding:8px; border-radius:6px; line-height:1.3;}
+</style>
+</head>
+
+<body>
+<div class="wrap">
+  <div class="sidebar">
+    <h1>CLsat Locus Detail Viewer</h1>
+    <div class="small">
+      Click a locus in the scaffold overview to see per-window bitscores below.
+    </div>
+
+    <h2>Navigation</h2>
+    <div class="row">
+      <label>Species</label>
+      <select id="speciesSel"></select>
+    </div>
+    <div class="row">
+      <label>Scaffold</label>
+      <select id="scaffoldSel"></select>
+    </div>
+    <div class="row">
+      <label>Jump</label>
+      <select id="jumpSel"></select>
+    </div>
+    <div class="row">
+      <label>Find locus</label>
+      <input id="findInput" placeholder="e.g. L144" />
+    </div>
+    <div class="row">
+      <label></label>
+      <button id="findBtn">Go</button>
+      <button id="resetBtn">Reset zoom</button>
+    </div>
+
+    <h2>Filters</h2>
+    <div class="row">
+      <label>Show</label>
+      <select id="flagFilter">
+        <option value="ALL">ALL</option>
+        <option value="SEED_ONLY">SEED_ONLY</option>
+        <option value="SEED_WITH_COMPETITOR">SEED_WITH_COMPETITOR</option>
+        <option value="SEED_CONTRADICTION">SEED_CONTRADICTION</option>
+      </select>
+    </div>
+
+    <h2>Monomer Analysis</h2>
+    <div class="row">
+      <label>Min Identity</label>
+      <select id="minIdentity">
+        <option value="0.95">95%</option>
+        <option value="0.85">85%</option>
+        <option value="0.75" selected>75%</option>
+        <option value="0.65">65%</option>
+        <option value="0.55">55%</option>
+      </select>
+    </div>
+
+    <h2>CLsat colors</h2>
+    <div class="legend">
+      <div class="legendItem"><span class="swatch" style="background:rgba(96,165,250,0.9)"></span> CLsat1</div>
+      <div class="legendItem"><span class="swatch" style="background:rgba(52,211,153,0.9)"></span> CLsat2</div>
+      <div class="legendItem"><span class="swatch" style="background:rgba(244,114,182,0.9)"></span> CLsat3</div>
+      <div class="legendItem"><span class="swatch" style="background:rgba(251,191,36,0.9)"></span> CLsat4</div>
+    </div>
+
+    <div id="status" class="status">Loading…</div>
+    <div class="hint">Wheel to zoom, drag to pan. Click locus to see per-window detail.</div>
+  </div>
+
+  <div class="main">
+    <div class="chartPanel topChart">
+      <div class="chartTop">
+        <div class="panelTitle">Scaffold Overview <span class="pill" id="fileOk"></span></div>
+        <div class="chartInfo">
+          <div class="kpi">Loci: <b id="kpiLoci">0</b></div>
+          <div class="kpi">Visible: <b id="kpiVis">0</b></div>
+        </div>
+      </div>
+      <div class="chartBox" id="chartOverview"></div>
+    </div>
+
+    <div class="chartPanel detailChart">
+      <div class="chartTop">
+        <div class="panelTitle">Per-window Bitscores: <span id="detailTitle" style="color:#60a5fa;">Click a locus above</span></div>
+        <div class="chartInfo">
+          <div class="kpi">Windows: <b id="kpiWindows">0</b></div>
+          <div class="kpi">Max bits: <b id="kpiMaxBits">0</b></div>
+        </div>
+      </div>
+      <div class="chartBox" id="chartDetail"></div>
+      <div class="bedBox">
+        <div class="bedCoord" id="bedCoord">Scaffold coordinates in BED format will appear here</div>
+        <button class="copyBtn" id="copyBedBtn">Copy BED</button>
+        <button class="fastaBtn" id="fastaBtn">Get FASTA</button>
+        <button class="monomerBtn" id="monomerBtn">Analyze Monomers</button>
+        <button class="copyBtn" id="serverToggleBtn" style="margin-left:8px;">Start Server</button>
+        <span id="serverStatus" style="font-size:10px; color:#9ca3af; margin-left:8px;"></span>
+      </div>
+      <div class="fastaResult" id="fastaResult">
+        <div class="fastaHeader">
+          <span id="fastaStatus">Fetching from NCBI...</span>
+          <button class="copyBtn" id="copyFastaBtn" style="display:none;">Copy FASTA</button>
+        </div>
+        <div class="fastaSeq" id="fastaSeq"></div>
+      </div>
+      <div class="monomerResult" id="monomerResult">
+        <div class="monomerHeader">
+          <span id="monomerStatus">Analyzing monomers...</span>
+          <button class="copyBtn" id="copyAlignmentBtn" style="display:none;">Copy Alignment</button>
+        </div>
+        <div class="monomerList" id="monomerList"></div>
+        <div class="alignmentBox" id="alignmentBox"></div>
+      </div>
+      <div class="hint" id="detailHint">Bars show bitscore at each scan window position. Colors = CLsat consensus.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================================
+   FILES (relative to this HTML file)
+============================================================================ */
+const FILE_MASTER_MERGED = "MASTER.merged.bed";
+const FILE_ASSIGN        = "MASTER.final_assignment.clean.tsv";
+const FILE_BITS_MATRIX   = "MASTER.locus_bits.tsv";
+
+// Per-window bitscore files (one per CLsat)
+const FILE_BITS_CLSAT = {
+  CLsat1: "MASTER_CLsat1.bits.tsv",
+  CLsat2: "MASTER_CLsat2.bits.tsv",
+  CLsat3: "MASTER_CLsat3.bits.tsv",
+  CLsat4: "MASTER_CLsat4.bits.tsv",
+};
+
+/* ============================================================================
+   CONSENSUS SEQUENCES (embedded so no server is needed)
+============================================================================ */
+const CONSENSUS_SEQS = {
+  CLsat1: "AAAGAAGCTAGTTNGGATGTATTTGGCTTTTCTAACGTTCAGTTTGGCTTACTTGCGTGATTTTGCATTAACAGCTCAAATACAGCTAACTTTGGAAATGAACACGATGGAAACTTGTTGGTGTGTTTTCTATGCATTTCGACCTG",
+  CLsat2: "AAAGAAGCTCATTGGGATGTAGTTGTGTTTCTAAGCTTCATTTTAGCTTATTTGCGTGATTTCGCTTTTAAGGCTCAAATACAGCTATCTTTTGAAAGCAACACGTTAGAAACTTCTTGGTGTGTTTTTCATGCATTTGGACCCA",
+  CLsat3: "AAAGAAGCTCGTTCGGATGTCTTTCTGTTTTCTAAGCTTCATTTGAGCTTCTTTGCGTCAATTTGCACTCCAGACTCAAAAACGGCTCTCTTTTGAAAGGAACACCAAAGAAGCTTGTTCGTGTGTTTCCCATGCATTTCCAGCCC",
+  CLsat4: "AAAGAAGCTCGTTTGGATGTATTTGCGTGACTTTGCATTCACAACTCAAAAACACATATCTTTTGAAATGAAGGTGATGGAAGCTTGTTCGTGTGTTTTCTATGCATTTCGAGCCT",
+};
+
+/* ============================================================================
+   CLIENT-SIDE SMITH-WATERMAN MONOMER FINDER (replaces monomer_server.py)
+   Mimics the searsat16 pipeline:
+     1. Smith-Waterman local alignment of consensus vs locus
+     2. Merge overlapping hits (like bedtools merge -s -d -1)
+     3. Filter by min homology% and min length (Slf * consensus length)
+     4. Split into arrays at >100bp gaps
+     5. Require >=4 monomers per array
+============================================================================ */
+
+/** Smith-Waterman local alignment with affine-gap scoring.
+ *  Scoring matches searsat16: match=+2, mismatch=-2, gap_open=-3, gap_extend=-1
+ *  Returns all non-overlapping hits above a score threshold.
+ */
+function smithWaterman(query, subject, opts = {}) {
+  // Scoring mirrors ssearch36 -r +2/-2 -g -3 (FASTA36 defaults: -f -16 gap open, -g -3 gap extend)
+  // In affine model first gap residue costs gapOpen+gapExt, matching ssearch36's -f = -16
+  const match    = opts.match    ??  2;
+  const mismatch = opts.mismatch ?? -2;
+  const gapOpen  = opts.gapOpen  ?? -13;  // -13 + (-3) = -16 = ssearch36 default DNA gap open
+  const gapExt   = opts.gapExt   ??  -3;  // ssearch36 -g -3
+  const qLen = query.length;
+  const sLen = subject.length;
+
+  // Affine gap: H = substitution matrix, E = gap in subject, F = gap in query
+  const H = new Float32Array((qLen + 1) * (sLen + 1));
+  const E = new Float32Array((qLen + 1) * (sLen + 1));
+  const F = new Float32Array((qLen + 1) * (sLen + 1));
+  const traceH = new Uint8Array((qLen + 1) * (sLen + 1)); // 0=stop,1=diag,2=up(F),3=left(E)
+
+  const w = sLen + 1;
+  const qU = query.toUpperCase();
+  const sU = subject.toUpperCase();
+
+  // Collect all cells above threshold for multi-hit extraction
+  let allMax = 0;
+
+  for (let i = 1; i <= qLen; i++) {
+    for (let j = 1; j <= sLen; j++) {
+      const idx = i * w + j;
+      const sc = (qU[i-1] === sU[j-1] && qU[i-1] !== 'N') ? match : mismatch;
+      E[idx] = Math.max(H[(i) * w + (j-1)] + gapOpen + gapExt, E[(i) * w + (j-1)] + gapExt);
+      F[idx] = Math.max(H[(i-1) * w + (j)] + gapOpen + gapExt, F[(i-1) * w + (j)] + gapExt);
+      const diag = H[(i-1) * w + (j-1)] + sc;
+      const best = Math.max(0, diag, E[idx], F[idx]);
+      H[idx] = best;
+      if (best === 0) traceH[idx] = 0;
+      else if (best === diag) traceH[idx] = 1;
+      else if (best === F[idx]) traceH[idx] = 2;
+      else traceH[idx] = 3;
+      if (best > allMax) allMax = best;
+    }
+  }
+
+  // Threshold: require score >= 35% of perfect single-monomer match
+  const threshold = Math.max(qLen * match * 0.35, 20);
+
+  // Extract multiple non-overlapping hits by repeated traceback
+  const used = new Uint8Array((qLen + 1) * (sLen + 1));
+  const hits = [];
+
+  for (let pass = 0; pass < 5000; pass++) {
+    // Find max cell not yet used
+    let maxVal = 0, maxI = 0, maxJ = 0;
+    for (let i = 1; i <= qLen; i++) {
+      for (let j = 1; j <= sLen; j++) {
+        const idx = i * w + j;
+        if (!used[idx] && H[idx] > maxVal) {
+          maxVal = H[idx]; maxI = i; maxJ = j;
+        }
+      }
+    }
+    if (maxVal < threshold) break;
+
+    // Traceback
+    let i = maxI, j = maxJ;
+    let alignLen = 0, matches = 0;
+    const endJ = j; // subject end (1-based)
+    while (i > 0 && j > 0 && H[i * w + j] > 0) {
+      const idx = i * w + j;
+      used[idx] = 1;
+      const t = traceH[idx];
+      if (t === 1) { // diagonal
+        if (qU[i-1] === sU[j-1] && qU[i-1] !== 'N') matches++;
+        alignLen++;
+        i--; j--;
+      } else if (t === 2) { // up (gap in subject)
+        alignLen++;
+        i--;
+      } else if (t === 3) { // left (gap in query)
+        alignLen++;
+        j--;
+      } else break;
+    }
+    const startJ = j; // subject start (0-based)
+    const identity = alignLen > 0 ? matches / alignLen : 0;
+    hits.push({
+      start: startJ,
+      end: endJ - 1,  // 0-based inclusive
+      score: maxVal,
+      identity: identity,
+      length: endJ - startJ,
+      alignLen: alignLen,
+      matches: matches,
+    });
+    // Mark all cells in the hit region to avoid re-picking overlapping hits
+    for (let ii = 1; ii <= qLen; ii++) {
+      for (let jj = startJ + 1; jj <= endJ; jj++) {
+        used[ii * w + jj] = 1;
+      }
+    }
+  }
+
+  hits.sort((a, b) => a.start - b.start);
+  return hits;
+}
+
+/** Reverse complement a DNA string */
+function revComp(seq) {
+  const comp = {A:'T', T:'A', G:'C', C:'G', N:'N', a:'t', t:'a', g:'c', c:'g', n:'n'};
+  return seq.split('').reverse().map(c => comp[c] || c).join('');
+}
+
+/** Merge overlapping/adjacent hits (like bedtools merge -d -1) */
+function mergeHits(hits) {
+  if (!hits.length) return [];
+  const sorted = [...hits].sort((a, b) => a.start - b.start);
+  const merged = [sorted[0]];
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = merged[merged.length - 1];
+    const cur = sorted[i];
+    if (cur.start <= prev.end + 1) { // overlapping or adjacent
+      prev.end = Math.max(prev.end, cur.end);
+      prev.length = prev.end - prev.start + 1;
+      prev.score = Math.max(prev.score, cur.score);
+      prev.identity = Math.max(prev.identity, cur.identity);
+      prev.matches = Math.max(prev.matches, cur.matches);
+    } else {
+      merged.push({...cur});
+    }
+  }
+  return merged;
+}
+
+/** Split hit array into tandem arrays at gaps >100bp, keep only arrays with >=minTandems.
+ *  searsat16 uses >=4 per sub-array; we use 3 as default for viewer (more permissive). */
+function splitIntoArrays(hits, minTandems = 3) {
+  if (!hits.length) return [];
+  const arrays = [[hits[0]]];
+  for (let i = 1; i < hits.length; i++) {
+    const gap = hits[i].start - hits[i-1].end;
+    if (gap > 100) {
+      arrays.push([hits[i]]);
+    } else {
+      arrays[arrays.length - 1].push(hits[i]);
+    }
+  }
+  return arrays.filter(a => a.length >= minTandems);
+}
+
+/**
+ * Full client-side monomer analysis replicating searsat16.
+ * @param {string} sequence - raw DNA sequence (FASTA with header OK)
+ * @param {string} consensusName - CLsat1/CLsat2/CLsat3/CLsat4
+ * @param {number} minIdentity - minimum identity to keep a hit (0-1, default 0.75)
+ * @returns {object} result with monomers, arrays, stats
+ */
+function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
+  const consensus = CONSENSUS_SEQS[consensusName];
+  if (!consensus) return { success: false, message: "Unknown consensus: " + consensusName };
+
+  const seq = sequence.replace(/^>.*\n/gm, '').replace(/\s/g, '').toUpperCase();
+  const seqLen = seq.length;
+
+  // Guard: SW matrix is O(consLen * seqLen) — warn above 50kb
+  if (seqLen > 50000) {
+    console.warn("[SW] Large sequence (" + seqLen + " bp) — analysis may take a while");
+  }
+  if (seqLen > 200000) {
+    return { success: false, message: "Sequence too large (" + (seqLen/1000).toFixed(0) + " kb). Zoom in to <50 kb first." };
+  }
+
+  const consLen = consensus.length;
+  const Slf = 0.9; // minimum length fraction (searsat16 default)
+  const minLen = Math.floor(Slf * consLen);
+
+  console.log("[SW] Sequence: " + seqLen + " bp, Consensus: " + consensusName + " (" + consLen + " bp)");
+  console.log("[SW] Min identity: " + (minIdentity*100).toFixed(0) + "%, Min length: " + minLen + " bp");
+
+  // Run Smith-Waterman on forward strand
+  const fwdHits = smithWaterman(consensus, seq);
+  console.log("[SW] Forward hits (raw): " + fwdHits.length);
+
+  // Run on reverse complement
+  const rcSeq = revComp(seq);
+  const rcHitsRaw = smithWaterman(consensus, rcSeq);
+  // Convert RC coordinates back to forward strand
+  const rcHits = rcHitsRaw.map(h => ({
+    ...h,
+    start: seqLen - h.end - 1,
+    end: seqLen - h.start - 1,
+    strand: '-',
+  }));
+  console.log("[SW] Reverse hits (raw): " + rcHits.length);
+
+  // Tag forward hits
+  fwdHits.forEach(h => h.strand = '+');
+
+  // Combine, filter by identity and length
+  const allHits = [...fwdHits, ...rcHits]
+    .filter(h => h.identity >= minIdentity && h.length >= minLen)
+    .sort((a, b) => a.start - b.start);
+
+  console.log("[SW] Filtered hits: " + allHits.length + " (identity >= " + (minIdentity*100).toFixed(0) + "%, length >= " + minLen + ")");
+
+  if (allHits.length === 0) {
+    return {
+      success: false,
+      message: "No monomers found with >=" + (minIdentity*100).toFixed(0) + "% identity",
+      monomer_count: 0,
+      monomers: [],
+      arrays: [],
+    };
+  }
+
+  // Separate by strand, merge, then split into arrays
+  const plusHits = mergeHits(allHits.filter(h => h.strand === '+'));
+  const minusHits = mergeHits(allHits.filter(h => h.strand === '-'));
+
+  const plusArrays = splitIntoArrays(plusHits, 3);
+  const minusArrays = splitIntoArrays(minusHits, 3);
+
+  console.log("[SW] + strand: " + plusHits.length + " merged -> " + plusArrays.length + " arrays");
+  console.log("[SW] - strand: " + minusHits.length + " merged -> " + minusArrays.length + " arrays");
+
+  // Combine results
+  const allArrays = [
+    ...plusArrays.map(a => ({ strand: '+', hits: a })),
+    ...minusArrays.map(a => ({ strand: '-', hits: a })),
+  ].sort((a, b) => a.hits[0].start - b.hits[0].start);
+
+  const allMonomers = allArrays.flatMap(a => a.hits.map(h => ({...h, strand: a.strand})));
+
+  const totalIdent = allMonomers.reduce((s,m) => s + m.identity, 0);
+  const avgIdent = allMonomers.length > 0 ? totalIdent / allMonomers.length : 0;
+
+  return {
+    success: true,
+    message: "Found " + allMonomers.length + " monomers in " + allArrays.length + " tandem array(s)",
+    monomer_count: allMonomers.length,
+    array_count: allArrays.length,
+    consensus_name: consensusName,
+    consensus_length: consLen,
+    avg_identity: avgIdent,
+    monomers: allMonomers,
+    arrays: allArrays,
+  };
+}
+
+function getBaseUrl() {
+  const loc = window.location.href;
+  return loc.substring(0, loc.lastIndexOf('/') + 1);
+}
+const BASE_URL = getBaseUrl();
+
+/* ============================================================================
+   STATE
+============================================================================ */
+let loci = [];            // {id, sp, scf, start, end, name}
+let assignments = {};     // id -> {seed, seedBits, best, bestBits, delta, flag}
+let bits = {};            // id -> {b1,b2,b3,b4}
+
+// Per-window data: indexed by scaffold -> sorted array of {pos, bits, name, clsat}
+let perWindowByScaffold = new Map();
+
+let speciesList = [];
+let scaffoldBySpecies = new Map();
+let lociBySpScf = new Map();
+let jumpItems = [];
+
+// Overview chart state
+let svgOver, gMainOver, gAxisOver, gLociOver, gBarsOver, zoomOver;
+let xScaleOver, xAxisOver, xScaleOverBase;
+let baseDomainOver = [0,1];
+let currentOver = null;
+let overviewWindows = [];  // per-window data for current scaffold
+let overviewMaxBits = 1;
+
+// Detail chart state
+let svgDetail, gMainDetail, gAxisDetail, gBarsDetail, zoomDetail;
+let xScaleDetail, xAxisDetail, xScaleDetailBase;
+let baseDomainDetail = [0,1];
+let currentLocus = null;
+
+const CLSAT_COLORS = {
+  CLsat1: "#60a5fa",  // blue (solid)
+  CLsat2: "#34d399",  // green (solid)
+  CLsat3: "#f472b6",  // pink (solid)
+  CLsat4: "#fbbf24",  // yellow (solid)
+};
+
+const fmt = d => typeof d === "number" ? d.toFixed(1) : d;
+const key = (sp, scf) => `${sp}\t${scf}`;
+
+/* ============================================================================
+   DOM refs
+============================================================================ */
+const statusEl = document.getElementById("status");
+const fileOk = document.getElementById("fileOk");
+const speciesSel = document.getElementById("speciesSel");
+const scaffoldSel = document.getElementById("scaffoldSel");
+const jumpSel = document.getElementById("jumpSel");
+const flagFilter = document.getElementById("flagFilter");
+const kpiLoci = document.getElementById("kpiLoci");
+const kpiVis = document.getElementById("kpiVis");
+const kpiWindows = document.getElementById("kpiWindows");
+const kpiMaxBits = document.getElementById("kpiMaxBits");
+const detailTitle = document.getElementById("detailTitle");
+const bedCoord = document.getElementById("bedCoord");
+
+function setStatus(msg){ statusEl.textContent = msg; }
+function hasD3(){ return typeof d3 !== "undefined"; }
+
+/* ============================================================================
+   PARSERS
+============================================================================ */
+function parseMasterMerged(text){
+  const arr = [];
+  const lines = text.split("\n");
+  let lineNum = 0;
+  for (const line of lines){
+    const p = line.trim().split("\t");
+    if (p.length < 4) continue;
+    lineNum++;
+    const scf = p[0];
+    const start = +p[1];
+    const end = +p[2];
+    const name = p[3];
+    // species is first part before |
+    const sp = name.split("|")[0];
+    // ID is L1, L2, L3... based on line number (matches assignment/bits files)
+    const id = "L" + lineNum;
+    arr.push({id, sp, scf, start, end, name});
+  }
+  return arr;
+}
+
+function parseAssignments(text){
+  const obj = {};
+  const lines = text.trim().split("\n");
+  if (!lines.length) return obj;
+  // Check header
+  let startIdx = 0;
+  if (lines[0].toLowerCase().includes("locus_id") || lines[0].toLowerCase().includes("locus\t")) startIdx = 1;
+  for (let i = startIdx; i < lines.length; i++){
+    const line = lines[i];
+    const p = line.split("\t");
+    if (p.length < 7) continue;
+    const id = p[0];
+    obj[id] = {
+      seed: p[1],
+      seedBits: +p[2],
+      best: p[3],
+      bestBits: +p[4],
+      delta: +p[5],
+      flag: p[6]
+    };
+  }
+  return obj;
+}
+
+function parseBitsMatrix(text){
+  const obj = {};
+  const lines = text.trim().split("\n");
+  for (const line of lines){
+    const p = line.split("\t");
+    if (p.length < 5) continue;
+    if (p[0].toLowerCase() === "locus_id" || p[0].toLowerCase() === "locus") continue;
+    obj[p[0]] = { b1: +p[1], b2: +p[2], b3: +p[3], b4: +p[4] };
+  }
+  return obj;
+}
+
+// Per-window bits file format: scaffold\tpos\tbits\tname\tspecies
+function parsePerWindowBits(text, clsat){
+  const rows = [];
+  const lines = text.trim().split("\n");
+  let startIdx = 0;
+  if (lines[0] && lines[0].toLowerCase().startsWith("scaffold")) startIdx = 1;
+  for (let i = startIdx; i < lines.length; i++){
+    const p = lines[i].split("\t");
+    if (p.length < 3) continue;
+    const scf = p[0];
+    const pos = +p[1];
+    const b = +p[2];
+    rows.push({scf, pos, bits: b, clsat});
+  }
+  return rows;
+}
+
+/* ============================================================================
+   INDEXES
+============================================================================ */
+function buildIndexes(){
+  const spSet = new Set();
+  scaffoldBySpecies.clear();
+  lociBySpScf.clear();
+
+  for (const l of loci){
+    spSet.add(l.sp);
+    if (!scaffoldBySpecies.has(l.sp)) scaffoldBySpecies.set(l.sp, new Set());
+    scaffoldBySpecies.get(l.sp).add(l.scf);
+    const k = key(l.sp, l.scf);
+    if (!lociBySpScf.has(k)) lociBySpScf.set(k, []);
+    lociBySpScf.get(k).push(l);
+  }
+
+  speciesList = [...spSet].sort();
+  for (const [sp, set] of scaffoldBySpecies) scaffoldBySpecies.set(sp, [...set].sort());
+  for (const [k, arr] of lociBySpScf) arr.sort((a,b) => a.start - b.start);
+
+  // Build jump list: contradictions + competitors
+  jumpItems = [];
+  const contra = loci.filter(l => assignments[l.id]?.flag === "SEED_CONTRADICTION")
+    .map(l => ({label: `⚠ ${l.id} (${l.scf.slice(-6)})`, sp: l.sp, scf: l.scf, id: l.id, start: l.start}));
+  contra.sort((a,b) => a.id.localeCompare(b.id));
+  jumpItems.push(...contra.slice(0, 100));
+  
+  const comp = loci.filter(l => assignments[l.id]?.flag === "SEED_WITH_COMPETITOR")
+    .map(l => ({label: `● ${l.id} (${l.scf.slice(-6)})`, sp: l.sp, scf: l.scf, id: l.id, start: l.start}));
+  comp.sort((a,b) => a.id.localeCompare(b.id));
+  jumpItems.push(...comp.slice(0, 100));
+}
+
+function buildPerWindowIndex(rows){
+  for (const r of rows){
+    if (!perWindowByScaffold.has(r.scf)){
+      perWindowByScaffold.set(r.scf, []);
+    }
+    perWindowByScaffold.get(r.scf).push(r);
+  }
+}
+
+function sortPerWindowIndex(){
+  for (const [scf, arr] of perWindowByScaffold){
+    arr.sort((a,b) => a.pos - b.pos);
+  }
+}
+
+/* ============================================================================
+   SELECTORS
+============================================================================ */
+function populateSelectors(){
+  speciesSel.innerHTML = "";
+  for (const sp of speciesList){
+    const opt = document.createElement("option");
+    opt.value = sp;
+    opt.textContent = sp;
+    speciesSel.appendChild(opt);
+  }
+  speciesSel.value = speciesList[0] || "";
+  populateScaffolds(speciesList[0]);
+
+  jumpSel.innerHTML = "<option value=''>—</option>";
+  for (const j of jumpItems){
+    const opt = document.createElement("option");
+    opt.value = j.id;
+    opt.textContent = j.label;
+    jumpSel.appendChild(opt);
+  }
+}
+
+function populateScaffolds(sp){
+  scaffoldSel.innerHTML = "";
+  const scaffolds = scaffoldBySpecies.get(sp) || [];
+  for (const scf of scaffolds){
+    const opt = document.createElement("option");
+    opt.value = scf;
+    opt.textContent = scf;
+    scaffoldSel.appendChild(opt);
+  }
+  scaffoldSel.value = scaffolds[0] || "";
+}
+
+/* ============================================================================
+   FILTERS
+============================================================================ */
+function passesFilter(l){
+  const val = flagFilter.value;
+  if (val === "ALL") return true;
+  const a = assignments[l.id];
+  if (!a) return val === "ALL";
+  return a.flag === val;
+}
+
+/* ============================================================================
+   OVERVIEW CHART
+============================================================================ */
+function getOverviewSize(){
+  const box = document.getElementById("chartOverview").getBoundingClientRect();
+  const margin = {top:10, right:20, bottom:22, left:50};
+  const w = Math.max(600, Math.floor(box.width));
+  const h = Math.max(100, Math.floor(box.height));
+  return { w, h, margin, innerW: w - margin.left - margin.right, innerH: h - margin.top - margin.bottom };
+}
+
+function initOverviewChart(){
+  const {w,h,margin,innerW,innerH} = getOverviewSize();
+  d3.select("#chartOverview").selectAll("*").remove();
+
+  svgOver = d3.select("#chartOverview").append("svg").attr("width", w).attr("height", h);
+  gMainOver = svgOver.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+  gMainOver.append("rect").attr("x",0).attr("y",0).attr("width",innerW).attr("height",innerH).attr("fill","#070b12");
+  gBarsOver = gMainOver.append("g").attr("class","bars");  // bars layer
+  gLociOver = gMainOver.append("g").attr("class","loci");  // locus outlines on top
+  gAxisOver = svgOver.append("g").attr("transform", `translate(${margin.left},${margin.top + innerH})`);
+
+  xScaleOver = d3.scaleLinear().range([0, innerW]);
+  xAxisOver = d3.axisBottom(xScaleOver).ticks(6).tickSizeOuter(0);
+
+  zoomOver = d3.zoom()
+    .scaleExtent([1, 80])
+    .translateExtent([[0,0],[innerW,innerH]])
+    .extent([[0,0],[innerW,innerH]])
+    .on("zoom", (event)=>{
+      const zx = event.transform.rescaleX(xScaleOverBase);
+      xScaleOver.domain(zx.domain());
+      renderOverview();
+    });
+
+  svgOver.call(zoomOver).on("dblclick.zoom", null);
+}
+
+function drawOverview(){
+  initOverviewChart();
+
+  const sp = speciesSel.value;
+  const scf = scaffoldSel.value;
+  if (!sp || !scf){ setStatus("Select species and scaffold"); return; }
+
+  const all = lociBySpScf.get(key(sp, scf)) || [];
+  const arr = all.filter(passesFilter);
+
+  kpiLoci.textContent = all.length;
+  kpiVis.textContent = arr.length;
+
+  // Get per-window data for this scaffold
+  const scfData = perWindowByScaffold.get(scf) || [];
+  
+  // Group by uniform display bins — snap all CLsat positions to a common grid
+  // so bars from different CLsats at the same genomic region are grouped together
+  const byBin = new Map();
+  for (const r of scfData){
+    const binPos = Math.round(r.pos / WINDOW_STEP) * WINDOW_STEP;
+    if (!byBin.has(binPos)){
+      byBin.set(binPos, {pos: binPos, CLsat1: 0, CLsat2: 0, CLsat3: 0, CLsat4: 0});
+    }
+    const bin = byBin.get(binPos);
+    if (r.bits > bin[r.clsat]) bin[r.clsat] = r.bits;
+  }
+  overviewWindows = [...byBin.values()].sort((a,b) => a.pos - b.pos);
+  overviewMaxBits = Math.max(1, ...overviewWindows.flatMap(w => [w.CLsat1, w.CLsat2, w.CLsat3, w.CLsat4]));
+
+  if (!overviewWindows.length && !arr.length){
+    setStatus(`No data for ${sp} / ${scf}`);
+    return;
+  }
+
+  // Domain from windows or loci
+  let min, max;
+  if (overviewWindows.length){
+    min = overviewWindows[0].pos;
+    max = overviewWindows[overviewWindows.length - 1].pos;
+  } else {
+    min = d3.min(arr, d=>d.start);
+    max = d3.max(arr, d=>d.end);
+  }
+  const span = max - min;
+  const pad = Math.max(1000, span * 0.05);
+  min = Math.max(0, min - pad);
+  max = max + pad;
+
+  baseDomainOver = [min, max];
+  xScaleOverBase = d3.scaleLinear().domain(baseDomainOver).range(xScaleOver.range());
+  xScaleOver.domain(baseDomainOver);
+  gAxisOver.call(xAxisOver);
+
+  currentOver = {sp, scf, loci: arr};
+  renderOverview();
+}
+
+function fillColorForLocus(l){
+  const a = assignments[l.id];
+  if (!a) return "#64748b";  // solid slate color for no assignment
+  if (a.flag === "SEED_CONTRADICTION") return "#ef4444";
+  if (a.flag === "SEED_WITH_COMPETITOR") return "#f59e0b";
+  if (a.flag === "SEED_CONFLICT") return "#a855f7";
+  return "#22c55e";
+}
+
+function strokeForLocus(l){
+  const a = assignments[l.id];
+  if (!a) return "#475569";
+  if (a.flag === "SEED_CONTRADICTION") return "var(--strokeContra)";
+  if (a.flag === "SEED_WITH_COMPETITOR") return "var(--strokeComp)";
+  return "var(--strokeOk)";
+}
+
+function renderOverview(){
+  if (!currentOver) return;
+  const arr = currentOver.loci;
+  const {innerH, innerW} = getOverviewSize();
+
+  gAxisOver.call(xAxisOver.scale(xScaleOver));
+
+  const [xmin, xmax] = xScaleOver.domain();
+
+  // Y scale for bars
+  const yScale = d3.scaleLinear().domain([0, overviewMaxBits]).range([innerH, 0]);
+
+  // Filter windows to visible range
+  const visWindows = overviewWindows.filter(w => w.pos >= xmin && w.pos <= xmax);
+
+  // Bar width: adjacent, no gaps
+  let barW = 1;
+  if (visWindows.length > 1){
+    const pxMin = xScaleOver(visWindows[0].pos);
+    const pxMax = xScaleOver(visWindows[visWindows.length - 1].pos);
+    barW = Math.max(1, (pxMax - pxMin) / (visWindows.length - 1));
+  }
+
+  // Build bar data (4 bars per window, sorted by bits descending so tallest drawn first = in back)
+  const CLSATS = ["CLsat1", "CLsat2", "CLsat3", "CLsat4"];
+  const barData = [];
+  for (const w of visWindows){
+    const items = CLSATS.map(c => ({pos: w.pos, clsat: c, bits: w[c]}));
+    items.sort((a,b) => b.bits - a.bits);  // tallest first (drawn first = behind)
+    barData.push(...items);
+  }
+
+  const bars = gBarsOver.selectAll("rect.bar").data(barData, (d,i) => `${d.pos}:${d.clsat}`);
+  bars.exit().remove();
+  const bEnt = bars.enter().append("rect").attr("class", "bar").style("pointer-events", "none");
+  bEnt.append("title");
+  const allBars = bEnt.merge(bars);
+  allBars
+    .attr("x", d => xScaleOver(d.pos) - barW/2)
+    .attr("width", barW)
+    .attr("y", d => yScale(d.bits))
+    .attr("height", d => Math.max(0, innerH - yScale(d.bits)))
+    .attr("fill", d => CLSAT_COLORS[d.clsat] || "#888");
+  allBars.select("title").text(d => `${d.clsat} pos=${d.pos} bits=${fmt(d.bits)}`);
+
+  // Locus outlines (clickable rectangles with no fill, just stroke)
+  const visLoci = arr.filter(d => d.end >= xmin && d.start <= xmax);
+  const rectH = innerH;
+  const rectY = 0;
+
+  const sel = gLociOver.selectAll("rect.locus").data(visLoci, d=>d.id);
+  sel.exit().remove();
+  const ent = sel.enter().append("rect")
+    .attr("class", "locus")
+    .attr("y", rectY)
+    .attr("height", rectH)
+    .style("cursor", "pointer")
+    .on("click", (event, d) => selectLocus(d));
+  ent.append("title");
+
+  const allRects = ent.merge(sel);
+  allRects
+    .attr("x", d => xScaleOver(d.start))
+    .attr("width", d => Math.max(4, xScaleOver(d.end) - xScaleOver(d.start)))
+    .attr("fill", "rgba(255,255,255,0.01)")  // nearly transparent but clickable
+    .attr("stroke", d => currentLocus?.id === d.id ? "#fff" : "rgba(255,255,255,0.4)")
+    .attr("stroke-width", d => currentLocus?.id === d.id ? 2 : 1);
+  allRects.select("title").text(d => `${d.id}\n${d.scf}:${d.start}-${d.end}\nClick to view per-window bits`);
+
+  // Labels for loci (only if zoomed in enough)
+  const labels = gLociOver.selectAll("text.locusLabel").data(visLoci, d=>d.id);
+  labels.exit().remove();
+  const labEnt = labels.enter().append("text")
+    .attr("class", "locusLabel")
+    .attr("fill", "#fff")
+    .attr("font-size", "9px")
+    .attr("font-weight", "500")
+    .attr("pointer-events", "none")
+    .attr("text-anchor", "middle")
+    .attr("dy", "-4");
+  const allLabels = labEnt.merge(labels);
+  allLabels
+    .attr("x", d => xScaleOver((d.start + d.end) / 2))
+    .attr("y", rectY)
+    .text(d => {
+      // Only show label if locus is wide enough
+      const w = xScaleOver(d.end) - xScaleOver(d.start);
+      return w > 25 ? d.id : "";
+    });
+}
+
+/* ============================================================================
+   DETAIL CHART (per-window bitscores)
+============================================================================ */
+function getDetailSize(){
+  const box = document.getElementById("chartDetail").getBoundingClientRect();
+  const margin = {top:20, right:20, bottom:30, left:60};
+  const w = Math.max(600, Math.floor(box.width));
+  const h = Math.max(200, Math.floor(box.height));
+  return { w, h, margin, innerW: w - margin.left - margin.right, innerH: h - margin.top - margin.bottom };
+}
+
+function initDetailChart(){
+  const {w,h,margin,innerW,innerH} = getDetailSize();
+  d3.select("#chartDetail").selectAll("*").remove();
+
+  svgDetail = d3.select("#chartDetail").append("svg").attr("width", w).attr("height", h);
+  gMainDetail = svgDetail.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+  gMainDetail.append("rect").attr("x",0).attr("y",0).attr("width",innerW).attr("height",innerH).attr("fill","#070b12");
+  gBarsDetail = gMainDetail.append("g").attr("class","bars");
+  gAxisDetail = svgDetail.append("g").attr("transform", `translate(${margin.left},${margin.top + innerH})`);
+
+  // Y axis group
+  gMainDetail.append("g").attr("class","yaxis");
+
+  xScaleDetail = d3.scaleLinear().range([0, innerW]);
+  xAxisDetail = d3.axisBottom(xScaleDetail).ticks(8).tickSizeOuter(0);
+
+  zoomDetail = d3.zoom()
+    .scaleExtent([1, 50])
+    .translateExtent([[0,0],[innerW,innerH]])
+    .extent([[0,0],[innerW,innerH]])
+    .on("zoom", (event)=>{
+      const zx = event.transform.rescaleX(xScaleDetailBase);
+      xScaleDetail.domain(zx.domain());
+      renderDetail();
+    });
+
+  svgDetail.call(zoomDetail).on("dblclick.zoom", null);
+}
+
+function selectLocus(l){
+  currentLocus = l;
+  detailTitle.textContent = `${l.id} (${l.scf}:${l.start}-${l.end})`;
+  detailTitle.style.color = "#60a5fa";
+
+  const a = assignments[l.id];
+  const b = bits[l.id] || {};
+  let s = `Selected: ${l.id}\n${l.scf}:${l.start}-${l.end}\n`;
+  if (a) s += `Seed: ${a.seed} (${fmt(a.seedBits)}), Best other: ${a.best} (${fmt(a.bestBits)}), Δ=${fmt(a.delta)}, Flag=${a.flag}\n`;
+  s += `Max bits: CLsat1=${fmt(b.b1||0)} CLsat2=${fmt(b.b2||0)} CLsat3=${fmt(b.b3||0)} CLsat4=${fmt(b.b4||0)}`;
+  setStatus(s);
+
+  // Highlight in overview
+  renderOverview();
+
+  // Draw detail
+  drawDetailForLocus(l);
+}
+
+// Per-CLsat monomer lengths (= scan window step for each consensus)
+const CLSAT_STEP = {
+  CLsat1: 145,   // consensus 146 bp, scan step 145
+  CLsat2: 145,   // consensus 145 bp, scan step 145
+  CLsat3: 146,   // consensus 146 bp, scan step 146
+  CLsat4: 116,   // consensus 116 bp, scan step 116
+};
+const WINDOW_STEP = 146;  // uniform display grid for grouping bars from different CLsats
+
+function drawDetailForLocus(l){
+  initDetailChart();
+
+  const scfData = perWindowByScaffold.get(l.scf) || [];
+  // Filter to locus region
+  const data = scfData.filter(r => r.pos >= l.start && r.pos <= l.end);
+
+  if (!data.length){
+    kpiWindows.textContent = "0";
+    kpiMaxBits.textContent = "0";
+    detailTitle.textContent += " (no per-window data)";
+    setStatus(statusEl.textContent + "\nNo per-window data found for this locus.");
+    return;
+  }
+
+  // Group by uniform display bins — snap to common grid so CLsat bars align
+  const byBin = new Map();
+  for (const r of data){
+    const binPos = Math.round(r.pos / WINDOW_STEP) * WINDOW_STEP;
+    if (!byBin.has(binPos)){
+      byBin.set(binPos, {pos: binPos, CLsat1: 0, CLsat2: 0, CLsat3: 0, CLsat4: 0});
+    }
+    const bin = byBin.get(binPos);
+    if (r.bits > bin[r.clsat]) bin[r.clsat] = r.bits;
+  }
+
+  // Convert to array of windows sorted by position
+  const windows = [...byBin.values()].sort((a,b) => a.pos - b.pos);
+  kpiWindows.textContent = windows.length;
+
+  const maxBits = Math.max(...windows.flatMap(w => [w.CLsat1, w.CLsat2, w.CLsat3, w.CLsat4])) || 1;
+  kpiMaxBits.textContent = fmt(maxBits);
+
+  // Domain
+  const minPos = windows[0].pos;
+  const maxPos = windows[windows.length - 1].pos;
+  const span = maxPos - minPos;
+  const pad = Math.max(200, span * 0.02);
+
+  baseDomainDetail = [minPos - pad, maxPos + pad];
+  xScaleDetailBase = d3.scaleLinear().domain(baseDomainDetail).range(xScaleDetail.range());
+  xScaleDetail.domain(baseDomainDetail);
+
+  currentLocus._windows = windows;
+  currentLocus._maxBits = maxBits;
+
+  renderDetail();
+}
+
+function renderDetail(){
+  if (!currentLocus || !currentLocus._windows) return;
+  const windows = currentLocus._windows;
+  const maxBits = currentLocus._maxBits;
+  const {innerW, innerH} = getDetailSize();
+
+  gAxisDetail.call(xAxisDetail.scale(xScaleDetail));
+
+  // Y scale
+  const yScale = d3.scaleLinear().domain([0, maxBits]).range([innerH, 0]);
+  const yAxis = d3.axisLeft(yScale).ticks(5);
+  gMainDetail.select("g.yaxis").call(yAxis);
+
+  const [xmin, xmax] = xScaleDetail.domain();
+  const vis = windows.filter(w => w.pos >= xmin && w.pos <= xmax);
+
+  // Bar width: one bar per window, adjacent with no gaps
+  let barW = 4;
+  if (vis.length > 1){
+    const pxMin = xScaleDetail(vis[0].pos);
+    const pxMax = xScaleDetail(vis[vis.length - 1].pos);
+    barW = Math.max(2, (pxMax - pxMin) / (vis.length - 1));
+  } else if (vis.length === 1){
+    barW = 20;
+  }
+
+  // Build bar data: 4 bars per window, sorted by bits descending so tallest drawn first (in back)
+  const CLSATS = ["CLsat1", "CLsat2", "CLsat3", "CLsat4"];
+  const barData = [];
+  for (const w of vis){
+    // Get all 4 CLsat values and sort by bits descending (tallest first = drawn first = behind)
+    const items = CLSATS.map(c => ({pos: w.pos, clsat: c, bits: w[c]}));
+    items.sort((a,b) => b.bits - a.bits);
+    barData.push(...items);
+  }
+
+  const bars = gBarsDetail.selectAll("rect.bar").data(barData, (d,i) => `${d.pos}:${d.clsat}`);
+  bars.exit().remove();
+  const ent = bars.enter().append("rect")
+    .attr("class", "bar");
+  ent.append("title");
+
+  const all = ent.merge(bars);
+  all
+    .attr("x", d => xScaleDetail(d.pos) - barW/2)
+    .attr("width", barW)
+    .attr("y", d => yScale(d.bits))
+    .attr("height", d => Math.max(0, innerH - yScale(d.bits)))
+    .attr("fill", d => CLSAT_COLORS[d.clsat] || "#888");
+  all.select("title").text(d => `${d.clsat} pos=${d.pos} bits=${fmt(d.bits)}`);
+
+  // Update BED coordinates display
+  const start = Math.floor(xmin);
+  const end = Math.ceil(xmax);
+  bedCoord.textContent = `${currentLocus.scf}\t${start}\t${end}`;
+}
+
+/* ============================================================================
+   LOADERS
+============================================================================ */
+async function fetchText(path){
+  const url = BASE_URL + path;
+  const r = await fetch(url, {cache:"no-store"});
+  if (!r.ok) throw new Error(`Cannot load ${url} (HTTP ${r.status})`);
+  return await r.text();
+}
+
+async function loadViaFetch(){
+  setStatus("Loading files via fetch()…");
+
+  // Load main files
+  const [mText, aText, bText] = await Promise.all([
+    fetchText(FILE_MASTER_MERGED),
+    fetchText(FILE_ASSIGN),
+    fetchText(FILE_BITS_MATRIX),
+  ]);
+
+  loci = parseMasterMerged(mText);
+  assignments = parseAssignments(aText);
+  bits = parseBitsMatrix(bText);
+
+  buildIndexes();
+  populateSelectors();
+
+  setStatus(`Loaded ${loci.length} loci. Now loading per-window bits files…`);
+
+  // Load per-window bits files
+  const perWindowPromises = Object.entries(FILE_BITS_CLSAT).map(async ([clsat, file]) => {
+    try {
+      const text = await fetchText(file);
+      const rows = parsePerWindowBits(text, clsat);
+      buildPerWindowIndex(rows);
+      return {clsat, count: rows.length};
+    } catch (e) {
+      console.warn(`Could not load ${file}: ${e.message}`);
+      return {clsat, count: 0, error: e.message};
+    }
+  });
+
+  const results = await Promise.all(perWindowPromises);
+  sortPerWindowIndex();
+
+  let totalRows = 0;
+  let details = [];
+  for (const r of results){
+    if (r.count > 0){
+      totalRows += r.count;
+      details.push(`${r.clsat}: ${r.count.toLocaleString()}`);
+    } else if (r.error){
+      details.push(`${r.clsat}: failed`);
+    }
+  }
+
+  fileOk.textContent = "loaded ✓";
+  fileOk.className = "pill ok";
+
+  setStatus(
+    `Loaded ${loci.length} loci, ${Object.keys(assignments).length} assignments\n` +
+    `Per-window data: ${totalRows.toLocaleString()} rows\n` +
+    details.join(", ") + "\n\n" +
+    `Select a scaffold then click a locus to see per-window bitscores.`
+  );
+
+  if (hasD3()) drawOverview();
+}
+
+/* ============================================================================
+   UI BINDING
+============================================================================ */
+let uiBound = false;
+function bindUIOnce(){
+  if (uiBound) return;
+  uiBound = true;
+
+  speciesSel.addEventListener("change", ()=>{
+    populateScaffolds(speciesSel.value);
+    drawOverview();
+  });
+  scaffoldSel.addEventListener("change", drawOverview);
+  flagFilter.addEventListener("change", drawOverview);
+
+  document.getElementById("findBtn").addEventListener("click", ()=>{
+    const q = document.getElementById("findInput").value.trim();
+    if (!q) return;
+    jumpToLocusId(q);
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", ()=>{
+    if (svgOver && zoomOver) d3.select(svgOver.node()).transition().duration(200).call(zoomOver.transform, d3.zoomIdentity);
+    if (svgDetail && zoomDetail) d3.select(svgDetail.node()).transition().duration(200).call(zoomDetail.transform, d3.zoomIdentity);
+  });
+
+  jumpSel.addEventListener("change", ()=>{
+    const id = jumpSel.value;
+    if (id) jumpToLocusId(id);
+  });
+
+  // Monomer analysis is now fully client-side (Smith-Waterman in JS).
+  // Server status UI elements are hidden.
+  const swStatusEl = document.getElementById("serverStatus");
+  if (swStatusEl) { swStatusEl.textContent = "✓ Client-side SW"; swStatusEl.style.color = "#34d399"; }
+  const serverToggleBtn = document.getElementById("serverToggleBtn");
+  if (serverToggleBtn) serverToggleBtn.style.display = "none";
+
+  const CONTROL_BASE = "http://127.0.0.1:9001"; // kept for reference only
+
+  async function checkControlServer(){
+    // Control server no longer needed — monomer analysis is client-side
+    return false;
+    }
+  }
+
+  // Toggle start/stop via control server
+  document.getElementById("serverToggleBtn").addEventListener("click", async ()=>{
+    const btn = document.getElementById("serverToggleBtn");
+    btn.disabled = true;
+    try {
+      // Query current control status
+      const s = await fetch(CONTROL_BASE + "/status", {cache: "no-store"}).catch(()=>null);
+      const json = s && s.ok ? await s.json() : {running:false};
+      if (json.running) {
+        // Stop
+        await fetch(CONTROL_BASE + "/stop");
+        btn.textContent = 'Start Server';
+        setStatus('Requested monomer server stop');
+      } else {
+        // Start
+        await fetch(CONTROL_BASE + "/start");
+        btn.textContent = 'Stop Server';
+        setStatus('Requested monomer server start');
+      }
+      // Give some time for server to come up/down then refresh status
+      setTimeout(()=>{ checkMonomerServer(); checkControlServer(); }, 1200);
+    } catch (e) {
+      const hint = 'Control server not available. Start it by running:\n\npython server_control.py\n\nor use start_server_control.bat in the viewer folder.';
+      setStatus(hint);
+      const ss = document.getElementById('serverStatus');
+      if (ss) ss.innerHTML = '<span style="color:#fb7185;">✗ Control offline — run start_server_control.bat or: python server_control.py</span>';
+      console.error('Server control error', e);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Server polling disabled — monomer analysis is now client-side
+
+  document.getElementById("copyBedBtn").addEventListener("click", ()=>{
+    const text = bedCoord.textContent;
+    if (!text || text.includes("will appear")) return;
+    console.log("[BED Copy] Copying:", text);
+    navigator.clipboard.writeText(text).then(()=>{
+      const btn = document.getElementById("copyBedBtn");
+      const orig = btn.textContent;
+      btn.textContent = "Copied!";
+      console.log("[BED Copy] ✓ Successfully copied to clipboard");
+      setStatus(`BED coordinates copied:\n${text}\n\nReady for: bedtools getfasta -fi genome.fa -bed coords.bed`);
+      setTimeout(()=> btn.textContent = orig, 1500);
+    }).catch(e => {
+      console.error("[BED Copy] ✗ Failed:", e);
+      alert("Copy failed. Please select and copy manually: " + text);
+    });
+  });
+
+  document.getElementById("fastaBtn").addEventListener("click", async ()=>{
+    if (!currentLocus) {
+      console.warn("[FASTA] No locus selected");
+      return;
+    }
+    const btn = document.getElementById("fastaBtn");
+    const resultBox = document.getElementById("fastaResult");
+    const statusEl = document.getElementById("fastaStatus");
+    const seqEl = document.getElementById("fastaSeq");
+    const copyBtn = document.getElementById("copyFastaBtn");
+    
+    // Get current coordinates from detail view
+    const [start, end] = xScaleDetail.domain().map(Math.round);
+    const scf = currentLocus.scf;
+    const length = end - start + 1;
+    
+    console.log("[FASTA] === FETCH START ===");
+    console.log("[FASTA] Locus:", currentLocus);
+    console.log("[FASTA] Scaffold:", scf);
+    console.log("[FASTA] Coordinates:", start, "-", end, "(length:", length, "bp)");
+    
+    // Warning for large sequences
+    if (length > 3000) {
+      const proceed = confirm(
+        `Warning: This will fetch ${length.toLocaleString()} nucleotides from NCBI.\n\n` +
+        `Large sequences may take time to download and display.\n\n` +
+        `Continue?`
+      );
+      if (!proceed) {
+        console.log("[FASTA] User cancelled large fetch");
+        return;
+      }
+      console.log("[FASTA] User confirmed large fetch");
+    }
+    
+    // Show loading
+    btn.disabled = true;
+    btn.textContent = "Fetching...";
+    resultBox.classList.add("show");
+    statusEl.textContent = "Fetching from NCBI...";
+    seqEl.textContent = "";
+    copyBtn.style.display = "none";
+    
+    try {
+      const fasta = await fetchNCBIFasta(scf, start, end);
+      console.log("[FASTA] ✓ Success! Received", fasta.length, "characters");
+      console.log("[FASTA] First 200 chars:", fasta.substring(0, 200));
+      statusEl.textContent = `${scf}:${start}-${end} (${end - start + 1} bp)`;
+      seqEl.textContent = fasta;
+      copyBtn.style.display = "inline-block";
+      setStatus(`FASTA sequence fetched from NCBI:\n${scf}:${start}-${end}\n${fasta.length} characters`);
+      
+      // Setup copy FASTA button
+      copyBtn.onclick = ()=>{
+        navigator.clipboard.writeText(fasta).then(()=>{
+          const orig = copyBtn.textContent;
+          copyBtn.textContent = "Copied!";
+          console.log("[FASTA] ✓ FASTA copied to clipboard");
+          setTimeout(()=> copyBtn.textContent = orig, 1500);
+        }).catch(e => {
+          console.error("[FASTA] ✗ Copy failed:", e);
+          alert("Copy failed. Please select and copy manually.");
+        });
+      };
+    } catch (e) {
+      console.error("[FASTA] ✗ FAILED:", e);
+      console.error("[FASTA] Error details:", e.message, e.stack);
+      statusEl.textContent = "Error: " + e.message;
+      seqEl.textContent = "Failed to fetch sequence. Make sure the scaffold name is a valid NCBI accession (e.g., NC_123456 or NW_123456).\n\nAlternatively, use the 'Copy BED' button and run:\n  bedtools getfasta -fi genome.fa -bed coords.bed";
+      setStatus(`FASTA fetch failed: ${e.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Get FASTA";
+      console.log("[FASTA] === FETCH END ===");
+    }
+  });
+
+  document.getElementById("monomerBtn").addEventListener("click", async ()=>{
+    if (!currentLocus) {
+      console.warn("[MONOMER] No locus selected");
+      return;
+    }
+
+    const btn = document.getElementById("monomerBtn");
+    const resultBox = document.getElementById("monomerResult");
+    const mStatusEl = document.getElementById("monomerStatus");
+    const listEl = document.getElementById("monomerList");
+    const alignEl = document.getElementById("alignmentBox");
+    const copyBtn = document.getElementById("copyAlignmentBtn");
+
+    // Get current coordinates and locus info
+    const [start, end] = xScaleDetail.domain().map(Math.round);
+    const scf = currentLocus.scf;
+    const length = end - start + 1;
+
+    // Get consensus from assignment
+    const assignment = assignments[currentLocus.id];
+    const consensusName = assignment?.seed || "CLsat1";
+
+    console.log("[MONOMER] === CLIENT-SIDE SW ANALYSIS START ===");
+    console.log("[MONOMER] Locus:", currentLocus.id);
+    console.log("[MONOMER] Length:", length, "bp");
+    console.log("[MONOMER] Consensus:", consensusName);
+
+    // Show loading
+    btn.disabled = true;
+    btn.textContent = "Analyzing...";
+    resultBox.classList.add("show");
+    mStatusEl.textContent = "Fetching sequence from NCBI...";
+    listEl.innerHTML = "";
+    alignEl.textContent = "";
+    copyBtn.style.display = "none";
+
+    try {
+      // Get sequence from NCBI
+      let sequence;
+      try {
+        sequence = await fetchNCBIFasta(scf, start, end);
+        console.log("[MONOMER] Got sequence from NCBI:", sequence.length, "chars");
+      } catch (e) {
+        console.warn("[MONOMER] NCBI fetch failed:", e.message);
+        // Check if FASTA was already fetched and is displayed
+        const existingFasta = document.getElementById("fastaSeq")?.textContent;
+        if (existingFasta && existingFasta.startsWith(">")) {
+          sequence = existingFasta;
+          console.log("[MONOMER] Using previously fetched FASTA:", sequence.length, "chars");
+        } else {
+          throw new Error("Cannot fetch sequence from NCBI. Click 'Get FASTA' first, then try again.");
+        }
+      }
+
+      mStatusEl.textContent = "Running Smith-Waterman alignment...";
+
+      // Get user-selected identity threshold
+      const minIdentity = parseFloat(document.getElementById("minIdentity").value);
+      console.log("[MONOMER] Min identity:", minIdentity);
+
+      // Run client-side Smith-Waterman analysis
+      // Use setTimeout to allow UI to update before heavy computation
+      const result = await new Promise(resolve => {
+        setTimeout(() => {
+          resolve(analyzeMonomersSW(sequence, consensusName, minIdentity));
+        }, 50);
+      });
+
+      console.log("[MONOMER] Result:", result);
+
+      if (!result.success) {
+        mStatusEl.textContent = "No monomers found";
+        listEl.innerHTML = '<div style="color:#fb7185; padding:8px;">' + result.message + '</div>';
+        setStatus("Monomer analysis: " + result.message);
+        return;
+      }
+
+      // Display results
+      const avgPct = (result.avg_identity * 100).toFixed(1);
+      mStatusEl.textContent = result.monomer_count + " monomers in " + result.array_count + " array(s), avg " + avgPct + "% identity";
+
+      // Build summary per array
+      let html = '';
+      result.arrays.forEach((arr, ai) => {
+        const arrStart = arr.hits[0].start + start; // offset to genomic coordinates
+        const arrEnd = arr.hits[arr.hits.length - 1].end + start;
+        html += '<div style="color:#a855f7; font-weight:bold; padding:4px 6px; margin-top:6px;">' +
+          'Array ' + (ai + 1) + ': ' + arrStart.toLocaleString() + '-' + arrEnd.toLocaleString() +
+          ' (' + arr.hits.length + ' monomers, strand ' + arr.strand + ')' +
+          '</div>';
+        arr.hits.forEach((m, mi) => {
+          const arrow = arr.strand === '+' ? '\u2192' : '\u2190';
+          const strandColor = arr.strand === '+' ? '#34d399' : '#f472b6';
+          const gStart = m.start + start;
+          const gEnd = m.end + start;
+          html += '<div class="monomerItem">' +
+            '<span style="color:' + strandColor + '; font-weight:bold;">' + arrow + '</span> ' +
+            '#' + (mi + 1) + ': ' + gStart.toLocaleString() + '-' + gEnd.toLocaleString() +
+            ' (' + m.length + ' bp, ' + (m.identity * 100).toFixed(1) + '%)' +
+            '</div>';
+        });
+      });
+      listEl.innerHTML = html;
+
+      // Generate a simple text summary for copy
+      const summaryLines = ['# Monomer analysis: ' + consensusName + ' in ' + scf + ':' + start + '-' + end];
+      summaryLines.push('# ' + result.message);
+      summaryLines.push('# Average identity: ' + avgPct + '%');
+      summaryLines.push('# scaffold\tstart\tend\tlength\tidentity\tstrand\tarray');
+      result.arrays.forEach((arr, ai) => {
+        arr.hits.forEach(m => {
+          summaryLines.push(scf + '\t' + (m.start + start) + '\t' + (m.end + start) + '\t' + m.length + '\t' + (m.identity * 100).toFixed(1) + '\t' + arr.strand + '\t' + (ai + 1));
+        });
+      });
+      const summaryText = summaryLines.join('\n');
+      alignEl.textContent = summaryText;
+      copyBtn.style.display = "inline-block";
+      copyBtn.onclick = () => {
+        navigator.clipboard.writeText(summaryText).then(() => {
+          const orig = copyBtn.textContent;
+          copyBtn.textContent = "Copied!";
+          console.log("[MONOMER] Results copied");
+          setTimeout(() => copyBtn.textContent = orig, 1500);
+        }).catch(ecp => {
+          console.error("[MONOMER] Copy failed:", ecp);
+          alert("Copy failed.");
+        });
+      };
+
+      setStatus('Monomer analysis (client-side SW):\n' + result.message + '\nConsensus: ' + consensusName + ', Avg identity: ' + avgPct + '%');
+
+    } catch (e) {
+      console.error("[MONOMER] FAILED:", e);
+      mStatusEl.textContent = "Error: " + e.message;
+      listEl.innerHTML = '<div style="color:#fb7185; padding:8px;">' +
+        'Analysis failed: ' + e.message + '<br><br>' +
+        'Tip: Click \'Get FASTA\' first to fetch the sequence, then try \'Analyze Monomers\' again.' +
+        '</div>';
+      setStatus('Monomer analysis failed: ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Analyze Monomers";
+      console.log("[MONOMER] === ANALYSIS END ===");
+    }
+  });
+}
+
+async function fetchNCBIFasta(accession, start, end) {
+  // NCBI E-utilities API
+  // Note: For production use, should use an API key and proper error handling
+  const url = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nucleotide&id=${encodeURIComponent(accession)}&rettype=fasta&retmode=text&seq_start=${start}&seq_stop=${end}`;
+  
+  console.log("[FASTA API] URL:", url);
+  console.log("[FASTA API] Accession:", accession, "(encoded:", encodeURIComponent(accession), ")");
+  console.log("[FASTA API] Range:", start, "-", end);
+  console.log("[FASTA API] Making fetch request...");
+  
+  try {
+    const response = await fetch(url);
+    console.log("[FASTA API] Response status:", response.status, response.statusText);
+    console.log("[FASTA API] Response headers:", Object.fromEntries(response.headers.entries()));
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const text = await response.text();
+    console.log("[FASTA API] Response length:", text.length, "characters");
+    console.log("[FASTA API] First 500 chars:", text.substring(0, 500));
+    
+    // Check if we got an error message instead of FASTA
+    if (text.includes("Error") || text.includes("error") || text.length < 10) {
+      console.error("[FASTA API] Response appears to be an error:", text);
+      throw new Error("Invalid accession or sequence not found");
+    }
+    
+    // Check if it looks like FASTA format
+    if (!text.startsWith(">")) {
+      console.warn("[FASTA API] Response doesn't start with '>'. Full response:", text);
+      throw new Error("Response is not in FASTA format");
+    }
+    
+    console.log("[FASTA API] ✓ Valid FASTA format detected");
+    return text.trim();
+  } catch (e) {
+    console.error("[FASTA API] Exception during fetch:", e);
+    throw e;
+  }
+}
+
+function jumpToLocusId(id){
+  const l = loci.find(x => x.id === id);
+  if (!l){ setStatus(`Locus ${id} not found`); return; }
+  speciesSel.value = l.sp;
+  populateScaffolds(l.sp);
+  scaffoldSel.value = l.scf;
+  drawOverview();
+  selectLocus(l);
+}
+
+/* ============================================================================
+   STARTUP
+============================================================================ */
+(function start(){
+  bindUIOnce();
+
+  if (!hasD3()){
+    fileOk.textContent = "D3 missing";
+    fileOk.className = "pill err";
+    setStatus("D3 failed to load. Open in browser (not VS Code Preview) or ensure internet access.");
+    return;
+  }
+
+  // Monomer analysis is now fully client-side (Smith-Waterman in JS).
+  // No server auto-start needed.
+
+  loadViaFetch().catch(e=>{
+    fileOk.textContent = "fetch failed";
+    fileOk.className = "pill err";
+    setStatus(`Fetch load failed: ${e.message}\n\nEnsure files are in the same directory.`);
+  });
+})();
+</script>
+</body>
+</html>
