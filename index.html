@@ -26,13 +26,18 @@
   }
   html,body{height:100%; margin:0; background:var(--bg); color:var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;}
   .wrap{display:grid; grid-template-columns: 340px 1fr; gap:12px; height:100%; padding:12px; box-sizing:border-box;}
+  .wrap.collapsed{grid-template-columns: 0px 1fr; gap:0;}
   .sidebar{
     background:linear-gradient(180deg,var(--panel),var(--panel2));
     border:1px solid #1f2937;
     border-radius:14px;
     padding:12px;
     overflow:auto;
+    transition: width 0.2s, padding 0.2s, opacity 0.15s, border 0.2s;
   }
+  .wrap.collapsed .sidebar{padding:0; border:none; overflow:hidden; opacity:0; pointer-events:none;}
+  .collapseBtn{position:fixed; top:6px; left:6px; z-index:100; background:#1e293b; color:#9ca3af; border:1px solid #334155; border-radius:8px; width:28px; height:28px; cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center;}
+  .collapseBtn:hover{background:#334155; color:#fff;}
   .main{
     display:flex;
     flex-direction:column;
@@ -135,6 +140,7 @@
 </head>
 
 <body>
+<button class="collapseBtn" id="collapseBtn" title="Toggle sidebar">«</button>
 <div class="wrap">
   <div class="sidebar">
     <h1>CLsat Locus Detail Viewer</h1>
@@ -986,6 +992,49 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
       }
     }
 
+    // --- ABSORB SHORT SPACERS into trailing/leading gaps ---
+    // If a spacer is short (≤10bp), try to redistribute its bases:
+    // 1) Fill trailing gaps of the previous monomer row
+    // 2) Fill leading gaps of the current (next) monomer row
+    // If fully consumed, clear spacerLen so no spacer line is rendered.
+    for (let i = 0; i < projRows.length; i++) {
+      if (projRows[i].spacerLen === 0 || projRows[i].spacerLen > 10) continue;
+      let sp = projRows[i].spacerSeq.toUpperCase();
+      // Fill trailing gaps of the PREVIOUS row
+      if (i > 0) {
+        let trailGaps = 0;
+        for (let k = consLen - 1; k >= 0; k--) {
+          if (projRows[i - 1].bases[k] === '-') trailGaps++;
+          else break;
+        }
+        const fillTrail = Math.min(sp.length, trailGaps);
+        if (fillTrail > 0) {
+          for (let k = 0; k < fillTrail; k++) {
+            projRows[i - 1].bases[consLen - trailGaps + k] = sp[k];
+          }
+          sp = sp.substring(fillTrail);
+        }
+      }
+      // Fill leading gaps of THIS row
+      if (sp.length > 0) {
+        let leadGaps = 0;
+        for (let k = 0; k < consLen; k++) {
+          if (projRows[i].bases[k] === '-') leadGaps++;
+          else break;
+        }
+        const fillLead = Math.min(sp.length, leadGaps);
+        if (fillLead > 0) {
+          for (let k = 0; k < fillLead; k++) {
+            projRows[i].bases[leadGaps - fillLead + k] = sp[sp.length - fillLead + k];
+          }
+          sp = sp.substring(0, sp.length - fillLead);
+        }
+      }
+      // Update spacer
+      projRows[i].spacerSeq = sp;
+      projRows[i].spacerLen = sp.length;
+    }
+
     // --- BOUNDARY PARTIAL REPEAT DETECTION ---
     // For reading-last row: if monOverRight + flankRightStr contains a CLsat partial repeat,
     // split it into a separate row (partial monomer) + true flank.
@@ -1239,19 +1288,7 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
       html += '</div>';
     });
 
-    // Conservation row
-    html += '<div class="msaRow"><span class="msaName">conserv.</span>';
-    if (nBefore > 0) { for (let k = 0; k <= nBefore; k++) html += '<span class="msaBase"> </span>'; }
-    for (let k = 0; k < consLen; k++) {
-      let mc = 0;
-      for (const r of projRows) { if (r.bases[k] === consU[k]) mc++; }
-      const pct = projRows.length > 0 ? mc / projRows.length : 0;
-      if (pct >= 0.95) html += '<span class="msaBase" style="color:#34d399;">*</span>';
-      else if (pct >= 0.7) html += '<span class="msaBase" style="color:#eab308;">:</span>';
-      else if (pct >= 0.4) html += '<span class="msaBase" style="color:#ef4444;">.</span>';
-      else html += '<span class="msaBase" style="color:#333;"> </span>';
-    }
-    html += '</div>';
+    // Conservation row removed (user preference)
 
     html += '</div>';
   });
@@ -1599,7 +1636,7 @@ function passesFilter(l){
 ============================================================================ */
 function getOverviewSize(){
   const box = document.getElementById("chartOverview").getBoundingClientRect();
-  const margin = {top:10, right:20, bottom:22, left:50};
+  const margin = {top:18, right:20, bottom:22, left:50};
   const w = Math.max(600, Math.floor(box.width));
   const h = Math.max(100, Math.floor(box.height));
   return { w, h, margin, innerW: w - margin.left - margin.right, innerH: h - margin.top - margin.bottom };
@@ -2063,6 +2100,14 @@ function bindUIOnce(){
     const q = document.getElementById("findInput").value.trim();
     if (!q) return;
     jumpToLocusId(q);
+  });
+
+  // Collapse sidebar toggle
+  document.getElementById('collapseBtn').addEventListener('click', () => {
+    const wrap = document.querySelector('.wrap');
+    wrap.classList.toggle('collapsed');
+    document.getElementById('collapseBtn').textContent = wrap.classList.contains('collapsed') ? '\u00bb' : '\u00ab';
+    setTimeout(() => { drawOverview(); if (currentLocus) drawDetail(); }, 250);
   });
 
   document.getElementById("resetBtn").addEventListener("click", ()=>{
