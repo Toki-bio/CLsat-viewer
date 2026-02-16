@@ -1012,9 +1012,12 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
       const lastRow = projRows[projRows.length - 1];
       if (!lastRow.isLast) break;
       const boundarySeq = lastRow.monOverRight + lastRow.flankRightStr;
-      if (boundarySeq.length <= 20) break;
+      if (boundarySeq.length <= 10) break;
       const bAln = pairwiseAlign(consensus, boundarySeq);
-      if (bAln.identity <= 0.5 || bAln.alignLen <= 20) break;
+      // Accept short partials (>10bp) if identity is high (>80%),
+      // or longer partials (>20bp) at moderate identity (>50%)
+      const bAccept = (bAln.alignLen > 10 && bAln.identity > 0.8) || (bAln.alignLen > 20 && bAln.identity > 0.5);
+      if (!bAccept) break;
       globalIdx++;
       const partProj = new Array(consLen).fill('-');
       let pq = bAln.qStart;
@@ -1068,9 +1071,10 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
       const firstRow = projRows[0];
       if (!firstRow.isFirst) break;
       const boundarySeq = firstRow.flankLeftStr + firstRow.monOverLeft;
-      if (boundarySeq.length <= 20) break;
+      if (boundarySeq.length <= 10) break;
       const bAln = pairwiseAlign(consensus, boundarySeq);
-      if (bAln.identity <= 0.5 || bAln.alignLen <= 20) break;
+      const bAccept = (bAln.alignLen > 10 && bAln.identity > 0.8) || (bAln.alignLen > 20 && bAln.identity > 0.5);
+      if (!bAccept) break;
       globalIdx++;
       const partProj = new Array(consLen).fill('-');
       let pq = bAln.qStart;
