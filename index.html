@@ -1005,105 +1005,120 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
       projRows[i].spacerLen = sp.length;
     }
 
-    // --- BOUNDARY PARTIAL REPEAT DETECTION ---
-    // For reading-last row: if monOverRight + flankRightStr contains a CLsat partial repeat,
-    // split it into a separate row (partial monomer) + true flank.
-    const lastRow = projRows[projRows.length - 1];
-    if (lastRow.isLast) {
+    // --- ITERATIVE BOUNDARY PARTIAL REPEAT DETECTION ---
+    // For reading-last: keep pulling CLsat partial repeats from monOverRight + flankRightStr
+    // until no more match. This handles cases where the flank contains multiple monomers.
+    for (let _iter = 0; _iter < 10; _iter++) {
+      const lastRow = projRows[projRows.length - 1];
+      if (!lastRow.isLast) break;
       const boundarySeq = lastRow.monOverRight + lastRow.flankRightStr;
-      if (boundarySeq.length > 20) {
-        const bAln = pairwiseAlign(consensus, boundarySeq);
-        if (bAln.identity > 0.5 && bAln.alignLen > 20) {
-          globalIdx++;
-          const partProj = new Array(consLen).fill('-');
-          let pq = bAln.qStart;
-          for (let k = 0; k < bAln.qAln.length; k++) {
-            if (bAln.qAln[k] !== '-') {
-              if (pq < consLen) partProj[pq] = bAln.sAln[k];
-              pq++;
-            }
-          }
-          // Fill leading gaps with any pre-alignment bases
-          const preBases = boundarySeq.substring(0, bAln.sStart);
-          if (preBases.length > 0 && bAln.qStart > 0) {
-            const fill = Math.min(preBases.length, bAln.qStart);
-            for (let k = 0; k < fill; k++) {
-              partProj[bAln.qStart - fill + k] = preBases[preBases.length - fill + k];
-            }
-          }
-          let trueFlank = boundarySeq.substring(bAln.sEnd);
-          // Fill trailing consensus gaps with post-alignment bases
-          if (trueFlank.length > 0 && bAln.qEnd < consLen) {
-            const fill = Math.min(trueFlank.length, consLen - bAln.qEnd);
-            for (let k = 0; k < fill; k++) partProj[bAln.qEnd + k] = trueFlank[k];
-            trueFlank = trueFlank.substring(fill);
-          }
-          projRows.push({
-            name: '#' + globalIdx + ' partial(' + lastRow.clsat[lastRow.clsat.length-1] + ')',
-            hoverTitle: 'Partial repeat at boundary',
-            monId: lastRow.monId + '-partial',
-            bases: partProj, identity: bAln.identity,
-            flankLeftStr: '', monOverLeft: '',
-            monOverRight: '', flankRightStr: trueFlank,
-            isFirst: false, isLast: true,
-            clsat: lastRow.clsat,
-            spacerLen: 0, spacerSeq: '',
-            gStart: lastRow.gEnd, gEnd: lastRow.gEnd,
-          });
-          lastRow.monOverRight = '';
-          lastRow.flankRightStr = '';
-          lastRow.isLast = false;
+      if (boundarySeq.length <= 20) break;
+      const bAln = pairwiseAlign(consensus, boundarySeq);
+      if (bAln.identity <= 0.5 || bAln.alignLen <= 20) break;
+      globalIdx++;
+      const partProj = new Array(consLen).fill('-');
+      let pq = bAln.qStart;
+      for (let k = 0; k < bAln.qAln.length; k++) {
+        if (bAln.qAln[k] !== '-') {
+          if (pq < consLen) partProj[pq] = bAln.sAln[k];
+          pq++;
         }
       }
+      // Fill leading gaps with any pre-alignment bases
+      const preBases = boundarySeq.substring(0, bAln.sStart);
+      let preUsed = 0;
+      if (preBases.length > 0 && bAln.qStart > 0) {
+        preUsed = Math.min(preBases.length, bAln.qStart);
+        for (let k = 0; k < preUsed; k++) {
+          partProj[bAln.qStart - preUsed + k] = preBases[preBases.length - preUsed + k];
+        }
+      }
+      // Put any remaining preBases back into previous row's monOverRight
+      const preRemain = preBases.substring(0, preBases.length - preUsed);
+      if (preRemain.length > 0) {
+        lastRow.monOverRight = preRemain;
+      } else {
+        lastRow.monOverRight = '';
+      }
+      let trueFlank = boundarySeq.substring(bAln.sEnd);
+      // Fill trailing consensus gaps with post-alignment bases
+      if (trueFlank.length > 0 && bAln.qEnd < consLen) {
+        const fill = Math.min(trueFlank.length, consLen - bAln.qEnd);
+        for (let k = 0; k < fill; k++) partProj[bAln.qEnd + k] = trueFlank[k];
+        trueFlank = trueFlank.substring(fill);
+      }
+      projRows.push({
+        name: '#' + globalIdx + ' partial(' + lastRow.clsat[lastRow.clsat.length-1] + ')',
+        hoverTitle: 'Partial repeat at boundary',
+        monId: lastRow.monId + '-partial-' + _iter,
+        bases: partProj, identity: bAln.identity,
+        flankLeftStr: '', monOverLeft: '',
+        monOverRight: '', flankRightStr: trueFlank,
+        isFirst: false, isLast: true,
+        clsat: lastRow.clsat,
+        spacerLen: 0, spacerSeq: '',
+        gStart: lastRow.gEnd, gEnd: lastRow.gEnd,
+      });
+      lastRow.flankRightStr = '';
+      lastRow.isLast = false;
     }
-    // Same for reading-first row
-    const firstRow = projRows[0];
-    if (firstRow.isFirst) {
+
+    // Same iterative detection for reading-first
+    for (let _iter = 0; _iter < 10; _iter++) {
+      const firstRow = projRows[0];
+      if (!firstRow.isFirst) break;
       const boundarySeq = firstRow.flankLeftStr + firstRow.monOverLeft;
-      if (boundarySeq.length > 20) {
-        const bAln = pairwiseAlign(consensus, boundarySeq);
-        if (bAln.identity > 0.5 && bAln.alignLen > 20) {
-          globalIdx++;
-          const partProj = new Array(consLen).fill('-');
-          let pq = bAln.qStart;
-          for (let k = 0; k < bAln.qAln.length; k++) {
-            if (bAln.qAln[k] !== '-') {
-              if (pq < consLen) partProj[pq] = bAln.sAln[k];
-              pq++;
-            }
-          }
-          // Fill trailing gaps
-          const postBases = boundarySeq.substring(bAln.sEnd);
-          if (postBases.length > 0 && bAln.qEnd < consLen) {
-            const fill = Math.min(postBases.length, consLen - bAln.qEnd);
-            for (let k = 0; k < fill; k++) {
-              partProj[bAln.qEnd + k] = postBases[k];
-            }
-          }
-          let trueFlank = boundarySeq.substring(0, bAln.sStart);
-          // Fill leading consensus gaps with pre-alignment bases
-          if (trueFlank.length > 0 && bAln.qStart > 0) {
-            const fill = Math.min(trueFlank.length, bAln.qStart);
-            for (let k = 0; k < fill; k++) partProj[bAln.qStart - fill + k] = trueFlank[trueFlank.length - fill + k];
-            trueFlank = trueFlank.substring(0, trueFlank.length - fill);
-          }
-          projRows.unshift({
-            name: '#0 partial(' + firstRow.clsat[firstRow.clsat.length-1] + ')',
-            hoverTitle: 'Partial repeat at boundary',
-            monId: firstRow.monId + '-partial',
-            bases: partProj, identity: bAln.identity,
-            flankLeftStr: trueFlank, monOverLeft: '',
-            monOverRight: '', flankRightStr: '',
-            isFirst: true, isLast: false,
-            clsat: firstRow.clsat,
-            spacerLen: 0, spacerSeq: '',
-            gStart: firstRow.gStart, gEnd: firstRow.gStart,
-          });
-          firstRow.flankLeftStr = '';
-          firstRow.monOverLeft = '';
-          firstRow.isFirst = false;
+      if (boundarySeq.length <= 20) break;
+      const bAln = pairwiseAlign(consensus, boundarySeq);
+      if (bAln.identity <= 0.5 || bAln.alignLen <= 20) break;
+      globalIdx++;
+      const partProj = new Array(consLen).fill('-');
+      let pq = bAln.qStart;
+      for (let k = 0; k < bAln.qAln.length; k++) {
+        if (bAln.qAln[k] !== '-') {
+          if (pq < consLen) partProj[pq] = bAln.sAln[k];
+          pq++;
         }
       }
+      // Fill trailing gaps with post-alignment bases
+      const postBases = boundarySeq.substring(bAln.sEnd);
+      let postUsed = 0;
+      if (postBases.length > 0 && bAln.qEnd < consLen) {
+        postUsed = Math.min(postBases.length, consLen - bAln.qEnd);
+        for (let k = 0; k < postUsed; k++) {
+          partProj[bAln.qEnd + k] = postBases[k];
+        }
+      }
+      // Put any remaining postBases back into first row's monOverLeft
+      const postRemain = postBases.substring(postUsed);
+      if (postRemain.length > 0) {
+        firstRow.monOverLeft = postRemain;
+      } else {
+        firstRow.monOverLeft = '';
+      }
+      let trueFlank = boundarySeq.substring(0, bAln.sStart);
+      // Fill leading consensus gaps with pre-alignment bases
+      let preUsed = 0;
+      if (trueFlank.length > 0 && bAln.qStart > 0) {
+        preUsed = Math.min(trueFlank.length, bAln.qStart);
+        for (let k = 0; k < preUsed; k++) partProj[bAln.qStart - preUsed + k] = trueFlank[trueFlank.length - preUsed + k];
+        trueFlank = trueFlank.substring(0, trueFlank.length - preUsed);
+      }
+      projRows.unshift({
+        name: '#0 partial(' + firstRow.clsat[firstRow.clsat.length-1] + ')',
+        hoverTitle: 'Partial repeat at boundary',
+        monId: firstRow.monId + '-partial-' + _iter,
+        bases: partProj, identity: bAln.identity,
+        flankLeftStr: trueFlank, monOverLeft: '',
+        monOverRight: '', flankRightStr: '',
+        isFirst: true, isLast: false,
+        clsat: firstRow.clsat,
+        spacerLen: 0, spacerSeq: '',
+        gStart: firstRow.gStart, gEnd: firstRow.gStart,
+      });
+      firstRow.flankLeftStr = '';
+      firstRow.monOverLeft = '';
+      firstRow.isFirst = false;
     }
 
     // --- Absorb very short flanks (<10bp) into the boundary row projection ---
