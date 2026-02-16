@@ -825,43 +825,13 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
       flankBefore = leftFlank;
       flankAfter = rightFlank;
     }
-    const nBefore = flankBefore.length;
-    const nAfter = flankAfter.length;
+    const nBeforeOrig = flankBefore.length;
+    const nAfterOrig = flankAfter.length;
 
     html += '<div style="margin-top:10px; color:' + clsatColor + '; font-weight:bold; font-size:10px;">';
     html += 'Array ' + (ai+1) + ' \u2014 ' + arr.hits.length + ' monomers (' + strand + ' strand, ' + dominantClsat + ') \u2014 flanks + consensus-anchored MSA';
     html += '</div>';
     html += '<div class="msaBlock">';
-
-    // Scale ruler — right-justified tick labels
-    html += '<div class="msaRow"><span class="msaName"></span>';
-    // left flank ruler
-    { const r = new Array(nBefore).fill(' ');
-      for (let k = 0; k < nBefore; k++) { const p = -(nBefore - k); if (p % 10 === 0 && p !== 0) { const s = String(p); const st = k - s.length + 1; if (st >= 0) for (let d = 0; d < s.length; d++) r[st+d] = s[d]; } }
-      for (let k = 0; k < nBefore; k++) html += '<span class="msaBase" style="color:' + (r[k] !== ' ' ? '#555' : 'transparent') + ';">' + r[k] + '</span>';
-    }
-    if (nBefore > 0) html += '<span class="msaBase" style="color:#f59e0b;">\u2502</span>';
-    // consensus ruler
-    { const r = new Array(consLen).fill(' ');
-      for (let k = 0; k < consLen; k++) { const p = k + 1; if (p % 10 === 0) { const s = String(p); const st = k - s.length + 1; if (st >= 0) for (let d = 0; d < s.length; d++) r[st+d] = s[d]; } else if (p % 5 === 0 && r[k] === ' ') r[k] = '.'; }
-      for (let k = 0; k < consLen; k++) { if (r[k] === '.') html += '<span class="msaBase" style="color:#333;">.</span>'; else if (r[k] !== ' ') html += '<span class="msaBase" style="color:#555;">' + r[k] + '</span>'; else html += '<span class="msaBase"> </span>'; }
-    }
-    if (nAfter > 0) html += '<span class="msaBase" style="color:#f59e0b;">\u2502</span>';
-    // right flank ruler
-    { const r = new Array(nAfter).fill(' ');
-      for (let k = 0; k < nAfter; k++) { const p = k + 1; if (p % 10 === 0) { const s = String(p); const st = k - s.length + 1; if (st >= 0) for (let d = 0; d < s.length; d++) r[st+d] = s[d]; } }
-      for (let k = 0; k < nAfter; k++) html += '<span class="msaBase" style="color:' + (r[k] !== ' ' ? '#555' : 'transparent') + ';">' + r[k] + '</span>';
-    }
-    html += '</div>';
-
-    // Consensus row (no pipe separators — just dots for flank area)
-    html += '<div class="msaRow"><span class="msaName" style="color:' + clsatColor + '; font-weight:bold;">' + dominantClsat + '</span>';
-    for (let k = 0; k < nBefore; k++) html += '<span class="msaBase" style="color:#1a1a2e;">\u00b7</span>';
-    if (nBefore > 0) html += '<span class="msaBase" style="color:#1a1a2e;">\u00b7</span>';
-    for (let k = 0; k < consLen; k++) html += '<span class="msaBase msaCons">' + consU[k] + '</span>';
-    if (nAfter > 0) html += '<span class="msaBase" style="color:#1a1a2e;">\u00b7</span>';
-    for (let k = 0; k < nAfter; k++) html += '<span class="msaBase" style="color:#1a1a2e;">\u00b7</span>';
-    html += '</div>';
 
     // Display order: reading direction (left-to-right for +, right-to-left for -)
     const displayIndices = strand === '-'
@@ -880,8 +850,8 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
       // Extend boundary monomers with flanks
       let extLeft = '';
       let extRight = '';
-      if (mi === 0 && nBefore > 0) extLeft = flankBefore;
-      if (mi === displayHits.length - 1 && nAfter > 0) extRight = flankAfter;
+      if (mi === 0 && nBeforeOrig > 0) extLeft = flankBefore;
+      if (mi === displayHits.length - 1 && nAfterOrig > 0) extRight = flankAfter;
 
       const extLeftLen = extLeft.length;
       const monSeqLen = monSeq.length;
@@ -1136,9 +1106,6 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
       }
     }
 
-    // The nBefore/nAfter column widths remain constant (matching scale ruler).
-    // Partial detection may change isFirst/isLast but column sizes stay.
-
     // --- Absorb very short flanks (<10bp) into the boundary row projection ---
     // These are usually scaffold-edge remnants of CLsat, not real flanks.
     const firstRowFinal = projRows.find(r => r.isFirst);
@@ -1163,6 +1130,42 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
         lastRowFinal.flankRightStr = fl.substring(fill);
       }
     }
+
+    // --- Compute actual flank column widths from processed rows ---
+    const firstRowDisp = projRows.find(r => r.isFirst);
+    const lastRowDisp = projRows.find(r => r.isLast);
+    const nBefore = firstRowDisp ? firstRowDisp.flankLeftStr.length : 0;
+    const nAfter = lastRowDisp ? lastRowDisp.flankRightStr.length : 0;
+
+    // Scale ruler — right-justified tick labels
+    html += '<div class="msaRow"><span class="msaName"></span>';
+    // left flank ruler
+    { const r = new Array(nBefore).fill(' ');
+      for (let k = 0; k < nBefore; k++) { const p = -(nBefore - k); if (p % 10 === 0 && p !== 0) { const s = String(p); const st = k - s.length + 1; if (st >= 0) for (let d = 0; d < s.length; d++) r[st+d] = s[d]; } }
+      for (let k = 0; k < nBefore; k++) html += '<span class="msaBase" style="color:' + (r[k] !== ' ' ? '#555' : 'transparent') + ';">' + r[k] + '</span>';
+    }
+    if (nBefore > 0) html += '<span class="msaBase" style="color:#f59e0b;">\u2502</span>';
+    // consensus ruler
+    { const r = new Array(consLen).fill(' ');
+      for (let k = 0; k < consLen; k++) { const p = k + 1; if (p % 10 === 0) { const s = String(p); const st = k - s.length + 1; if (st >= 0) for (let d = 0; d < s.length; d++) r[st+d] = s[d]; } else if (p % 5 === 0 && r[k] === ' ') r[k] = '.'; }
+      for (let k = 0; k < consLen; k++) { if (r[k] === '.') html += '<span class="msaBase" style="color:#333;">.</span>'; else if (r[k] !== ' ') html += '<span class="msaBase" style="color:#555;">' + r[k] + '</span>'; else html += '<span class="msaBase"> </span>'; }
+    }
+    if (nAfter > 0) html += '<span class="msaBase" style="color:#f59e0b;">\u2502</span>';
+    // right flank ruler
+    { const r = new Array(nAfter).fill(' ');
+      for (let k = 0; k < nAfter; k++) { const p = k + 1; if (p % 10 === 0) { const s = String(p); const st = k - s.length + 1; if (st >= 0) for (let d = 0; d < s.length; d++) r[st+d] = s[d]; } }
+      for (let k = 0; k < nAfter; k++) html += '<span class="msaBase" style="color:' + (r[k] !== ' ' ? '#555' : 'transparent') + ';">' + r[k] + '</span>';
+    }
+    html += '</div>';
+
+    // Consensus row (no pipe separators — just dots for flank area)
+    html += '<div class="msaRow"><span class="msaName" style="color:' + clsatColor + '; font-weight:bold;">' + dominantClsat + '</span>';
+    for (let k = 0; k < nBefore; k++) html += '<span class="msaBase" style="color:#1a1a2e;">\u00b7</span>';
+    if (nBefore > 0) html += '<span class="msaBase" style="color:#1a1a2e;">\u00b7</span>';
+    for (let k = 0; k < consLen; k++) html += '<span class="msaBase msaCons">' + consU[k] + '</span>';
+    if (nAfter > 0) html += '<span class="msaBase" style="color:#1a1a2e;">\u00b7</span>';
+    for (let k = 0; k < nAfter; k++) html += '<span class="msaBase" style="color:#1a1a2e;">\u00b7</span>';
+    html += '</div>';
 
     // --- Build FASTA data for copy ---
     fastaLines.push('>consensus_' + dominantClsat);
@@ -1264,7 +1267,7 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
       }
 
       // Right: remaining overhang for ANY monomer (shown after consensus cols)
-      if (row.monOverRight.length > 0 && !row.isLast) {
+      if (row.monOverRight.length > 0) {
         html += '<span class="msaBase" style="color:#f59e0b;">\u2502</span>';
         for (let k = 0; k < row.monOverRight.length; k++) {
           html += baseSpan(row.monOverRight[k], '', 'overhang', 'overhang +' + (k+1));
@@ -1273,7 +1276,7 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
 
       // Right flank columns (only for isLast)
       if (row.isLast && nAfter > 0) {
-        html += sepSpan;
+        if (!row.monOverRight.length) html += sepSpan;
         for (let k = 0; k < row.flankRightStr.length; k++) {
           html += baseSpan(row.flankRightStr[k], '', 'flank', 'flank +' + (k+1));
         }
