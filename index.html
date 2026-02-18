@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
 <title>CLsat Locus Detail Viewer – Per-window Bitscores</title>
 
 <!-- D3.js - load from CDN -->
@@ -143,7 +146,7 @@
 <button class="collapseBtn" id="collapseBtn" title="Toggle sidebar">«</button>
 <div class="wrap">
   <div class="sidebar">
-    <h1>CLsat Locus Detail Viewer</h1>
+    <h1>CLsat Locus Detail Viewer <span id="versionTag" style="font-size:9px; color:#f59e0b; font-weight:normal;"></span></h1>
     <div class="small">
       Click a locus in the scaffold overview to see per-window bitscores below.
     </div>
@@ -284,6 +287,14 @@ const CONSENSUS_SEQS = {
   CLsat4: "AAAGAAGCTCGTTTGGATGTATTTGCGTGACTTTGCATTCACAACTCAAAAACACATATCTTTTGAAATGAAGGTGATGGAAGCTTGTTCGTGTGTTTTCTATGCATTTCGAGCCT",
 };
 
+const VIEWER_VERSION = "v2.2-splitfix-20260218b";
+console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
+// Show version in UI header
+document.addEventListener('DOMContentLoaded', () => {
+  const vTag = document.getElementById('versionTag');
+  if (vTag) vTag.textContent = VIEWER_VERSION;
+});
+
 /* ============================================================================
    CLIENT-SIDE SMITH-WATERMAN MONOMER FINDER (replaces monomer_server.py)
    Mimics the searsat16 pipeline:
@@ -408,6 +419,70 @@ function revComp(seq) {
 }
 
 /**
+ * Split any hit wider than maxHitLen into individual monomers using iterative
+ * pairwise alignment to the consensus. Operates on a flat array of hits.
+ * @param {Array} hits - array of hit objects with start, end, strand, etc.
+ * @param {string} consensus - consensus DNA string
+ * @param {string} rawSeq - the full forward-orientation sequence
+ * @param {number} maxHitLen - maximum allowed hit span (end-start+1)
+ * @returns {Array} hits with wide ones decomposed
+ */
+function splitWideHits(hits, consensus, rawSeq, maxHitLen) {
+  if (!hits.length) return hits;
+  const consLen = consensus.length;
+  const consU = consensus.toUpperCase();
+  const out = [];
+  for (const m of hits) {
+    const span = m.end - m.start + 1;
+    if (span <= maxHitLen) {
+      out.push(m);
+      continue;
+    }
+    // Decompose: extract subject region, revcomp if minus, iteratively align
+    const fwdSlice = rawSeq.substring(m.start, m.end + 1);
+    const readSeq = m.strand === '-' ? revComp(fwdSlice) : fwdSlice;
+    let off = 0;
+    let splitOk = false;
+    for (let si = 0; si < 20 && off < readSeq.length; si++) {
+      const rem = readSeq.substring(off);
+      if (rem.length < consLen * 0.25) break;
+      const wa = pairwiseAlign(consU, rem);
+      if (wa.alignLen < consLen * 0.25 || wa.identity < 0.35) break;
+      const readStart = off + wa.sStart;
+      const readEnd = off + wa.sEnd - 1;
+      let rawStart, rawEnd;
+      if (m.strand === '-') {
+        rawStart = m.start + (span - 1 - readEnd);
+        rawEnd   = m.start + (span - 1 - readStart);
+      } else {
+        rawStart = m.start + readStart;
+        rawEnd   = m.start + readEnd;
+      }
+      out.push({
+        ...m,
+        start: rawStart,
+        end: rawEnd,
+        length: rawEnd - rawStart + 1,
+        identity: wa.identity,
+        matches: wa.matches,
+        alignLen: wa.alignLen,
+      });
+      splitOk = true;
+      off += wa.sEnd;
+    }
+    if (!splitOk) {
+      console.warn('[splitWideHits] Could not decompose ' + span + 'bp hit at ' + m.start + '-' + m.end);
+      out.push(m);
+    } else {
+      console.log('[splitWideHits] Split ' + span + 'bp hit into ' + out.length + ' sub-hits');
+    }
+  }
+  // Re-sort by start
+  out.sort((a, b) => a.start - b.start);
+  return out;
+}
+
+/**
  * Pairwise SW alignment of two short sequences with full traceback.
  * Returns aligned strings for query and subject.
  */
@@ -450,16 +525,21 @@ function pairwiseAlign(query, subject) {
   return {qAln:qA.join(''),sAln:sA.join(''),score:maxVal,identity:alignLen>0?matches/alignLen:0,matches,alignLen,sStart:cj,sEnd:maxJ,qStart:ci,qEnd:maxI};
 }
 
-/** Merge overlapping hits (like bedtools merge -s -d -1: overlap required, adjacent stays separate) */
-function mergeHits(hits) {
+/** Merge overlapping hits (like bedtools merge -s -d -1: overlap required, adjacent stays separate).
+ *  maxMergeLen: if merging would create a hit longer than this, skip the merge.
+ *  Prevents adjacent monomers with trivial 1-bp overlap from fusing into double-width hits. */
+function mergeHits(hits, maxMergeLen = Infinity) {
   if (!hits.length) return [];
+  console.log('[mergeHits] cap=' + maxMergeLen + ', input=' + hits.length + ' hits');
   const sorted = [...hits].sort((a, b) => a.start - b.start);
   const merged = [{...sorted[0]}];
   for (let i = 1; i < sorted.length; i++) {
     const prev = merged[merged.length - 1];
     const cur = sorted[i];
-    if (cur.start <= prev.end) { // overlapping only (not adjacent) — matches bedtools -d -1
-      prev.end = Math.max(prev.end, cur.end);
+    const wouldBeEnd = Math.max(prev.end, cur.end);
+    const wouldBeLen = wouldBeEnd - prev.start + 1;
+    if (cur.start <= prev.end && wouldBeLen <= maxMergeLen) {
+      prev.end = wouldBeEnd;
       prev.length = prev.end - prev.start + 1;
       prev.score = Math.max(prev.score, cur.score);
       prev.identity = Math.max(prev.identity, cur.identity);
@@ -468,6 +548,10 @@ function mergeHits(hits) {
       merged.push({...cur});
     }
   }
+  // Log any wide hits that survived
+  const wide = merged.filter(h => (h.end - h.start + 1) > maxMergeLen);
+  if (wide.length > 0) console.warn('[mergeHits] WARNING: ' + wide.length + ' hits wider than cap! Spans:', wide.map(h => h.end - h.start + 1));
+  console.log('[mergeHits] output=' + merged.length + ' hits, max span=' + Math.max(...merged.map(h => h.end - h.start + 1)));
   return merged;
 }
 
@@ -511,16 +595,27 @@ function scanOneConsensus(seq, consName, minIdentity) {
 
   const rcSeq = revComp(seq);
   const rcHitsRaw = smithWaterman(consensus, rcSeq);
-  const rcHits = rcHitsRaw.map(h => ({
-    ...h,
-    start: seqLen - h.end - 1,
-    end: seqLen - h.start - 1,
-    strand: '-',
-    clsat: consName,
-  }));
+  const rcHits = rcHitsRaw.map(h => {
+    const newStart = seqLen - h.end - 1;
+    const newEnd = seqLen - h.start - 1;
+    return {
+      ...h,
+      start: newStart,
+      end: newEnd,
+      length: newEnd - newStart + 1,  // recalculate from transformed coords
+      strand: '-',
+      clsat: consName,
+    };
+  });
 
-  return [...fwdHits, ...rcHits]
+  let combined = [...fwdHits, ...rcHits]
     .filter(h => h.identity >= minIdentity && h.length >= minLen);
+
+  // Split any raw hits wider than 1.3× consensus (should be rare, but defensive)
+  const maxSpan = Math.floor(consLen * 1.3);
+  combined = splitWideHits(combined, consensus, seq, maxSpan);
+
+  return combined;
 }
 
 /**
@@ -598,9 +693,16 @@ function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
     };
   }
 
-  // Separate by strand, merge, then split into arrays
-  const plusHits = mergeHits(allHits.filter(h => h.strand === '+'));
-  const minusHits = mergeHits(allHits.filter(h => h.strand === '-'));
+  // Separate by strand, merge (with max-length cap), then split into arrays
+  const maxConsLen = Math.max(...scanNames.map(cn => (CONSENSUS_SEQS[cn] || '').length), 100);
+  const maxMergeLen = Math.floor(maxConsLen * 1.3);  // 1.3× consensus = ~190bp for CLsat1
+  let plusHits = mergeHits(allHits.filter(h => h.strand === '+'), maxMergeLen);
+  let minusHits = mergeHits(allHits.filter(h => h.strand === '-'), maxMergeLen);
+
+  // Post-merge safety: split any surviving wide hits
+  const primaryCons = CONSENSUS_SEQS[scanNames[0]] || '';
+  plusHits = splitWideHits(plusHits, primaryCons, seq, maxMergeLen);
+  minusHits = splitWideHits(minusHits, primaryCons, seq, maxMergeLen);
 
   const plusArrays = splitIntoArrays(plusHits, 3);
   const minusArrays = splitIntoArrays(minusHits, 3);
@@ -773,7 +875,7 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
   const scfName = scaffoldName || '';
   const ntCol = {A:'#27ae60',C:'#2980b9',G:'#d35400',T:'#c0392b',
                  a:'#27ae60',c:'#2980b9',g:'#d35400',t:'#c0392b'};
-  const FLANK_SIZE = 100;
+  const FLANK_SIZE = 300;
 
   // Helper: render one base span with mode
   // mode: 'match', 'mismatch', 'gap', 'flank', 'overhang', 'spacer'
@@ -837,13 +939,21 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
     const displayIndices = strand === '-'
       ? arr.hits.map((_,i) => i).reverse()
       : arr.hits.map((_,i) => i);
-    const displayHits = displayIndices.map(i => arr.hits[i]);
+    let displayHits = displayIndices.map(i => arr.hits[i]);
+
+    // --- SAFETY: Re-split any hit wider than 1.3× consensus ---
+    // Uses the shared splitWideHits function. Defense-in-depth for any
+    // double-width hits that survived mergeHits + analyzeMonomersSW splitting.
+    const maxHitLen = Math.floor(consLen * 1.3);
+    displayHits = splitWideHits(displayHits, consensus, rawSeq, maxHitLen);
+    // Re-create displayIndices to match (indices are only used for origIdx / monId)
+    const displayIndicesNew = displayHits.map((_,i) => i);
 
     // Align each monomer and build rows
     const projRows = [];
     displayHits.forEach((m, mi) => {
       globalIdx++;
-      const origIdx = displayIndices[mi];
+      const origIdx = displayIndicesNew[mi];
       let monSeq = rawSeq.substring(m.start, m.end + 1);
       if (strand === '-') monSeq = revComp(monSeq);
 
