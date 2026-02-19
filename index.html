@@ -287,7 +287,7 @@ const CONSENSUS_SEQS = {
   CLsat4: "AAAGAAGCTCGTTTGGATGTATTTGCGTGACTTTGCATTCACAACTCAAAAACACATATCTTTTGAAATGAAGGTGATGGAAGCTTGTTCGTGTGTTTTCTATGCATTTCGAGCCT",
 };
 
-const VIEWER_VERSION = "v2.2-splitfix-20260218b";
+const VIEWER_VERSION = "v2.3-transition-20260218";
 console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
 // Show version in UI header
 document.addEventListener('DOMContentLoaded', () => {
@@ -420,17 +420,15 @@ function revComp(seq) {
 
 /**
  * Split any hit wider than maxHitLen into individual monomers using iterative
- * pairwise alignment to the consensus. Operates on a flat array of hits.
- * @param {Array} hits - array of hit objects with start, end, strand, etc.
- * @param {string} consensus - consensus DNA string
+ * pairwise alignment to its own consensus. Operates on a flat array of hits.
+ * @param {Array} hits - array of hit objects with start, end, strand, clsat, etc.
+ * @param {string} fallbackConsensus - fallback consensus DNA string (used if hit has no clsat)
  * @param {string} rawSeq - the full forward-orientation sequence
  * @param {number} maxHitLen - maximum allowed hit span (end-start+1)
  * @returns {Array} hits with wide ones decomposed
  */
-function splitWideHits(hits, consensus, rawSeq, maxHitLen) {
+function splitWideHits(hits, fallbackConsensus, rawSeq, maxHitLen) {
   if (!hits.length) return hits;
-  const consLen = consensus.length;
-  const consU = consensus.toUpperCase();
   const out = [];
   for (const m of hits) {
     const span = m.end - m.start + 1;
@@ -438,6 +436,10 @@ function splitWideHits(hits, consensus, rawSeq, maxHitLen) {
       out.push(m);
       continue;
     }
+    // Use per-hit consensus if available
+    const consensus = (m.clsat && CONSENSUS_SEQS[m.clsat]) || fallbackConsensus;
+    const consLen = consensus.length;
+    const consU = consensus.toUpperCase();
     // Decompose: extract subject region, revcomp if minus, iteratively align
     const fwdSlice = rawSeq.substring(m.start, m.end + 1);
     const readSeq = m.strand === '-' ? revComp(fwdSlice) : fwdSlice;
@@ -527,7 +529,8 @@ function pairwiseAlign(query, subject) {
 
 /** Merge overlapping hits (like bedtools merge -s -d -1: overlap required, adjacent stays separate).
  *  maxMergeLen: if merging would create a hit longer than this, skip the merge.
- *  Prevents adjacent monomers with trivial 1-bp overlap from fusing into double-width hits. */
+ *  Prevents adjacent monomers with trivial 1-bp overlap from fusing into double-width hits.
+ *  Never merges hits from different CLsat types. */
 function mergeHits(hits, maxMergeLen = Infinity) {
   if (!hits.length) return [];
   console.log('[mergeHits] cap=' + maxMergeLen + ', input=' + hits.length + ' hits');
@@ -538,7 +541,8 @@ function mergeHits(hits, maxMergeLen = Infinity) {
     const cur = sorted[i];
     const wouldBeEnd = Math.max(prev.end, cur.end);
     const wouldBeLen = wouldBeEnd - prev.start + 1;
-    if (cur.start <= prev.end && wouldBeLen <= maxMergeLen) {
+    const sameType = (prev.clsat || '?') === (cur.clsat || '?');
+    if (sameType && cur.start <= prev.end && wouldBeLen <= maxMergeLen) {
       prev.end = wouldBeEnd;
       prev.length = prev.end - prev.start + 1;
       prev.score = Math.max(prev.score, cur.score);
@@ -569,6 +573,53 @@ function splitIntoArrays(hits, minTandems = 3) {
     }
   }
   return arrays.filter(a => a.length >= minTandems);
+}
+
+/**
+ * Split arrays at CLsat-type transition points.
+ * When consecutive monomers switch CLsat type (e.g. CLsat3 → CLsat1),
+ * split into sub-arrays so each gets its own consensus MSA.
+ * Sub-arrays at boundaries (≥1 monomer) are kept; interior sub-arrays need ≥2.
+ */
+function splitArraysAtTransitions(arrays) {
+  const result = [];
+  for (const arr of arrays) {
+    const hits = arr.hits;
+    if (hits.length <= 1) {
+      result.push(arr);
+      continue;
+    }
+    // Check if all hits have the same CLsat type
+    const types = hits.map(h => h.clsat || '?');
+    const allSame = types.every(t => t === types[0]);
+    if (allSame) {
+      result.push(arr);
+      continue;
+    }
+    // Split at type transitions
+    console.log('[transition] Array with mixed types:', types.join(','));
+    const subArrays = [{ strand: arr.strand, hits: [hits[0]] }];
+    for (let i = 1; i < hits.length; i++) {
+      const prevType = hits[i-1].clsat || '?';
+      const curType = hits[i].clsat || '?';
+      if (curType !== prevType) {
+        subArrays.push({ strand: arr.strand, hits: [hits[i]] });
+      } else {
+        subArrays[subArrays.length - 1].hits.push(hits[i]);
+      }
+    }
+    // Keep sub-arrays: boundary ones (first/last) with ≥1 monomer,
+    // interior ones with ≥2 monomers
+    for (let si = 0; si < subArrays.length; si++) {
+      const sa = subArrays[si];
+      const isBoundary = (si === 0 || si === subArrays.length - 1);
+      if (sa.hits.length >= 1) {
+        result.push(sa);
+      }
+    }
+    console.log('[transition] Split into ' + subArrays.length + ' sub-arrays');
+  }
+  return result;
 }
 
 /**
@@ -655,15 +706,9 @@ function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
   }
 
   // Determine which consensus(es) to scan
-  let scanNames;
-  if (consensusName === 'SEED_CONFLICT') {
-    scanNames = Object.keys(CONSENSUS_SEQS); // all 4
-    console.log("[SW] SEED_CONFLICT locus — scanning all consensuses:", scanNames.join(', '));
-  } else {
-    const consensus = CONSENSUS_SEQS[consensusName];
-    if (!consensus) return { success: false, message: "Unknown consensus: " + consensusName };
-    scanNames = [consensusName];
-  }
+  // Always scan ALL consensuses to detect transition zones between CLsat types
+  let scanNames = Object.keys(CONSENSUS_SEQS);
+  console.log("[SW] Scanning all consensuses:", scanNames.join(', ') + " (assigned: " + consensusName + ")");
 
   // Scan with each consensus
   let allHits = [];
@@ -673,11 +718,9 @@ function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
     allHits.push(...hits);
   }
 
-  // If multi-consensus, resolve overlaps (keep best score)
-  if (scanNames.length > 1) {
-    allHits = resolveOverlaps(allHits);
-    console.log("[SW] After overlap resolution: " + allHits.length + " hits");
-  }
+  // Always resolve overlaps across consensuses (keep best score at each position)
+  allHits = resolveOverlaps(allHits);
+  console.log("[SW] After overlap resolution: " + allHits.length + " hits");
 
   allHits.sort((a, b) => a.start - b.start);
 
@@ -711,10 +754,13 @@ function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
   console.log("[SW] - strand: " + minusHits.length + " merged -> " + minusArrays.length + " arrays");
 
   // Combine results
-  const allArrays = [
+  let allArrays = [
     ...plusArrays.map(a => ({ strand: '+', hits: a })),
     ...minusArrays.map(a => ({ strand: '-', hits: a })),
   ].sort((a, b) => a.hits[0].start - b.hits[0].start);
+
+  // Split arrays at CLsat type transition points
+  allArrays = splitArraysAtTransitions(allArrays);
 
   const allMonomers = allArrays.flatMap(a => a.hits.map(h => ({...h, strand: a.strand})));
 
