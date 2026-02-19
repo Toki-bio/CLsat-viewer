@@ -287,7 +287,7 @@ const CONSENSUS_SEQS = {
   CLsat4: "AAAGAAGCTCGTTTGGATGTATTTGCGTGACTTTGCATTCACAACTCAAAAACACATATCTTTTGAAATGAAGGTGATGGAAGCTTGTTCGTGTGTTTTCTATGCATTTCGAGCCT",
 };
 
-const VIEWER_VERSION = "v2.3-transition-20260218";
+const VIEWER_VERSION = "v2.4-xtype-20260218";
 console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
 // Show version in UI header
 document.addEventListener('DOMContentLoaded', () => {
@@ -1174,6 +1174,21 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
       // or longer partials (>20bp) at moderate identity (>50%)
       const bAccept = (bAln.alignLen > 10 && bAln.identity > 0.8) || (bAln.alignLen > 20 && bAln.identity > 0.5);
       if (!bAccept) break;
+
+      // Cross-consensus check: reject if a different CLsat type matches better
+      let dominated = false;
+      for (const otherName of Object.keys(CONSENSUS_SEQS)) {
+        if (otherName === dominantClsat) continue;
+        const otherCons = CONSENSUS_SEQS[otherName];
+        const otherAln = pairwiseAlign(otherCons, boundarySeq);
+        if (otherAln.score > bAln.score && otherAln.identity > bAln.identity) {
+          console.log('[boundary] Right partial rejected: ' + dominantClsat + ' score=' + bAln.score.toFixed(0) + ' id=' + (bAln.identity*100).toFixed(0) + '% < ' + otherName + ' score=' + otherAln.score.toFixed(0) + ' id=' + (otherAln.identity*100).toFixed(0) + '%');
+          dominated = true;
+          break;
+        }
+      }
+      if (dominated) break;
+
       globalIdx++;
       const partProj = new Array(consLen).fill('-');
       let pq = bAln.qStart;
@@ -1231,6 +1246,21 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
       const bAln = pairwiseAlign(consensus, boundarySeq);
       const bAccept = (bAln.alignLen > 10 && bAln.identity > 0.8) || (bAln.alignLen > 20 && bAln.identity > 0.5);
       if (!bAccept) break;
+
+      // Cross-consensus check: reject if a different CLsat type matches better
+      let dominated = false;
+      for (const otherName of Object.keys(CONSENSUS_SEQS)) {
+        if (otherName === dominantClsat) continue;
+        const otherCons = CONSENSUS_SEQS[otherName];
+        const otherAln = pairwiseAlign(otherCons, boundarySeq);
+        if (otherAln.score > bAln.score && otherAln.identity > bAln.identity) {
+          console.log('[boundary] Left partial rejected: ' + dominantClsat + ' score=' + bAln.score.toFixed(0) + ' id=' + (bAln.identity*100).toFixed(0) + '% < ' + otherName + ' score=' + otherAln.score.toFixed(0) + ' id=' + (otherAln.identity*100).toFixed(0) + '%');
+          dominated = true;
+          break;
+        }
+      }
+      if (dominated) break;
+
       globalIdx++;
       const partProj = new Array(consLen).fill('-');
       let pq = bAln.qStart;
