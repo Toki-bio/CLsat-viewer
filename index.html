@@ -287,7 +287,7 @@ const CONSENSUS_SEQS = {
   CLsat4: "AAAGAAGCTCGTTTGGATGTATTTGCGTGACTTTGCATTCACAACTCAAAAACACATATCTTTTGAAATGAAGGTGATGGAAGCTTGTTCGTGTGTTTTCTATGCATTTCGAGCCT",
 };
 
-const VIEWER_VERSION = "v2.4-xtype-20260218";
+const VIEWER_VERSION = "v2.5-minus-strand-fix-20260218";
 console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
 // Show version in UI header
 document.addEventListener('DOMContentLoaded', () => {
@@ -981,17 +981,15 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
     html += '</div>';
     html += '<div class="msaBlock">';
 
-    // Display order: reading direction (left-to-right for +, right-to-left for -)
-    const displayIndices = strand === '-'
-      ? arr.hits.map((_,i) => i).reverse()
-      : arr.hits.map((_,i) => i);
-    let displayHits = displayIndices.map(i => arr.hits[i]);
-
     // --- SAFETY: Re-split any hit wider than 1.3× consensus ---
     // Uses the shared splitWideHits function. Defense-in-depth for any
     // double-width hits that survived mergeHits + analyzeMonomersSW splitting.
     const maxHitLen = Math.floor(consLen * 1.3);
-    displayHits = splitWideHits(displayHits, consensus, rawSeq, maxHitLen);
+    let displayHits = splitWideHits(arr.hits.slice(), consensus, rawSeq, maxHitLen);
+    // splitWideHits re-sorts ascending by genomic start.
+    // For minus-strand, reverse to biological 5'→3' order AFTER the re-sort
+    // so that isFirst (mi=0) = biological 5' start and isLast = biological 3' end.
+    if (strand === '-') displayHits.reverse();
     // Re-create displayIndices to match (indices are only used for origIdx / monId)
     const displayIndicesNew = displayHits.map((_,i) => i);
 
