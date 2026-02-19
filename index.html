@@ -1682,8 +1682,8 @@ function parseMasterMerged(text){
     const name = p[3];
     // species is first part before |
     const sp = name.split("|")[0];
-    // ID is L1, L2, L3... based on line number (matches assignment/bits files)
-    const id = "L" + lineNum;
+    // ID is the locus ID stored in the 3rd pipe-delimited field of the BED name
+    const id = name.split("|")[2] || ("L" + lineNum);
     arr.push({id, sp, scf, start, end, name});
   }
   return arr;
