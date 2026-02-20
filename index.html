@@ -46,6 +46,8 @@
     flex-direction:column;
     gap:12px;
     min-width:0;
+    min-height:0;
+    overflow:hidden;
   }
   .chartPanel{
     background:linear-gradient(180deg,var(--panel),var(--panel2));
@@ -56,7 +58,7 @@
     flex-direction:column;
   }
   .topChart{flex:0 0 auto; height:200px;}
-  .detailChart{flex:1; min-height:300px;}
+  .detailChart{flex:1; min-height:0; overflow-y:auto;}
   h1{font-size:16px; margin:0 0 8px 0;}
   h2{font-size:12px; margin:10px 0 5px 0; color:var(--muted); font-weight:600; letter-spacing:.02em;}
   .row{display:flex; gap:6px; align-items:center; margin:4px 0;}
@@ -118,7 +120,7 @@
   .monomerBtn:hover{background:#a855f7; color:#fff;}
   .monomerBtn:active{transform:scale(0.95);}
   .monomerBtn:disabled{opacity:0.5; cursor:not-allowed;}
-  .monomerResult{background:#0b1220; border:1px solid #243044; border-radius:10px; padding:10px; margin-top:6px; display:none;}
+  .monomerResult{background:#0b1220; border:1px solid #243044; border-radius:10px; padding:10px; margin-top:6px; display:none; min-width:0; overflow:hidden;}
   .monomerResult.show{display:block;}
   .monomerHeader{font-size:11px; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;}
   .monomerList{font-family: ui-monospace, monospace; font-size:10px; color:#d1d5db; max-height:150px; overflow-y:auto; margin-bottom:8px; resize:vertical; min-height:40px;}
@@ -139,6 +141,22 @@
   .msaBlock .msaGap{color:#444;}
   .msaBlock .msaCons{color:#9ca3af;}
   .msaBlock .msaIdent{color:#666; font-size:9px; margin-left:4px;}
+  /* Species button bar */
+  .speciesBar{display:flex; gap:4px; flex-wrap:wrap; margin:4px 0;}
+  .speciesBar .spBtn{padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; background:#0b1220; border:1px solid #243044; color:var(--muted); transition:all 0.15s;}
+  .speciesBar .spBtn:hover{border-color:#3b82f6; color:var(--text);}
+  .speciesBar .spBtn.active{background:#1e3a5f; border-color:#3b82f6; color:#60a5fa; font-weight:600;}
+  /* Locus table */
+  .locusTable{width:100%; border-collapse:collapse; font-size:10px; font-family:ui-monospace,monospace; margin-top:4px;}
+  .locusTable th{position:sticky; top:0; background:#111827; color:var(--muted); text-align:left; padding:3px 5px; border-bottom:1px solid #243044; cursor:pointer; user-select:none; font-weight:600;}
+  .locusTable th:hover{color:var(--text);}
+  .locusTable td{padding:2px 5px; border-bottom:1px solid #0d1525; cursor:pointer; white-space:nowrap;}
+  .locusTable tr:hover td{background:#1a1a3a;}
+  .locusTable tr.selected td{background:#1e3a5f;}
+  .locusTable .flagDot{display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:3px;}
+  .locusTableWrap{max-height:260px; overflow-y:auto; overflow-x:auto; border:1px solid #243044; border-radius:8px; background:#0b1220; margin-top:4px;}
+  .locusFilter{display:flex; gap:4px; margin-top:4px;}
+  .locusFilter input{flex:1; font-size:10px; padding:4px 6px;}
 </style>
 </head>
 
@@ -152,17 +170,10 @@
     </div>
 
     <h2>Navigation</h2>
-    <div class="row">
-      <label>Species</label>
-      <select id="speciesSel"></select>
-    </div>
+    <div class="speciesBar" id="speciesBar"></div>
     <div class="row">
       <label>Scaffold</label>
       <select id="scaffoldSel"></select>
-    </div>
-    <div class="row">
-      <label>Jump</label>
-      <select id="jumpSel"></select>
     </div>
     <div class="row">
       <label>Find locus</label>
@@ -172,6 +183,24 @@
       <label></label>
       <button id="findBtn">Go</button>
       <button id="resetBtn">Reset zoom</button>
+    </div>
+
+    <h2>Locus Table</h2>
+    <div class="locusFilter">
+      <input id="locusFilterInput" placeholder="Filter by ID, scaffold, type..." />
+    </div>
+    <div class="locusTableWrap" id="locusTableWrap">
+      <table class="locusTable" id="locusTable">
+        <thead><tr>
+          <th data-col="id">ID ▲</th>
+          <th data-col="sp">Species</th>
+          <th data-col="type">Type</th>
+          <th data-col="len">Length</th>
+          <th data-col="flag">Flag</th>
+          <th data-col="scf">Scaffold</th>
+        </tr></thead>
+        <tbody id="locusTableBody"></tbody>
+      </table>
     </div>
 
     <h2>Filters</h2>
@@ -312,7 +341,7 @@ for (const [cl, ct] of Object.entries(CLUSTER_TO_CLSAT)) {
   CLSAT_TO_CLUSTERS[ct].push(cl);
 }
 
-const VIEWER_VERSION = "v2.8-cluster-labels-20260219";
+const VIEWER_VERSION = "v2.9-ui-overhaul-20260220";
 console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
 // Show version in UI header
 document.addEventListener('DOMContentLoaded', () => {
@@ -1765,7 +1794,6 @@ let perWindowByScaffold = new Map();
 let speciesList = [];
 let scaffoldBySpecies = new Map();
 let lociBySpScf = new Map();
-let jumpItems = [];
 
 // Overview chart state
 let svgOver, gMainOver, gAxisOver, gLociOver, gBarsOver, zoomOver;
@@ -1796,10 +1824,12 @@ const key = (sp, scf) => `${sp}\t${scf}`;
 ============================================================================ */
 const statusEl = document.getElementById("status");
 const fileOk = document.getElementById("fileOk");
-const speciesSel = document.getElementById("speciesSel");
+const speciesBar = document.getElementById("speciesBar");
 const scaffoldSel = document.getElementById("scaffoldSel");
-const jumpSel = document.getElementById("jumpSel");
+const locusTableBody = document.getElementById("locusTableBody");
+const locusFilterInput = document.getElementById("locusFilterInput");
 const flagFilter = document.getElementById("flagFilter");
+let selectedSpecies = '';  // replaces speciesSel.value
 const kpiLoci = document.getElementById("kpiLoci");
 const kpiVis = document.getElementById("kpiVis");
 const kpiWindows = document.getElementById("kpiWindows");
@@ -1907,18 +1937,6 @@ function buildIndexes(){
   speciesList = [...spSet].sort();
   for (const [sp, set] of scaffoldBySpecies) scaffoldBySpecies.set(sp, [...set].sort());
   for (const [k, arr] of lociBySpScf) arr.sort((a,b) => a.start - b.start);
-
-  // Build jump list: contradictions + competitors
-  jumpItems = [];
-  const contra = loci.filter(l => assignments[l.id]?.flag === "SEED_CONTRADICTION")
-    .map(l => ({label: `⚠ ${l.id} (${l.scf.slice(-6)})`, sp: l.sp, scf: l.scf, id: l.id, start: l.start}));
-  contra.sort((a,b) => a.id.localeCompare(b.id));
-  jumpItems.push(...contra.slice(0, 100));
-  
-  const comp = loci.filter(l => assignments[l.id]?.flag === "SEED_WITH_COMPETITOR")
-    .map(l => ({label: `● ${l.id} (${l.scf.slice(-6)})`, sp: l.sp, scf: l.scf, id: l.id, start: l.start}));
-  comp.sort((a,b) => a.id.localeCompare(b.id));
-  jumpItems.push(...comp.slice(0, 100));
 }
 
 function buildPerWindowIndex(rows){
@@ -1939,24 +1957,110 @@ function sortPerWindowIndex(){
 /* ============================================================================
    SELECTORS
 ============================================================================ */
-function populateSelectors(){
-  speciesSel.innerHTML = "";
-  for (const sp of speciesList){
-    const opt = document.createElement("option");
-    opt.value = sp;
-    opt.textContent = sp;
-    speciesSel.appendChild(opt);
-  }
-  speciesSel.value = speciesList[0] || "";
-  populateScaffolds(speciesList[0]);
 
-  jumpSel.innerHTML = "<option value=''>—</option>";
-  for (const j of jumpItems){
-    const opt = document.createElement("option");
-    opt.value = j.id;
-    opt.textContent = j.label;
-    jumpSel.appendChild(opt);
+// --- Locus table state ---
+let locusTableSortCol = 'id';
+let locusTableSortAsc = true;
+let locusTableFilter = '';
+
+function populateSelectors(){
+  // Species buttons
+  speciesBar.innerHTML = '';
+  for (const sp of speciesList){
+    const btn = document.createElement('button');
+    btn.className = 'spBtn';
+    btn.textContent = sp;
+    btn.dataset.sp = sp;
+    btn.addEventListener('click', () => selectSpecies(sp));
+    speciesBar.appendChild(btn);
   }
+  selectSpecies(speciesList[0] || '', true);
+
+  // Locus table
+  populateLocusTable();
+}
+
+function selectSpecies(sp, suppressDraw){
+  selectedSpecies = sp;
+  speciesBar.querySelectorAll('.spBtn').forEach(b => b.classList.toggle('active', b.dataset.sp === sp));
+  populateScaffolds(sp);
+  if (!suppressDraw) drawOverview();
+  populateLocusTable();
+}
+
+function populateLocusTable(){
+  const filter = locusTableFilter.toLowerCase();
+  // Build rows from ALL loci
+  let rows = loci.map(l => {
+    const a = assignments[l.id] || {};
+    const len = l.end - l.start;
+    return {
+      id: l.id,
+      sp: l.sp,
+      type: a.seed || '?',
+      len: len,
+      flag: a.flag || '',
+      scf: l.scf,
+      _locus: l
+    };
+  });
+  // Apply text filter
+  if (filter) {
+    rows = rows.filter(r =>
+      r.id.toLowerCase().includes(filter) ||
+      r.sp.toLowerCase().includes(filter) ||
+      r.type.toLowerCase().includes(filter) ||
+      r.flag.toLowerCase().includes(filter) ||
+      r.scf.toLowerCase().includes(filter)
+    );
+  }
+  // Sort
+  const col = locusTableSortCol;
+  const dir = locusTableSortAsc ? 1 : -1;
+  rows.sort((a, b) => {
+    let va = a[col], vb = b[col];
+    if (col === 'len') return (va - vb) * dir;
+    if (col === 'id') {
+      // Natural sort: L1, L2, ... L10, L11
+      const na = parseInt(va.replace(/\D/g,'')) || 0;
+      const nb = parseInt(vb.replace(/\D/g,'')) || 0;
+      return (na - nb) * dir;
+    }
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    return (va < vb ? -1 : va > vb ? 1 : 0) * dir;
+  });
+  // Render
+  const FLAG_COLORS = {
+    'SEED_ONLY': '#34d399',
+    'SEED_WITH_COMPETITOR': '#f59e0b',
+    'SEED_CONTRADICTION': '#ef4444'
+  };
+  let html = '';
+  for (const r of rows) {
+    const flagColor = FLAG_COLORS[r.flag] || '#666';
+    const flagShort = r.flag === 'SEED_ONLY' ? 'OK' : r.flag === 'SEED_WITH_COMPETITOR' ? 'COMP' : r.flag === 'SEED_CONTRADICTION' ? 'CONTRA' : r.flag;
+    const lenStr = r.len >= 1000 ? (r.len/1000).toFixed(1) + 'k' : r.len + '';
+    const typeColor = CLSAT_COLORS[r.type] || '#9ca3af';
+    const isSel = currentLocus && currentLocus.id === r.id;
+    html += '<tr data-id="' + r.id + '"' + (isSel ? ' class="selected"' : '') + '>' +
+      '<td style="color:#60a5fa; font-weight:600;">' + r.id + '</td>' +
+      '<td>' + r.sp + '</td>' +
+      '<td style="color:' + typeColor + ';">' + r.type + '</td>' +
+      '<td style="text-align:right;">' + lenStr + '</td>' +
+      '<td><span class="flagDot" style="background:' + flagColor + ';"></span>' + flagShort + '</td>' +
+      '<td style="color:#666; font-size:9px;">' + r.scf.slice(-10) + '</td>' +
+      '</tr>';
+  }
+  locusTableBody.innerHTML = html;
+  // Click handler
+  locusTableBody.querySelectorAll('tr').forEach(tr => {
+    tr.addEventListener('click', () => {
+      const id = tr.dataset.id;
+      jumpToLocusId(id);
+      populateLocusTable(); // refresh selection highlight
+    });
+  });
 }
 
 function populateScaffolds(sp){
@@ -2023,7 +2127,7 @@ function initOverviewChart(){
 function drawOverview(){
   initOverviewChart();
 
-  const sp = speciesSel.value;
+  const sp = selectedSpecies;
   const scf = scaffoldSel.value;
   if (!sp || !scf){ setStatus("Select species and scaffold"); return; }
 
@@ -2440,12 +2544,28 @@ function bindUIOnce(){
   if (uiBound) return;
   uiBound = true;
 
-  speciesSel.addEventListener("change", ()=>{
-    populateScaffolds(speciesSel.value);
-    drawOverview();
-  });
+  // Species buttons are wired in populateSelectors()
   scaffoldSel.addEventListener("change", drawOverview);
   flagFilter.addEventListener("change", drawOverview);
+
+  // Locus table filter
+  locusFilterInput.addEventListener("input", () => {
+    locusTableFilter = locusFilterInput.value.trim();
+    populateLocusTable();
+  });
+
+  // Locus table column sort
+  document.querySelectorAll('#locusTable th').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.col;
+      if (locusTableSortCol === col) locusTableSortAsc = !locusTableSortAsc;
+      else { locusTableSortCol = col; locusTableSortAsc = true; }
+      // Update sort indicators
+      document.querySelectorAll('#locusTable th').forEach(h => h.textContent = h.textContent.replace(/ [\u25b2\u25bc]/g, ''));
+      th.textContent += locusTableSortAsc ? ' \u25b2' : ' \u25bc';
+      populateLocusTable();
+    });
+  });
 
   document.getElementById("findBtn").addEventListener("click", ()=>{
     const q = document.getElementById("findInput").value.trim();
@@ -2464,11 +2584,6 @@ function bindUIOnce(){
   document.getElementById("resetBtn").addEventListener("click", ()=>{
     if (svgOver && zoomOver) d3.select(svgOver.node()).transition().duration(200).call(zoomOver.transform, d3.zoomIdentity);
     if (svgDetail && zoomDetail) d3.select(svgDetail.node()).transition().duration(200).call(zoomDetail.transform, d3.zoomIdentity);
-  });
-
-  jumpSel.addEventListener("change", ()=>{
-    const id = jumpSel.value;
-    if (id) jumpToLocusId(id);
   });
 
   // Monomer analysis is now fully client-side (Smith-Waterman in JS).
@@ -2790,11 +2905,11 @@ async function fetchNCBIFasta(accession, start, end) {
 function jumpToLocusId(id){
   const l = loci.find(x => x.id === id);
   if (!l){ setStatus(`Locus ${id} not found`); return; }
-  speciesSel.value = l.sp;
-  populateScaffolds(l.sp);
+  selectSpecies(l.sp, true);
   scaffoldSel.value = l.scf;
   drawOverview();
   selectLocus(l);
+  populateLocusTable(); // refresh highlight
 }
 
 /* ============================================================================
