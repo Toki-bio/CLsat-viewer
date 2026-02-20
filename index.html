@@ -287,7 +287,32 @@ const CONSENSUS_SEQS = {
   CLsat4: "AAAGAAGCTCGTTTGGATGTATTTGCGTGACTTTGCATTCACAACTCAAAAACACATATCTTTTGAAATGAAGGTGATGGAAGCTTGTTCGTGTGTTTTCTATGCATTTCGAGCCT",
 };
 
-const VIEWER_VERSION = "v2.7-boundary-reassign-20260219";
+// Cluster consensus sequences (cl1–cl9) and their CLsat subfamily mapping
+const CLUSTER_SEQS = {
+  cl3: "AAAGAAGCTAGTTGGGATGTATTTGGCTTTTCTAACGTTCAGTTTGGCTTACTTGCGTGATTTTGCATTAACAGCTCAAATACAGCTAACTTTGGAAATGAACACGATGGAAACTTGTTGGTGTGTTTTCTATGCATTTCGACCTG",
+  cl6: "AAAGAAGCATGTTAGGATGTACTTGGCTTTCCTAACGTTCAGTTTGGCTTATTTGCGTGATTTGGCATTAACAGCTCAAATACACCTAACTTTGCAAATGAACACGATAGAAACTTGTTGGTGTGTTTTCTATGCATTTCGACCTG",
+  cl4: "AAAGAAGCTAGTTCGGACGTACTTGGCTTTTGTAACGTTCAATTTGGCTCATTTGCGCGATTTTGCATTAACAGCTCAAGTACACCTAACTTTGCAAATGAACACGATGGGAACTTGCTGGTGTGTTTTCTATGCATTTCGACCTG",
+  cl7: "AAAGAAGCTATTTCGGATGTACTTGGCTTGTGTAACGTTCAGTTTGGCTCATTTGCGCGATTTTGCATTAACAGCTCAAGTACACCTAACTTGGGAGAGAAACACGATGGACGCTTGCTGGTGTGTTTTCTATGCATTTCGACCTG",
+  cl8: "AAAGAAGCTAGTTTGGGTGTTCAGTTTGGCTTACTTGCGTGATTTTGCATTAACAGCTCAAATACAGCTAACTTTGGAAATGAACACGATGGAAACTTGTTGGTGTGTTTTCTATGCATTTCGACCTG",
+  cl2: "AAAGAAGCTCATTGGGATGTAGTTGTGTTTCTAAGCTTCATTTTAGCTTATTTGCGTGATTTCGCTTTTAAGGCTCAAATACAGCTATCTTTTGAAAGCAACACGTTAGAAACTTCTTGGTGTGTTTTTCATGCATTTGGACCCA",
+  cl5: "AAAGAAGCTCGTTCGGATGTCTTTCTGTTTTCTAAGCTTCATTTGAGCTTCTTTGCGTCAATTTGCACTCCAGACTCAAAAACGGCTCTCTTTTGAAAGGAACACCAAAGAAGCTTGTTCGTGTGTTTCCCATGCATTTCCAGCCC",
+  cl9: "AAAGAAGCTCGTTCGGATGTATTTGTGTTTTCTAACCTTCATTTTAACTTATTTGCGTGACTTTGCATTCACAACTCAAAAACACCTATCTTTTGAAATAAACATGATAGAAGCTTGTTCGTCTGTTTTCCATGCATTTCGACCCC",
+  cl1: "AAAGAAGCTCGTTTGGATGTATTTGCGTGACTTTGCATTCACAACTCAAAAACACATATCTTTTGAAATGAAGGTGATGGAAGCTTGTTCGTGTGTTTTCTATGCATTTCGAGCCT",
+};
+const CLUSTER_TO_CLSAT = {
+  cl3: 'CLsat1', cl6: 'CLsat1', cl4: 'CLsat1', cl7: 'CLsat1', cl8: 'CLsat1',
+  cl2: 'CLsat2',
+  cl5: 'CLsat3', cl9: 'CLsat3',
+  cl1: 'CLsat4',
+};
+// Reverse: CLsat type → list of cluster names
+const CLSAT_TO_CLUSTERS = {};
+for (const [cl, ct] of Object.entries(CLUSTER_TO_CLSAT)) {
+  if (!CLSAT_TO_CLUSTERS[ct]) CLSAT_TO_CLUSTERS[ct] = [];
+  CLSAT_TO_CLUSTERS[ct].push(cl);
+}
+
+const VIEWER_VERSION = "v2.8-cluster-labels-20260219";
 console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
 // Show version in UI header
 document.addEventListener('DOMContentLoaded', () => {
@@ -729,6 +754,46 @@ function reassignBestConsensus(hits, rawSeq) {
   return hits;
 }
 
+/**
+ * Assign each monomer to its best-matching cluster (cl1–cl9) within its
+ * assigned CLsat subfamily. Uses pairwise SW alignment to handle the
+ * cl3/cl8 length difference (146 vs 128 bp deletion variant).
+ * Adds hit.cluster = 'cl3' etc. and hit.clusterScore.
+ */
+function assignCluster(hits, rawSeq) {
+  for (const hit of hits) {
+    const clsatType = hit.clsat;
+    const clusters = CLSAT_TO_CLUSTERS[clsatType];
+    if (!clusters || clusters.length === 0) {
+      hit.cluster = '?';
+      hit.clusterScore = 0;
+      continue;
+    }
+    if (clusters.length === 1) {
+      hit.cluster = clusters[0];
+      hit.clusterScore = hit.score;
+      continue;
+    }
+    // Extract monomer in reading orientation
+    const fwdSlice = rawSeq.substring(hit.start, hit.end + 1);
+    const readSeq = hit.strand === '-' ? revComp(fwdSlice) : fwdSlice;
+    let bestCl = clusters[0];
+    let bestScore = -Infinity;
+    for (const cl of clusters) {
+      const clCons = CLUSTER_SEQS[cl];
+      if (!clCons) continue;
+      const aln = pairwiseAlign(clCons.toUpperCase(), readSeq);
+      if (aln.score > bestScore) {
+        bestScore = aln.score;
+        bestCl = cl;
+      }
+    }
+    hit.cluster = bestCl;
+    hit.clusterScore = bestScore;
+  }
+  return hits;
+}
+
 function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
   const seq = sequence.replace(/^>.*\n/gm, '').replace(/\s/g, '').toUpperCase();
   const seqLen = seq.length;
@@ -759,6 +824,9 @@ function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
 
   // Re-score each hit against ALL consensuses to fix fragile boundary assignments
   allHits = reassignBestConsensus(allHits, seq);
+
+  // Assign cluster within each hit's CLsat type
+  allHits = assignCluster(allHits, seq);
 
   allHits.sort((a, b) => a.start - b.start);
 
@@ -918,6 +986,7 @@ function drawMonomerMap(containerId, result, locusStart, locusEnd) {
 
       const pctId = (m.identity * 100).toFixed(1);
       const clsatLabel = m.clsat || '?';
+      const clusterLabel = m.cluster ? '/' + m.cluster : '';
       const monId = 'mon-' + ai + '-' + mi;
       svg.append('polygon')
         .attr('points', points.map(p => p.join(',')).join(' '))
@@ -928,7 +997,7 @@ function drawMonomerMap(containerId, result, locusStart, locusEnd) {
         .on('mouseenter', function() { highlightMonomer(monId, true); })
         .on('mouseleave', function() { highlightMonomer(null, false); })
         .append('title')
-        .text(clsatLabel + ' #' + (mi + 1) + ': ' + gStart.toLocaleString() + '-' + gEnd.toLocaleString() +
+        .text(clsatLabel + clusterLabel + ' #' + (mi + 1) + ': ' + gStart.toLocaleString() + '-' + gEnd.toLocaleString() +
               ' (' + m.length + ' bp, ' + pctId + '% identity)');
     });
 
@@ -988,6 +1057,10 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
     const clsatCounts = {};
     arr.hits.forEach(m => { const c = m.clsat || '?'; clsatCounts[c] = (clsatCounts[c]||0)+1; });
     const dominantClsat = Object.entries(clsatCounts).sort((a,b) => b[1]-a[1])[0][0];
+    // Dominant cluster for this array
+    const clusterCounts = {};
+    arr.hits.forEach(m => { if (m.cluster) clusterCounts[m.cluster] = (clusterCounts[m.cluster]||0)+1; });
+    const dominantCluster = Object.keys(clusterCounts).length > 0 ? Object.entries(clusterCounts).sort((a,b) => b[1]-a[1])[0][0] : '';
     const consensus = CONSENSUS_SEQS[dominantClsat];
     if (!consensus) return;
     const consU = consensus.toUpperCase();
@@ -1118,10 +1191,11 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
 
       const strandChar = strand === '+' ? '+' : '-';
       const clsatLabel = m.clsat || dominantClsat;
+      const clusterTag = m.cluster ? '/' + m.cluster : '';
       const gStart = m.start + gOff;
       const gEnd = m.end + gOff;
       const label = '#' + globalIdx + ' ' + gStart + '-' + gEnd + '(' + strandChar + ')';
-      const hoverTitle = scfName + ':' + gStart + '-' + gEnd + ' (' + clsatLabel + ', ' + (m.end - m.start + 1) + ' bp, ' + (aln.identity*100).toFixed(1) + '%)';
+      const hoverTitle = scfName + ':' + gStart + '-' + gEnd + ' (' + clsatLabel + clusterTag + ', ' + (m.end - m.start + 1) + ' bp, ' + (aln.identity*100).toFixed(1) + '%)';
       const monId = 'mon-' + ai + '-' + origIdx;
 
       projRows.push({
@@ -1130,6 +1204,7 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
         flankLeftStr, monOverLeft, monOverRight, flankRightStr,
         isFirst: mi === 0, isLast: mi === displayHits.length - 1,
         clsat: clsatLabel,
+        cluster: m.cluster || '',
         spacerSeq, spacerLen,
         gStart, gEnd,
       });
@@ -1400,7 +1475,7 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
     html += '</div>';
 
     // Consensus row (no pipe separators — just dots for flank area)
-    html += '<div class="msaRow"><span class="msaName" style="color:' + clsatColor + '; font-weight:bold;">' + dominantClsat + '</span>';
+    html += '<div class="msaRow"><span class="msaName" style="color:' + clsatColor + '; font-weight:bold;">' + dominantClsat + (dominantCluster ? '/' + dominantCluster : '') + '</span>';
     for (let k = 0; k < nBefore; k++) html += '<span class="msaBase" style="color:#1a1a2e;">\u00b7</span>';
     if (nBefore > 0) html += '<span class="msaBase" style="color:#1a1a2e;">\u00b7</span>';
     for (let k = 0; k < consLen; k++) html += '<span class="msaBase msaCons">' + consU[k] + '</span>';
@@ -2589,9 +2664,14 @@ function bindUIOnce(){
       result.arrays.forEach((arr, ai) => {
         const arrStart = arr.hits[0].start + start; // offset to genomic coordinates
         const arrEnd = arr.hits[arr.hits.length - 1].end + start;
+        // Dominant cluster for this array summary
+        const sumClusterCounts = {};
+        arr.hits.forEach(m => { if (m.cluster) sumClusterCounts[m.cluster] = (sumClusterCounts[m.cluster]||0)+1; });
+        const sumDomCluster = Object.keys(sumClusterCounts).length > 0 ? Object.entries(sumClusterCounts).sort((a,b) => b[1]-a[1])[0][0] : '';
+        const sumDomClsat = (() => { const cc = {}; arr.hits.forEach(m => { const c = m.clsat || '?'; cc[c] = (cc[c]||0)+1; }); return Object.entries(cc).sort((a,b) => b[1]-a[1])[0][0]; })();
         html += '<div style="color:#a855f7; font-weight:bold; padding:4px 6px; margin-top:6px;">' +
           'Array ' + (ai + 1) + ': ' + arrStart.toLocaleString() + '-' + arrEnd.toLocaleString() +
-          ' (' + arr.hits.length + ' monomers, strand ' + arr.strand + ')' +
+          ' (' + arr.hits.length + ' monomers, ' + sumDomClsat + (sumDomCluster ? '/' + sumDomCluster : '') + ', strand ' + arr.strand + ')' +
           '</div>';
         arr.hits.forEach((m, mi) => {
           const arrow = arr.strand === '+' ? '\u2192' : '\u2190';
@@ -2600,7 +2680,7 @@ function bindUIOnce(){
           const gEnd = m.end + start;
           html += '<div class="monomerItem">' +
             '<span style="color:' + clsatColor + '; font-weight:bold;">' + arrow + '</span> ' +
-            '<span style="color:' + clsatColor + '; font-size:9px;">' + (m.clsat || '') + '</span> ' +
+            '<span style="color:' + clsatColor + '; font-size:9px;">' + (m.clsat || '') + (m.cluster ? '/' + m.cluster : '') + '</span> ' +
             '#' + (mi + 1) + ': ' + gStart.toLocaleString() + '-' + gEnd.toLocaleString() +
             ' (' + m.length + ' bp, ' + (m.identity * 100).toFixed(1) + '%)' +
             '</div>';
