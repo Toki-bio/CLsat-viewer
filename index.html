@@ -120,7 +120,7 @@
   .monomerBtn:hover{background:#a855f7; color:#fff;}
   .monomerBtn:active{transform:scale(0.95);}
   .monomerBtn:disabled{opacity:0.5; cursor:not-allowed;}
-  .monomerResult{background:#0b1220; border:1px solid #243044; border-radius:10px; padding:10px; margin-top:6px; display:none; min-width:0; overflow:hidden;}
+  .monomerResult{background:#0b1220; border:1px solid #243044; border-radius:10px; padding:10px; margin-top:6px; display:none; min-width:0; flex-shrink:0;}
   .monomerResult.show{display:block;}
   .monomerHeader{font-size:11px; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;}
   .monomerList{font-family: ui-monospace, monospace; font-size:10px; color:#d1d5db; max-height:150px; overflow-y:auto; margin-bottom:8px; resize:vertical; min-height:40px;}
@@ -341,7 +341,7 @@ for (const [cl, ct] of Object.entries(CLUSTER_TO_CLSAT)) {
   CLSAT_TO_CLUSTERS[ct].push(cl);
 }
 
-const VIEWER_VERSION = "v2.9-ui-overhaul-20260220";
+const VIEWER_VERSION = "v2.10-fix-msa-display-20260220";
 console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
 // Show version in UI header
 document.addEventListener('DOMContentLoaded', () => {
