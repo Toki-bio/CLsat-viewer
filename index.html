@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
 <meta http-equiv="Pragma" content="no-cache" />
 <meta http-equiv="Expires" content="0" />
-<title>CLsat Locus Detail Viewer – Per-window Bitscores</title>
+<title>CLsat Locus Detail Viewer ï¿½ Per-window Bitscores</title>
 
 <!-- D3.js - load from CDN -->
 <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
@@ -161,7 +161,7 @@
 </head>
 
 <body>
-<button class="collapseBtn" id="collapseBtn" title="Toggle sidebar">«</button>
+<button class="collapseBtn" id="collapseBtn" title="Toggle sidebar">ï¿½</button>
 <div class="wrap">
   <div class="sidebar">
     <h1>CLsat Locus Detail Viewer <span id="versionTag" style="font-size:9px; color:#f59e0b; font-weight:normal;"></span></h1>
@@ -237,7 +237,39 @@
       <div class="legendItem"><span class="swatch" style="background:rgba(251,191,36,0.9)"></span> CLsat4</div>
     </div>
 
-    <div id="status" class="status">Loading…</div>
+    
+    <h2 style="margin-top:14px;">Planned Actions <span style="font-size:9px;color:#f59e0b;">roadmap</span></h2>
+    <div id="plannedActions" style="font-size:10px; line-height:1.5; background:#0c1118; border:1px solid #1e293b; border-radius:6px; padding:8px; max-height:340px; overflow-y:auto;">
+      <div style="color:#94a3b8; margin-bottom:6px;">Status: <span style="color:#ef4444;">TODO</span> &middot; <span style="color:#f59e0b;">WIP</span> &middot; <span style="color:#34d399;">DONE</span></div>
+      <div style="margin-bottom:8px;">
+        <div style="color:#60a5fa; font-weight:600;">A. Bug fixes</div>
+        <div><span style="color:#ef4444;">[TODO]</span> A1. "Show" flag filter: also dim/hide signal bars for loci that fail the filter (currently only outlines + KPIs respond, so it looks inert).</div>
+        <div><span style="color:#ef4444;">[TODO]</span> A2. Sync flag filter to the Locus Table (hide non-matching rows).</div>
+        <div><span style="color:#ef4444;">[TODO]</span> A3. Prominent CLsat subtype badge in detail panel header (family currently only in status line + Type column).</div>
+        <div><span style="color:#ef4444;">[TODO]</span> A4. Dedicated Subtype dropdown filter (CLsat1-4), separate from flag filter.</div>
+      </div>
+      <div style="margin-bottom:8px;">
+        <div style="color:#60a5fa; font-weight:600;">B. Flank module</div>
+        <div><span style="color:#ef4444;">[TODO]</span> B1. DRAGEN: extract +/-500 bp flanks for all 707 loci, hard-save flanks.fa + flanks.json (left/right, truncation flags). Clearly indicate fetched vs missing.</div>
+        <div><span style="color:#ef4444;">[TODO]</span> B2. DRAGEN: all-vs-all flank orthology across species (SW/BLAST). Ortholog if identity &gt;= threshold over &gt;= min length. Save flank_orthologs.json.</div>
+        <div><span style="color:#ef4444;">[TODO]</span> B3. Viewer: "Fetch flanks" control + flank viewer. Orthologous flanks aligned side-by-side across species, satellite collapsed as "CLsatX x N monomers" between flanks.</div>
+      </div>
+      <div style="margin-bottom:8px;">
+        <div style="color:#60a5fa; font-weight:600;">C. Locus-ends explorer</div>
+        <div><span style="color:#ef4444;">[TODO]</span> C1. Quick-jump to each locus start/end junction; clearly mark locus/flank border in per-window panel.</div>
+        <div><span style="color:#ef4444;">[TODO]</span> C2. DRAGEN: align each locus boundary to CLsat consensus to find phase/coordinate where array starts/ends. Save locus_boundary_phase.json.</div>
+        <div><span style="color:#ef4444;">[TODO]</span> C3. Viewer: histogram of start/end consensus-coordinates across all loci (per subtype) - reveals preferred start/end phases.</div>
+      </div>
+      <div style="margin-bottom:4px;">
+        <div style="color:#60a5fa; font-weight:600;">D. Open questions</div>
+        <div>- Flank size 500 bp/side, store truncated where short?</div>
+        <div>- Orthology: SW/BLAST, threshold &gt;=70% over &gt;=200 bp, offline on DRAGEN?</div>
+        <div>- Boundary phase: precise consensus-alignment (preferred) vs pos-mod-MONO estimate?</div>
+        <div>- All heavy compute offline on DRAGEN, hard-saved JSON in repo - agree?</div>
+      </div>
+    </div>
+
+    <div id="status" class="status">Loadingï¿½</div>
     <div class="hint">Wheel to zoom, drag to pan. Click locus to see per-window detail.</div>
   </div>
 
@@ -319,7 +351,7 @@ const CONSENSUS_SEQS = {
   CLsat4: "AAAGAAGCTCGTTTGGATGTATTTGCGTGACTTTGCATTCACAACTCAAAAACACATATCTTTTGAAATGAAGGTGATGGAAGCTTGTTCGTGTGTTTTCTATGCATTTCGAGCCT",
 };
 
-// Cluster consensus sequences (cl1–cl9) and their CLsat subfamily mapping
+// Cluster consensus sequences (cl1ï¿½cl9) and their CLsat subfamily mapping
 const CLUSTER_SEQS = {
   cl3: "AAAGAAGCTAGTTGGGATGTATTTGGCTTTTCTAACGTTCAGTTTGGCTTACTTGCGTGATTTTGCATTAACAGCTCAAATACAGCTAACTTTGGAAATGAACACGATGGAAACTTGTTGGTGTGTTTTCTATGCATTTCGACCTG",
   cl6: "AAAGAAGCATGTTAGGATGTACTTGGCTTTCCTAACGTTCAGTTTGGCTTATTTGCGTGATTTGGCATTAACAGCTCAAATACACCTAACTTTGCAAATGAACACGATAGAAACTTGTTGGTGTGTTTTCTATGCATTTCGACCTG",
@@ -719,7 +751,7 @@ function scanOneConsensus(seq, consName, minIdentity) {
   let combined = [...fwdHits, ...rcHits]
     .filter(h => h.identity >= minIdentity && h.length >= minLen);
 
-  // Split any raw hits wider than 1.3× consensus (should be rare, but defensive)
+  // Split any raw hits wider than 1.3ï¿½ consensus (should be rare, but defensive)
   const maxSpan = Math.floor(consLen * 1.3);
   combined = splitWideHits(combined, consensus, seq, maxSpan);
 
@@ -787,7 +819,7 @@ function reassignBestConsensus(hits, rawSeq) {
 }
 
 /**
- * Assign each monomer to its best-matching cluster (cl1–cl9) within its
+ * Assign each monomer to its best-matching cluster (cl1ï¿½cl9) within its
  * assigned CLsat subfamily. Uses pairwise SW alignment to handle the
  * cl3/cl8 length difference (146 vs 128 bp deletion variant).
  * Adds hit.cluster = 'cl3' etc. and hit.clusterScore.
@@ -831,7 +863,7 @@ function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
   const seqLen = seq.length;
 
   if (seqLen > 50000) {
-    console.warn("[SW] Large sequence (" + seqLen + " bp) — analysis may take a while");
+    console.warn("[SW] Large sequence (" + seqLen + " bp) ï¿½ analysis may take a while");
   }
   if (seqLen > 200000) {
     return { success: false, message: "Sequence too large (" + (seqLen/1000).toFixed(0) + " kb). Zoom in to <50 kb first." };
@@ -876,7 +908,7 @@ function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
 
   // Separate by strand, merge (with max-length cap), then split into arrays
   const maxConsLen = Math.max(...scanNames.map(cn => (CONSENSUS_SEQS[cn] || '').length), 100);
-  const maxMergeLen = Math.floor(maxConsLen * 1.3);  // 1.3× consensus = ~190bp for CLsat1
+  const maxMergeLen = Math.floor(maxConsLen * 1.3);  // 1.3ï¿½ consensus = ~190bp for CLsat1
   let plusHits = mergeHits(allHits.filter(h => h.strand === '+'), maxMergeLen);
   let minusHits = mergeHits(allHits.filter(h => h.strand === '-'), maxMergeLen);
 
@@ -1041,13 +1073,13 @@ function drawMonomerMap(containerId, result, locusStart, locusEnd) {
       .attr('y', yTop - 2)
       .attr('text-anchor', 'middle')
       .style('fill', color).style('font-size', '8px').style('font-family', 'ui-monospace, monospace')
-      .text('Array ' + (ai + 1) + ' (' + arr.hits.length + '×' + strand + ')');
+      .text('Array ' + (ai + 1) + ' (' + arr.hits.length + 'ï¿½' + strand + ')');
   });
 }
 
 /**
  * Render monomer alignment as MSA with integrated flanks.
- * Per-ARRAY blocks showing consensus-anchored MSA with ±100bp flanks
+ * Per-ARRAY blocks showing consensus-anchored MSA with ï¿½100bp flanks
  * on the first/last monomers to visualize satellite-to-flank transitions.
  */
 function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldName) {
@@ -1124,7 +1156,7 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
     html += '</div>';
     html += '<div class="msaBlock">';
 
-    // --- SAFETY: Re-split any hit wider than 1.3× consensus ---
+    // --- SAFETY: Re-split any hit wider than 1.3ï¿½ consensus ---
     // Uses the shared splitWideHits function. Defense-in-depth for any
     // double-width hits that survived mergeHits + analyzeMonomersSW splitting.
     const maxHitLen = Math.floor(consLen * 1.3);
@@ -1485,7 +1517,7 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
     const nBefore = firstRowDisp ? firstRowDisp.flankLeftStr.length : 0;
     const nAfter = lastRowDisp ? lastRowDisp.flankRightStr.length : 0;
 
-    // Scale ruler — right-justified tick labels
+    // Scale ruler ï¿½ right-justified tick labels
     html += '<div class="msaRow"><span class="msaName"></span>';
     // left flank ruler
     { const r = new Array(nBefore).fill(' ');
@@ -1506,7 +1538,7 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
     }
     html += '</div>';
 
-    // Consensus row (no pipe separators — just dots for flank area)
+    // Consensus row (no pipe separators ï¿½ just dots for flank area)
     html += '<div class="msaRow"><span class="msaName" style="color:' + clsatColor + '; font-weight:bold;">' + dominantClsat + (dominantCluster ? '/' + dominantCluster : '') + '</span>';
     for (let k = 0; k < nBefore; k++) html += '<span class="msaBase" style="color:#1a1a2e;">\u00b7</span>';
     if (nBefore > 0) html += '<span class="msaBase" style="color:#1a1a2e;">\u00b7</span>';
@@ -2149,7 +2181,7 @@ function drawOverview(){
   // Get per-window data for this scaffold
   const scfData = perWindowByScaffold.get(scf) || [];
   
-  // Group by uniform display bins — snap all CLsat positions to a common grid
+  // Group by uniform display bins ï¿½ snap all CLsat positions to a common grid
   // so bars from different CLsats at the same genomic region are grouped together
   const byBin = new Map();
   for (const r of scfData){
@@ -2413,7 +2445,7 @@ function drawDetailForLocus(l){
     return;
   }
 
-  // Group by uniform display bins — snap to common grid so CLsat bars align
+  // Group by uniform display bins ï¿½ snap to common grid so CLsat bars align
   const byBin = new Map();
   for (const r of data){
     const binPos = Math.round(r.pos / WINDOW_STEP) * WINDOW_STEP;
@@ -2518,7 +2550,7 @@ async function fetchText(path){
 }
 
 async function loadViaFetch(){
-  setStatus("Loading files via fetch()…");
+  setStatus("Loading files via fetch()ï¿½");
 
   // Load main files
   const [mText, aText, bText] = await Promise.all([
@@ -2534,7 +2566,7 @@ async function loadViaFetch(){
   buildIndexes();
   populateSelectors();
 
-  setStatus(`Loaded ${loci.length} loci. Now loading per-window bits files…`);
+  setStatus(`Loaded ${loci.length} loci. Now loading per-window bits filesï¿½`);
 
   // Load per-window bits files
   const perWindowPromises = Object.entries(FILE_BITS_CLSAT).map(async ([clsat, file]) => {
@@ -2635,7 +2667,7 @@ function bindUIOnce(){
 
   const CONTROL_BASE = "http://127.0.0.1:9001"; // kept for reference only
 
-  // Server polling disabled — monomer analysis is now client-side
+  // Server polling disabled ï¿½ monomer analysis is now client-side
 
   document.getElementById("copyBedBtn").addEventListener("click", ()=>{
     const text = bedCoord.textContent;
