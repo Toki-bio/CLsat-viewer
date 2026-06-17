@@ -216,6 +216,16 @@
         <option value="SEGMENT_RESOLVED_AMBIGUOUS">SEGMENT_RESOLVED_AMBIGUOUS</option>
       </select>
     </div>
+    <div class="row">
+      <label>Subtype</label>
+      <select id="subtypeFilter">
+        <option value="ALL">ALL</option>
+        <option value="CLsat1">CLsat1</option>
+        <option value="CLsat2">CLsat2</option>
+        <option value="CLsat3">CLsat3</option>
+        <option value="CLsat4">CLsat4</option>
+      </select>
+    </div>
 
     <h2>Monomer Analysis</h2>
     <div class="row">
@@ -261,11 +271,11 @@
         <div><span style="color:#ef4444;">[TODO]</span> C3. Viewer: histogram of start/end consensus-coordinates across all loci (per subtype) - reveals preferred start/end phases.</div>
       </div>
       <div style="margin-bottom:4px;">
-        <div style="color:#60a5fa; font-weight:600;">D. Open questions</div>
-        <div>- Flank size 500 bp/side, store truncated where short?</div>
-        <div>- Orthology: SW/BLAST, threshold &gt;=70% over &gt;=200 bp, offline on DRAGEN?</div>
-        <div>- Boundary phase: precise consensus-alignment (preferred) vs pos-mod-MONO estimate?</div>
-        <div>- All heavy compute offline on DRAGEN, hard-saved JSON in repo - agree?</div>
+        <div style="color:#60a5fa; font-weight:600;">D. Confirmed decisions</div>
+        <div>+ Flank size: 500 bp/side, store truncated where scaffold ends cut short.</div>
+        <div>+ Orthology: offline on DRAGEN, hard-saved at SEVERAL identity thresholds.</div>
+        <div>+ Boundary phase: align last 2 monomers (incl. incomplete border monomer) vs consensus.</div>
+        <div>+ Architecture: all heavy compute offline on DRAGEN, hard-saved JSON in repo; viewer static.</div>
       </div>
     </div>
 
@@ -287,7 +297,7 @@
 
     <div class="chartPanel detailChart">
       <div class="chartTop">
-        <div class="panelTitle">Per-window Bitscores: <span id="detailTitle" style="color:#60a5fa;">Click a locus above</span></div>
+        <div class="panelTitle">Per-window Bitscores: <span id="detailTitle" style="color:#60a5fa;">Click a locus above</span> <span id="detailSubtype" style="font-weight:700; padding:1px 8px; border-radius:10px; font-size:12px;"></span></div>
         <div class="chartInfo">
           <div class="kpi">Windows: <b id="kpiWindows">0</b></div>
           <div class="kpi">Max bits: <b id="kpiMaxBits">0</b></div>
@@ -320,6 +330,47 @@
         <div id="monomerMSA" style="margin:8px 0;"></div>
         <div class="alignmentBox" id="alignmentBox"></div>
       </div>
+
+      <div id="endsFlanksPanel" style="margin-top:12px; border-top:1px solid #1e293b; padding-top:10px;">
+        <div class="panelTitle" style="font-size:13px;">Locus Ends &amp; Flanks <span id="flankAvail" class="pill" style="font-size:9px;">no data</span></div>
+
+        <!-- Junction quick-jump (C1) -->
+        <div class="row" style="margin:6px 0;">
+          <label style="min-width:auto;">Jump to junction:</label>
+          <button class="copyBtn" id="jumpStartBtn">&#9664; Start border</button>
+          <button class="copyBtn" id="jumpEndBtn">End border &#9654;</button>
+          <button class="copyBtn" id="jumpFullBtn">Full locus</button>
+          <span id="junctionInfo" style="font-size:10px; color:#9ca3af; margin-left:8px;"></span>
+        </div>
+
+        <!-- Flank / ortholog viewer (B3) -->
+        <div class="row" style="margin:6px 0;">
+          <label style="min-width:auto;">Flank ortholog identity:</label>
+          <select id="orthoThr">
+            <option value="70">&ge;70%</option>
+            <option value="80" selected>&ge;80%</option>
+            <option value="90">&ge;90%</option>
+          </select>
+          <button class="copyBtn" id="showFlanksBtn">Show flanks &amp; orthologs</button>
+        </div>
+        <div id="flankView" style="font-family:monospace; font-size:11px; overflow-x:auto; margin:6px 0; background:#0c1118; border:1px solid #1e293b; border-radius:6px; padding:8px; max-height:260px; overflow-y:auto;">
+          <span style="color:#64748b;">Select a locus and click &ldquo;Show flanks &amp; orthologs&rdquo;.</span>
+        </div>
+
+        <!-- Boundary-phase histogram (C3) -->
+        <div class="row" style="margin:8px 0 4px;">
+          <label style="min-width:auto;">Boundary-phase stats:</label>
+          <select id="bphaseSubtype">
+            <option value="CLsat1">CLsat1</option>
+            <option value="CLsat2">CLsat2</option>
+            <option value="CLsat3">CLsat3</option>
+            <option value="CLsat4">CLsat4</option>
+          </select>
+          <span style="font-size:10px; color:#9ca3af;">where arrays start/end relative to monomer consensus</span>
+        </div>
+        <div id="bphaseHistView" style="margin:4px 0;"></div>
+      </div>
+
       <div class="hint" id="detailHint">Bars show bitscore at each scan window position. Colors = CLsat consensus.</div>
     </div>
   </div>
@@ -332,6 +383,10 @@
 const FILE_MASTER_MERGED = "MASTER.merged.bed";
 const FILE_ASSIGN        = "MASTER.final_assignment.clean.tsv";
 const FILE_BITS_MATRIX   = "MASTER.locus_bits.tsv";
+  const FILE_FLANKS        = "flanks.json";
+  const FILE_BPHASE        = "boundary_phase.json";
+  const FILE_BPHASE_HIST   = "boundary_phase_hist.json";
+  const FILE_ORTHOLOGS     = "flank_orthologs.json";
 
 // Per-window bitscore files (one per CLsat)
 const FILE_BITS_CLSAT = {
@@ -1821,6 +1876,10 @@ const BASE_URL = getBaseUrl();
 ============================================================================ */
 let loci = [];            // {id, sp, scf, start, end, name}
 let assignments = {};     // id -> {seed, seedBits, best, bestBits, delta, flag}
+  let flankData = null;     // locus -> {LF,RF,subtype,n_monomers,...}
+  let bphaseData = null;    // locus -> {LB,RB}
+  let bphaseHist = null;    // subtype -> {start[],end[],mono}
+  let orthoData = null;     // {LF:{thr:{locus:[...]}}, RF:{...}}
 let bits = {};            // id -> {b1,b2,b3,b4}
 
 // Per-window data: indexed by scaffold -> sorted array of {pos, bits, name, clsat}
@@ -1864,6 +1923,7 @@ const scaffoldSel = document.getElementById("scaffoldSel");
 const locusTableBody = document.getElementById("locusTableBody");
 const locusFilterInput = document.getElementById("locusFilterInput");
 const flagFilter = document.getElementById("flagFilter");
+  const subtypeFilter = document.getElementById("subtypeFilter");
 let selectedSpecies = '';  // replaces speciesSel.value
 const kpiLoci = document.getElementById("kpiLoci");
 const kpiVis = document.getElementById("kpiVis");
@@ -2049,6 +2109,8 @@ function populateLocusTable(){
       r.scf.toLowerCase().includes(filter)
     );
   }
+  // Apply flag + subtype filters (sync with overview "Show"/"Subtype")
+  rows = rows.filter(r => passesFilter(r._locus));
   // Sort
   const col = locusTableSortCol;
   const dir = locusTableSortAsc ? 1 : -1;
@@ -2120,10 +2182,16 @@ function populateScaffolds(sp){
    FILTERS
 ============================================================================ */
 function passesFilter(l){
+  const a = assignments[l.id];
+  // Subtype filter (assigned family = a.seed in patched schema)
+  const stVal = (typeof subtypeFilter !== "undefined" && subtypeFilter) ? subtypeFilter.value : "ALL";
+  if (stVal !== "ALL"){
+    if (!a || a.seed !== stVal) return false;
+  }
+  // Flag filter
   const val = flagFilter.value;
   if (val === "ALL") return true;
-  const a = assignments[l.id];
-  if (!a) return val === "ALL";
+  if (!a) return false;
   return a.flag === val;
 }
 
@@ -2308,12 +2376,21 @@ function renderOverview(){
   const bEnt = bars.enter().append("rect").attr("class", "bar").style("pointer-events", "none");
   bEnt.append("title");
   const allBars = bEnt.merge(bars);
+  // When a filter is active, dim bars not overlapping any passing locus.
+  const filterActive = (flagFilter.value !== "ALL") ||
+                        (typeof subtypeFilter !== "undefined" && subtypeFilter && subtypeFilter.value !== "ALL");
+  const passSpans = (currentOver.loci || []).map(l => [l.start, l.end]);
+  function inPassSpan(pos){
+    for (const s of passSpans){ if (pos >= s[0] && pos <= s[1]) return true; }
+    return false;
+  }
   allBars
     .attr("x", d => xScaleOver(d.pos) - barW/2)
     .attr("width", barW)
     .attr("y", d => yScale(d.bits))
     .attr("height", d => Math.max(0, innerH - yScale(d.bits)))
-    .attr("fill", d => CLSAT_COLORS[d.clsat] || "#888");
+    .attr("fill", d => CLSAT_COLORS[d.clsat] || "#888")
+    .attr("opacity", d => (filterActive && !inPassSpan(d.pos)) ? 0.12 : 1);
   allBars.select("title").text(d => `${d.clsat} pos=${d.pos} bits=${fmt(d.bits)}`);
 
   // Locus outlines (clickable rectangles with no fill, just stroke)
@@ -2408,6 +2485,21 @@ function selectLocus(l){
   detailTitle.style.color = "#60a5fa";
 
   const a = assignments[l.id];
+  // Prominent subtype badge
+  const badge = document.getElementById("detailSubtype");
+  if (badge){
+    if (a && a.seed){
+      const col = CLSAT_COLORS[a.seed] || "#9ca3af";
+      const short = (typeof flagShortLabel === "function") ? flagShortLabel(a.flag) : a.flag;
+      badge.textContent = `${a.seed} | ${short}`;
+      badge.style.background = col;
+      badge.style.color = "#0b0f17";
+    } else {
+      badge.textContent = "unassigned";
+      badge.style.background = "#475569";
+      badge.style.color = "#e5e7eb";
+    }
+  }
   const b = bits[l.id] || {};
   let s = `Selected: ${l.id}\n${l.scf}:${l.start}-${l.end}\n`;
   if (a) s += `Seed: ${a.seed} (${fmt(a.seedBits)}), Best other: ${a.best} (${fmt(a.bestBits)}), ?=${fmt(a.delta)}, Flag=${a.flag}\n`;
@@ -2419,6 +2511,7 @@ function selectLocus(l){
 
   // Draw detail
   drawDetailForLocus(l);
+  if (typeof drawBorderMarkers === "function") drawBorderMarkers();
 }
 
 // Per-CLsat monomer lengths (= scan window step for each consensus)
@@ -2605,6 +2698,20 @@ async function loadViaFetch(){
     `Select a scaffold then click a locus to see per-window bitscores.`
   );
 
+  // Load optional analysis JSONs (non-fatal if missing)
+  try {
+    const [fl, bp, bph, orth] = await Promise.all([
+      fetchText(FILE_FLANKS).then(t=>JSON.parse(t)).catch(()=>null),
+      fetchText(FILE_BPHASE).then(t=>JSON.parse(t)).catch(()=>null),
+      fetchText(FILE_BPHASE_HIST).then(t=>JSON.parse(t)).catch(()=>null),
+      fetchText(FILE_ORTHOLOGS).then(t=>JSON.parse(t)).catch(()=>null),
+    ]);
+    flankData = fl; bphaseData = bp; bphaseHist = bph; orthoData = orth;
+    if (flankData) console.log(`flanks: ${Object.keys(flankData).length} loci`);
+    if (orthoData) console.log(`orthologs loaded`);
+    updateAnalysisAvailability();
+  } catch(e){ console.warn("analysis JSON load failed:", e.message); }
+
   if (hasD3()) drawOverview();
 }
 
@@ -2618,7 +2725,9 @@ function bindUIOnce(){
 
   // Species buttons are wired in populateSelectors()
   scaffoldSel.addEventListener("change", drawOverview);
-  flagFilter.addEventListener("change", drawOverview);
+  flagFilter.addEventListener("change", () => { drawOverview(); populateLocusTable(); });
+  subtypeFilter.addEventListener("change", () => { drawOverview(); populateLocusTable(); });
+  bindEndsFlanksUI();
 
   // Locus table filter
   locusFilterInput.addEventListener("input", () => {
@@ -2987,6 +3096,191 @@ function jumpToLocusId(id){
 /* ============================================================================
    STARTUP
 ============================================================================ */
+
+/* ============================================================================
+   LOCUS ENDS & FLANKS MODULE  (B3 + C1 + C3)
+============================================================================ */
+function updateAnalysisAvailability(){
+  const pill = document.getElementById("flankAvail");
+  if (!pill) return;
+  if (flankData){
+    pill.textContent = `flanks: ${Object.keys(flankData).length} loci`;
+    pill.className = "pill ok";
+  } else {
+    pill.textContent = "no data";
+    pill.className = "pill";
+  }
+  if (bphaseHist) renderBphaseHist();
+}
+
+/* ---- C1: jump to junction ---- */
+function jumpToJunction(which){
+  if (!currentLocus){ setStatus("Select a locus first."); return; }
+  const l = currentLocus;
+  const info = document.getElementById("junctionInfo");
+  const mono = (flankData && flankData[l.id]) ? flankData[l.id].mono : 146;
+  const pad = Math.max(3*mono, 600);
+  let dom;
+  if (which === "start"){
+    dom = [l.start - pad, l.start + pad];
+    if (info) info.textContent = `Start border @ ${l.scf}:${l.start}`;
+  } else if (which === "end"){
+    dom = [l.end - pad, l.end + pad];
+    if (info) info.textContent = `End border @ ${l.scf}:${l.end}`;
+  } else {
+    const span = l.end - l.start;
+    dom = [l.start - span*0.02, l.end + span*0.02];
+    if (info) info.textContent = `Full locus ${l.scf}:${l.start}-${l.end}`;
+  }
+  if (typeof xScaleDetail !== "undefined" && xScaleDetail && currentLocus._windows){
+    xScaleDetail.domain(dom);
+    renderDetail();
+    drawBorderMarkers();
+  }
+}
+
+/* ---- C1: draw vertical border markers in the detail chart ---- */
+function drawBorderMarkers(){
+  if (!currentLocus || typeof gMainDetail === "undefined" || !gMainDetail) return;
+  const l = currentLocus;
+  const {innerH} = getDetailSize();
+  gMainDetail.selectAll("line.border, text.borderLbl").remove();
+  const marks = [
+    {pos: l.start, label: "array start", col: "#22d3ee"},
+    {pos: l.end,   label: "array end",   col: "#f472b6"},
+  ];
+  const [xmin, xmax] = xScaleDetail.domain();
+  for (const m of marks){
+    if (m.pos < xmin || m.pos > xmax) continue;
+    const x = xScaleDetail(m.pos);
+    gMainDetail.append("line").attr("class","border")
+      .attr("x1",x).attr("x2",x).attr("y1",0).attr("y2",innerH)
+      .attr("stroke",m.col).attr("stroke-width",2).attr("stroke-dasharray","4,3");
+    gMainDetail.append("text").attr("class","borderLbl")
+      .attr("x",x+3).attr("y",12).attr("fill",m.col).attr("font-size","10px")
+      .text(m.label);
+  }
+}
+
+/* ---- B3: flank + ortholog viewer with collapsed satellite ---- */
+function showFlanks(){
+  const view = document.getElementById("flankView");
+  if (!currentLocus){ view.innerHTML = '<span style="color:#f87171;">Select a locus first.</span>'; return; }
+  if (!flankData){ view.innerHTML = '<span style="color:#f87171;">flanks.json not loaded.</span>'; return; }
+  const lid = currentLocus.id;
+  const fd = flankData[lid];
+  if (!fd){ view.innerHTML = `<span style="color:#f87171;">No flank data for ${lid}.</span>`; return; }
+
+  const thr = document.getElementById("orthoThr").value;
+  const esc = s => (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  const trunc = (s,n)=> s.length>n ? s.slice(0,n)+"&hellip;" : s;
+
+  function collapsedSat(d){
+    const col = CLSAT_COLORS[d.subtype] || "#888";
+    return `<span style="background:${col}; color:#0b0f17; padding:1px 8px; border-radius:3px; font-weight:700;">`
+         + `[ ${d.subtype} &times; ${d.n_monomers} monomers, ${(d.length).toLocaleString()} bp ]</span>`;
+  }
+  function flankSpan(f, side){
+    if (!f) return `<span style="color:#64748b;">(no ${side} flank &mdash; scaffold edge)</span>`;
+    const t = f.truncated ? ` <span style="color:#fbbf24;">(truncated ${f.len}bp)</span>` : "";
+    return `<span style="color:#94a3b8;">${esc(trunc(f.seq, 80))}</span>${t}`;
+  }
+
+  let html = "";
+  // The focal locus, drawn as: LF --- [sat] --- RF
+  html += `<div style="margin-bottom:6px;"><b style="color:#60a5fa;">${lid}</b> `
+        + `<span style="color:#9ca3af;">(${fd.sp}, ${fd.scf})</span></div>`;
+  html += `<div style="white-space:nowrap; margin-bottom:10px;">`
+        + `${flankSpan(fd.LF,"left")} &nbsp;${collapsedSat(fd)}&nbsp; ${flankSpan(fd.RF,"right")}</div>`;
+
+  // Orthologs: show LF orthologs and RF orthologs aligned side-by-side
+  const orthLF = (orthoData && orthoData.LF[thr] && orthoData.LF[thr][lid]) || [];
+  const orthRF = (orthoData && orthoData.RF[thr] && orthoData.RF[thr][lid]) || [];
+
+  // Union of ortholog loci across both sides
+  const byLocus = {};
+  for (const o of orthLF){ byLocus[o.locus] = byLocus[o.locus] || {sp:o.sp}; byLocus[o.locus].LF = o; }
+  for (const o of orthRF){ byLocus[o.locus] = byLocus[o.locus] || {sp:o.sp}; byLocus[o.locus].RF = o; }
+  const orthLoci = Object.keys(byLocus);
+
+  if (!orthLoci.length){
+    html += `<div style="color:#64748b;">No cross-species flank orthologs at &ge;${thr}% identity.</div>`;
+  } else {
+    html += `<div style="color:#34d399; margin-bottom:4px;">Cross-species orthologs (&ge;${thr}% id, &ge;200bp): ${orthLoci.length}</div>`;
+    // sort by best combined bits
+    orthLoci.sort((a,b)=>{
+      const sa = (byLocus[a].LF?.bits||0)+(byLocus[a].RF?.bits||0);
+      const sb = (byLocus[b].LF?.bits||0)+(byLocus[b].RF?.bits||0);
+      return sb - sa;
+    });
+    for (const ol of orthLoci){
+      const od = flankData[ol];
+      const m = byLocus[ol];
+      const lfTag = m.LF ? `<span style="color:#34d399;">LF ${m.LF.pid}%/${m.LF.aln}bp</span>` : `<span style="color:#475569;">LF &mdash;</span>`;
+      const rfTag = m.RF ? `<span style="color:#34d399;">RF ${m.RF.pid}%/${m.RF.aln}bp</span>` : `<span style="color:#475569;">RF &mdash;</span>`;
+      html += `<div style="margin:6px 0; border-top:1px dashed #1e293b; padding-top:5px; white-space:nowrap;">`
+            + `<b style="color:#60a5fa; cursor:pointer; text-decoration:underline;" onclick="jumpToLocusId('${ol}')">${ol}</b> `
+            + `<span style="color:#9ca3af;">(${m.sp})</span> &nbsp; ${lfTag} &nbsp; ${rfTag}`;
+      if (od){
+        html += `<br>` + (od.LF ? `<span style="color:#94a3b8;">${esc(trunc(od.LF.seq,80))}</span>` : `<span style="color:#64748b;">(no LF)</span>`)
+              + ` &nbsp;${collapsedSat(od)}&nbsp; `
+              + (od.RF ? `<span style="color:#94a3b8;">${esc(trunc(od.RF.seq,80))}</span>` : `<span style="color:#64748b;">(no RF)</span>`);
+      }
+      html += `</div>`;
+    }
+  }
+  view.innerHTML = html;
+}
+
+/* ---- C3: boundary-phase histogram ---- */
+function renderBphaseHist(){
+  const host = document.getElementById("bphaseHistView");
+  if (!host || !bphaseHist) return;
+  const st = document.getElementById("bphaseSubtype").value;
+  const d = bphaseHist[st];
+  if (!d){ host.innerHTML = `<span style="color:#64748b;">No data for ${st}.</span>`; return; }
+  const mono = d.mono;
+  const start = d.start, end = d.end;
+  const maxV = Math.max(1, ...start.slice(1), ...end.slice(1));
+  const W = 560, H = 130, padL = 30, padB = 16, padT = 14;
+  const innerW = W - padL - 8, innerH = H - padB - padT;
+  const bw = innerW / mono;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%; max-width:${W}px; background:#0c1118; border:1px solid #1e293b; border-radius:6px;">`;
+  svg += `<text x="4" y="${padT}" fill="#22d3ee" font-size="10">start</text>`;
+  svg += `<text x="4" y="${padT+innerH/2}" fill="#f472b6" font-size="10">end</text>`;
+  // start bars (cyan, upper half) and end bars (pink, lower half)
+  const halfH = innerH/2;
+  for (let c=1; c<=mono; c++){
+    const x = padL + (c-1)*bw;
+    const hs = (start[c]/maxV)*halfH;
+    const he = (end[c]/maxV)*halfH;
+    if (hs>0) svg += `<rect x="${x.toFixed(1)}" y="${(padT+halfH-hs).toFixed(1)}" width="${Math.max(0.5,bw-0.3).toFixed(1)}" height="${hs.toFixed(1)}" fill="#22d3ee"><title>start @${c}: ${start[c]}</title></rect>`;
+    if (he>0) svg += `<rect x="${x.toFixed(1)}" y="${(padT+halfH).toFixed(1)}" width="${Math.max(0.5,bw-0.3).toFixed(1)}" height="${he.toFixed(1)}" fill="#f472b6"><title>end @${c}: ${end[c]}</title></rect>`;
+  }
+  // axis
+  svg += `<line x1="${padL}" y1="${padT+halfH}" x2="${padL+innerW}" y2="${padT+halfH}" stroke="#334155" stroke-width="0.5"/>`;
+  svg += `<text x="${padL}" y="${H-3}" fill="#64748b" font-size="9">1</text>`;
+  svg += `<text x="${padL+innerW-12}" y="${H-3}" fill="#64748b" font-size="9">${mono}</text>`;
+  svg += `<text x="${padL+innerW/2-40}" y="${H-3}" fill="#64748b" font-size="9">consensus coordinate (bp)</text>`;
+  svg += `</svg>`;
+  const sPeak = start.indexOf(Math.max(...start.slice(1)));
+  const ePeak = end.indexOf(Math.max(...end.slice(1)));
+  host.innerHTML = svg +
+    `<div style="font-size:10px; color:#9ca3af; margin-top:3px;">`
+    + `${st}: arrays most often <span style="color:#22d3ee;">start at coord ${sPeak}</span> `
+    + `and <span style="color:#f472b6;">end at coord ${ePeak}</span> (of ${mono}).</div>`;
+}
+
+function bindEndsFlanksUI(){
+  const sb = document.getElementById("jumpStartBtn"); if (sb) sb.addEventListener("click", ()=>jumpToJunction("start"));
+  const eb = document.getElementById("jumpEndBtn");   if (eb) eb.addEventListener("click", ()=>jumpToJunction("end"));
+  const fb = document.getElementById("jumpFullBtn");  if (fb) fb.addEventListener("click", ()=>jumpToJunction("full"));
+  const sf = document.getElementById("showFlanksBtn");if (sf) sf.addEventListener("click", showFlanks);
+  const ot = document.getElementById("orthoThr");     if (ot) ot.addEventListener("change", showFlanks);
+  const bs = document.getElementById("bphaseSubtype");if (bs) bs.addEventListener("change", renderBphaseHist);
+}
+
+
 (function start(){
   bindUIOnce();
 
