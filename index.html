@@ -2505,6 +2505,7 @@ function initDetailChart(){
     .translateExtent([[0,0],[innerW,innerH]])
     .extent([[0,0],[innerW,innerH]])
     .on("zoom", (event)=>{
+      if (!xScaleDetailBase) return;  // guard: base scale not ready yet
       const zx = event.transform.rescaleX(xScaleDetailBase);
       xScaleDetail.domain(zx.domain());
       renderDetail();
@@ -2572,10 +2573,6 @@ const WINDOW_STEP = 146;  // uniform display grid for grouping bars from differe
 
 function drawDetailForLocus(l){
   initDetailChart();
-  // Reset any prior zoom transform so a newly selected locus starts unzoomed
-  if (svgDetail && zoomDetail){
-    svgDetail.call(zoomDetail.transform, d3.zoomIdentity);
-  }
 
   const scfData = perWindowByScaffold.get(l.scf) || [];
   // Filter to locus region
@@ -2619,6 +2616,10 @@ function drawDetailForLocus(l){
 
   currentLocus._windows = windows;
   currentLocus._maxBits = maxBits;
+
+  // initDetailChart() rebuilt the SVG, so the zoom transform is already identity.
+  // Just sync the stored transform to identity to be safe (no handler fired).
+  if (svgDetail){ svgDetail.property("__zoom", d3.zoomIdentity); }
 
   renderDetail();
 }
