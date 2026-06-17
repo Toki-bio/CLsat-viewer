@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
 <meta http-equiv="Pragma" content="no-cache" />
 <meta http-equiv="Expires" content="0" />
-<title>CLsat Locus Detail Viewer � Per-window Bitscores</title>
+<title>CLsat Locus Detail Viewer – Per-window Bitscores</title>
 
 <!-- D3.js - load from CDN -->
 <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
@@ -28,6 +28,19 @@
     --strokeOk:#22c55e;
   }
   html,body{height:100%; margin:0; background:var(--bg); color:var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;}
+  /* slim themed scrollbars */
+  *{scrollbar-width:thin; scrollbar-color:#334155 transparent;}
+  *::-webkit-scrollbar{width:8px; height:8px;}
+  *::-webkit-scrollbar-track{background:transparent;}
+  *::-webkit-scrollbar-thumb{background:#334155; border-radius:6px;}
+  *::-webkit-scrollbar-thumb:hover{background:#475569;}
+  /* slim themed form controls */
+  select, input[type=text], input[type=search]{
+    background:#0c1118; color:var(--text); border:1px solid #283449;
+    border-radius:6px; padding:3px 6px; font-size:12px; height:26px; box-sizing:border-box;
+  }
+  select:hover, input[type=text]:hover{border-color:#3b4a63;}
+  select:focus, input[type=text]:focus{outline:none; border-color:#3b82f6;}
   .wrap{display:grid; grid-template-columns: 340px 1fr; gap:12px; height:100%; padding:12px; box-sizing:border-box;}
   .wrap.collapsed{grid-template-columns: 0px 1fr; gap:0;}
   .sidebar{
@@ -58,7 +71,7 @@
     flex-direction:column;
   }
   .topChart{flex:0 0 auto; height:200px;}
-  .detailChart{flex:1; min-height:0; overflow-y:auto;}
+  .detailChart{display:flex; flex-direction:column; min-height:0; overflow-y:auto;}
   h1{font-size:16px; margin:0 0 8px 0;}
   h2{font-size:12px; margin:10px 0 5px 0; color:var(--muted); font-weight:600; letter-spacing:.02em;}
   .row{display:flex; gap:6px; align-items:center; margin:4px 0;}
@@ -101,7 +114,7 @@
   .hint{font-size:10px; color:var(--muted); margin-top:4px;}
   .ok{color:#34d399;}
   .err{color:#fb7185;}
-  .chartBox{border:1px solid #243044; border-radius:14px; overflow:hidden; background:#070b12; flex:1; min-height:0;}
+  .chartBox{border:1px solid #243044; border-radius:14px; overflow:hidden; background:#070b12; min-height:300px; height:340px; resize:vertical;}
   .panelTitle{font-size:13px; font-weight:600; margin-bottom:6px; display:flex; align-items:center; gap:8px;}
   .bedBox{background:#0b1220; border:1px solid #243044; border-radius:10px; padding:10px; margin-top:6px; display:flex; align-items:center; gap:8px;}
   .bedCoord{font-family: ui-monospace, monospace; font-size:12px; color:#60a5fa; flex:1; user-select:all;}
@@ -161,7 +174,7 @@
 </head>
 
 <body>
-<button class="collapseBtn" id="collapseBtn" title="Toggle sidebar">�</button>
+<button class="collapseBtn" id="collapseBtn" title="Toggle sidebar">‹</button>
 <div class="wrap">
   <div class="sidebar">
     <h1>CLsat Locus Detail Viewer <span id="versionTag" style="font-size:9px; color:#f59e0b; font-weight:normal;"></span></h1>
@@ -194,32 +207,32 @@
         <thead><tr>
           <th data-col="id">ID ?</th>
           <th data-col="sp">Species</th>
-          <th data-col="type">Type</th>
-          <th data-col="len">Length</th>
-          <th data-col="flag">Flag</th>
+          <th data-col="type" title="Assigned CLsat family">Type</th>
+          <th data-col="len" title="Number of monomers (hover a cell for length in bp)">Monomers</th>
+          <th data-col="flag" title="Arbitration outcome - hover a cell for full explanation">Flag</th>
           <th data-col="scf">Scaffold</th>
         </tr></thead>
         <tbody id="locusTableBody"></tbody>
       </table>
     </div>
 
-    <h2>Filters</h2>
-    <div class="row">
-      <label>Show</label>
-      <select id="flagFilter">
-        <option value="ALL">ALL</option>
-        <option value="UNIQUE_SEED_WITH_COMPETITOR">UNIQUE_SEED_WITH_COMPETITOR</option>
-        <option value="UNIQUE_SEED_CONTRADICTION">UNIQUE_SEED_CONTRADICTION</option>
-        <option value="SEED_CONFLICT_RESOLVED">SEED_CONFLICT_RESOLVED</option>
-        <option value="SEED_CONFLICT_RESOLVED_AMBIGUOUS">SEED_CONFLICT_RESOLVED_AMBIGUOUS</option>
-        <option value="SEGMENT_RESOLVED">SEGMENT_RESOLVED</option>
-        <option value="SEGMENT_RESOLVED_AMBIGUOUS">SEGMENT_RESOLVED_AMBIGUOUS</option>
+    <h2>Filters <span style="font-size:9px; color:#64748b; font-weight:400;">(Ctrl/Cmd-click for multiple)</span></h2>
+    <div class="row" title="Filter loci by arbitration flag. Hold Ctrl (Cmd on Mac) to select several; selecting none or ALL shows everything.">
+      <label title="The arbitration outcome that assigned each locus to its CLsat family.">Show flag</label>
+      <select id="flagFilter" multiple size="6" style="height:auto; min-width:200px;">
+        <option value="ALL" selected>ALL</option>
+        <option value="UNIQUE_SEED_WITH_COMPETITOR" title="One seed family matched; another scored but did not override.">UNIQUE_SEED_WITH_COMPETITOR</option>
+        <option value="UNIQUE_SEED_CONTRADICTION" title="A non-seed family overrode the seed.">UNIQUE_SEED_CONTRADICTION</option>
+        <option value="SEED_CONFLICT_RESOLVED" title="Overlapping seeds resolved by bitscore.">SEED_CONFLICT_RESOLVED</option>
+        <option value="SEED_CONFLICT_RESOLVED_AMBIGUOUS" title="Seed conflict resolved, small margin.">SEED_CONFLICT_RESOLVED_AMBIGUOUS</option>
+        <option value="SEGMENT_RESOLVED" title="Composite-locus segment assigned by bitscore.">SEGMENT_RESOLVED</option>
+        <option value="SEGMENT_RESOLVED_AMBIGUOUS" title="Segment assigned, small margin.">SEGMENT_RESOLVED_AMBIGUOUS</option>
       </select>
     </div>
-    <div class="row">
-      <label>Subtype</label>
-      <select id="subtypeFilter">
-        <option value="ALL">ALL</option>
+    <div class="row" title="Filter loci by assigned CLsat family. Hold Ctrl (Cmd on Mac) to select several.">
+      <label title="Major CLsat family (CLsat1-4) assigned to the locus.">Subtype</label>
+      <select id="subtypeFilter" multiple size="5" style="height:auto; min-width:120px;">
+        <option value="ALL" selected>ALL</option>
         <option value="CLsat1">CLsat1</option>
         <option value="CLsat2">CLsat2</option>
         <option value="CLsat3">CLsat3</option>
@@ -248,38 +261,40 @@
     </div>
 
     
-    <h2 style="margin-top:14px;">Planned Actions <span style="font-size:9px;color:#f59e0b;">roadmap</span></h2>
-    <div id="plannedActions" style="font-size:10px; line-height:1.5; background:#0c1118; border:1px solid #1e293b; border-radius:6px; padding:8px; max-height:340px; overflow-y:auto;">
-      <div style="color:#94a3b8; margin-bottom:6px;">Status: <span style="color:#ef4444;">TODO</span> &middot; <span style="color:#f59e0b;">WIP</span> &middot; <span style="color:#34d399;">DONE</span></div>
-      <div style="margin-bottom:8px;">
-        <div style="color:#60a5fa; font-weight:600;">A. Bug fixes</div>
-        <div><span style="color:#ef4444;">[TODO]</span> A1. "Show" flag filter: also dim/hide signal bars for loci that fail the filter (currently only outlines + KPIs respond, so it looks inert).</div>
-        <div><span style="color:#ef4444;">[TODO]</span> A2. Sync flag filter to the Locus Table (hide non-matching rows).</div>
-        <div><span style="color:#ef4444;">[TODO]</span> A3. Prominent CLsat subtype badge in detail panel header (family currently only in status line + Type column).</div>
-        <div><span style="color:#ef4444;">[TODO]</span> A4. Dedicated Subtype dropdown filter (CLsat1-4), separate from flag filter.</div>
+    <details id="plannedActions" style="margin-top:14px;">
+      <summary style="cursor:pointer; font-size:13px; font-weight:600; color:var(--text); user-select:none;">Planned Actions <span style="font-size:9px;color:#f59e0b;">roadmap (click to expand)</span></summary>
+      <div style="font-size:10px; line-height:1.5; background:#0c1118; border:1px solid #1e293b; border-radius:6px; padding:8px; margin-top:6px; max-height:340px; overflow-y:auto;">
+        <div style="color:#94a3b8; margin-bottom:6px;">Status: <span style="color:#ef4444;">TODO</span> &middot; <span style="color:#f59e0b;">WIP</span> &middot; <span style="color:#34d399;">DONE</span></div>
+        <div style="margin-bottom:8px;">
+          <div style="color:#60a5fa; font-weight:600;">A. Bug fixes</div>
+          <div><span style="color:#34d399;">[DONE]</span> A1. Zoom resets when switching to a newly selected locus.</div>
+          <div><span style="color:#34d399;">[DONE]</span> A2. Slim themed scrollbars &amp; form controls.</div>
+          <div><span style="color:#34d399;">[DONE]</span> A3. Fixed corrupted glyphs (Array label &times;, ellipsis, arrows).</div>
+          <div><span style="color:#34d399;">[DONE]</span> A4. Subtype badge + Subtype filter; flag filter dims bars &amp; syncs table.</div>
+          <div><span style="color:#34d399;">[DONE]</span> A5. Detail chart resizable; border markers track zoom &amp; only show near junctions.</div>
+        </div>
+        <div style="margin-bottom:8px;">
+          <div style="color:#60a5fa; font-weight:600;">B. Flank module</div>
+          <div><span style="color:#34d399;">[DONE]</span> B1. &plusmn;500bp flanks extracted for all 707 loci (flanks.json).</div>
+          <div><span style="color:#34d399;">[DONE]</span> B2. Cross-species flank orthology at 70/80/90% (flank_orthologs.json).</div>
+          <div><span style="color:#f59e0b;">[WIP]</span> B3. Flank/ortholog viewer: show as traceable alignment, fix entity rendering.</div>
+        </div>
+        <div style="margin-bottom:8px;">
+          <div style="color:#60a5fa; font-weight:600;">C. Locus-ends explorer</div>
+          <div><span style="color:#f59e0b;">[WIP]</span> C1. Junction jump buttons wiring.</div>
+          <div><span style="color:#ef4444;">[TODO]</span> C2. Redesign boundary stats: characterize the very first/last (incomplete) terminal monomers, not interior phase.</div>
+        </div>
+        <div style="margin-bottom:8px;">
+          <div style="color:#60a5fa; font-weight:600;">D. Subfamilies &amp; UI polish</div>
+          <div><span style="color:#ef4444;">[TODO]</span> D1. Assign &amp; display sub-subfamily (CLsat1.1&ndash;1.5, CLsat3.1&ndash;3.2&hellip;) per locus (needs DRAGEN compute).</div>
+          <div><span style="color:#ef4444;">[TODO]</span> D2. Filter tooltips on hover; multi-select filters.</div>
+          <div><span style="color:#ef4444;">[TODO]</span> D3. Locus Table: flag tooltips; show #monomers (length as hover tooltip).</div>
+          <div><span style="color:#34d399;">[DONE]</span> D4. Planned Actions collapsed by default.</div>
+        </div>
       </div>
-      <div style="margin-bottom:8px;">
-        <div style="color:#60a5fa; font-weight:600;">B. Flank module</div>
-        <div><span style="color:#ef4444;">[TODO]</span> B1. DRAGEN: extract +/-500 bp flanks for all 707 loci, hard-save flanks.fa + flanks.json (left/right, truncation flags). Clearly indicate fetched vs missing.</div>
-        <div><span style="color:#ef4444;">[TODO]</span> B2. DRAGEN: all-vs-all flank orthology across species (SW/BLAST). Ortholog if identity &gt;= threshold over &gt;= min length. Save flank_orthologs.json.</div>
-        <div><span style="color:#ef4444;">[TODO]</span> B3. Viewer: "Fetch flanks" control + flank viewer. Orthologous flanks aligned side-by-side across species, satellite collapsed as "CLsatX x N monomers" between flanks.</div>
-      </div>
-      <div style="margin-bottom:8px;">
-        <div style="color:#60a5fa; font-weight:600;">C. Locus-ends explorer</div>
-        <div><span style="color:#ef4444;">[TODO]</span> C1. Quick-jump to each locus start/end junction; clearly mark locus/flank border in per-window panel.</div>
-        <div><span style="color:#ef4444;">[TODO]</span> C2. DRAGEN: align each locus boundary to CLsat consensus to find phase/coordinate where array starts/ends. Save locus_boundary_phase.json.</div>
-        <div><span style="color:#ef4444;">[TODO]</span> C3. Viewer: histogram of start/end consensus-coordinates across all loci (per subtype) - reveals preferred start/end phases.</div>
-      </div>
-      <div style="margin-bottom:4px;">
-        <div style="color:#60a5fa; font-weight:600;">D. Confirmed decisions</div>
-        <div>+ Flank size: 500 bp/side, store truncated where scaffold ends cut short.</div>
-        <div>+ Orthology: offline on DRAGEN, hard-saved at SEVERAL identity thresholds.</div>
-        <div>+ Boundary phase: align last 2 monomers (incl. incomplete border monomer) vs consensus.</div>
-        <div>+ Architecture: all heavy compute offline on DRAGEN, hard-saved JSON in repo; viewer static.</div>
-      </div>
-    </div>
+    </details>
 
-    <div id="status" class="status">Loading�</div>
+    <div id="status" class="status">Loading…</div>
     <div class="hint">Wheel to zoom, drag to pan. Click locus to see per-window detail.</div>
   </div>
 
@@ -406,7 +421,7 @@ const CONSENSUS_SEQS = {
   CLsat4: "AAAGAAGCTCGTTTGGATGTATTTGCGTGACTTTGCATTCACAACTCAAAAACACATATCTTTTGAAATGAAGGTGATGGAAGCTTGTTCGTGTGTTTTCTATGCATTTCGAGCCT",
 };
 
-// Cluster consensus sequences (cl1�cl9) and their CLsat subfamily mapping
+// Cluster consensus sequences (cl1–cl9) and their CLsat subfamily mapping
 const CLUSTER_SEQS = {
   cl3: "AAAGAAGCTAGTTGGGATGTATTTGGCTTTTCTAACGTTCAGTTTGGCTTACTTGCGTGATTTTGCATTAACAGCTCAAATACAGCTAACTTTGGAAATGAACACGATGGAAACTTGTTGGTGTGTTTTCTATGCATTTCGACCTG",
   cl6: "AAAGAAGCATGTTAGGATGTACTTGGCTTTCCTAACGTTCAGTTTGGCTTATTTGCGTGATTTGGCATTAACAGCTCAAATACACCTAACTTTGCAAATGAACACGATAGAAACTTGTTGGTGTGTTTTCTATGCATTTCGACCTG",
@@ -806,7 +821,7 @@ function scanOneConsensus(seq, consName, minIdentity) {
   let combined = [...fwdHits, ...rcHits]
     .filter(h => h.identity >= minIdentity && h.length >= minLen);
 
-  // Split any raw hits wider than 1.3� consensus (should be rare, but defensive)
+  // Split any raw hits wider than 1.3× consensus (should be rare, but defensive)
   const maxSpan = Math.floor(consLen * 1.3);
   combined = splitWideHits(combined, consensus, seq, maxSpan);
 
@@ -874,7 +889,7 @@ function reassignBestConsensus(hits, rawSeq) {
 }
 
 /**
- * Assign each monomer to its best-matching cluster (cl1�cl9) within its
+ * Assign each monomer to its best-matching cluster (cl1–cl9) within its
  * assigned CLsat subfamily. Uses pairwise SW alignment to handle the
  * cl3/cl8 length difference (146 vs 128 bp deletion variant).
  * Adds hit.cluster = 'cl3' etc. and hit.clusterScore.
@@ -918,7 +933,7 @@ function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
   const seqLen = seq.length;
 
   if (seqLen > 50000) {
-    console.warn("[SW] Large sequence (" + seqLen + " bp) � analysis may take a while");
+    console.warn("[SW] Large sequence (" + seqLen + " bp) — analysis may take a while");
   }
   if (seqLen > 200000) {
     return { success: false, message: "Sequence too large (" + (seqLen/1000).toFixed(0) + " kb). Zoom in to <50 kb first." };
@@ -963,7 +978,7 @@ function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
 
   // Separate by strand, merge (with max-length cap), then split into arrays
   const maxConsLen = Math.max(...scanNames.map(cn => (CONSENSUS_SEQS[cn] || '').length), 100);
-  const maxMergeLen = Math.floor(maxConsLen * 1.3);  // 1.3� consensus = ~190bp for CLsat1
+  const maxMergeLen = Math.floor(maxConsLen * 1.3);  // 1.3× consensus = ~190bp for CLsat1
   let plusHits = mergeHits(allHits.filter(h => h.strand === '+'), maxMergeLen);
   let minusHits = mergeHits(allHits.filter(h => h.strand === '-'), maxMergeLen);
 
@@ -1128,13 +1143,13 @@ function drawMonomerMap(containerId, result, locusStart, locusEnd) {
       .attr('y', yTop - 2)
       .attr('text-anchor', 'middle')
       .style('fill', color).style('font-size', '8px').style('font-family', 'ui-monospace, monospace')
-      .text('Array ' + (ai + 1) + ' (' + arr.hits.length + '�' + strand + ')');
+      .text('Array ' + (ai + 1) + ' (' + arr.hits.length + '×' + strand + ')');
   });
 }
 
 /**
  * Render monomer alignment as MSA with integrated flanks.
- * Per-ARRAY blocks showing consensus-anchored MSA with �100bp flanks
+ * Per-ARRAY blocks showing consensus-anchored MSA with ±100bp flanks
  * on the first/last monomers to visualize satellite-to-flank transitions.
  */
 function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldName) {
@@ -1211,7 +1226,7 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
     html += '</div>';
     html += '<div class="msaBlock">';
 
-    // --- SAFETY: Re-split any hit wider than 1.3� consensus ---
+    // --- SAFETY: Re-split any hit wider than 1.3× consensus ---
     // Uses the shared splitWideHits function. Defense-in-depth for any
     // double-width hits that survived mergeHits + analyzeMonomersSW splitting.
     const maxHitLen = Math.floor(consLen * 1.3);
@@ -1572,7 +1587,7 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
     const nBefore = firstRowDisp ? firstRowDisp.flankLeftStr.length : 0;
     const nAfter = lastRowDisp ? lastRowDisp.flankRightStr.length : 0;
 
-    // Scale ruler � right-justified tick labels
+    // Scale ruler — right-justified tick labels
     html += '<div class="msaRow"><span class="msaName"></span>';
     // left flank ruler
     { const r = new Array(nBefore).fill(' ');
@@ -1593,7 +1608,7 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
     }
     html += '</div>';
 
-    // Consensus row (no pipe separators � just dots for flank area)
+    // Consensus row (no pipe separators — just dots for flank area)
     html += '<div class="msaRow"><span class="msaName" style="color:' + clsatColor + '; font-weight:bold;">' + dominantClsat + (dominantCluster ? '/' + dominantCluster : '') + '</span>';
     for (let k = 0; k < nBefore; k++) html += '<span class="msaBase" style="color:#1a1a2e;">\u00b7</span>';
     if (nBefore > 0) html += '<span class="msaBase" style="color:#1a1a2e;">\u00b7</span>';
@@ -2089,11 +2104,14 @@ function populateLocusTable(){
   let rows = loci.map(l => {
     const a = assignments[l.id] || {};
     const len = l.end - l.start;
+    const mono = (typeof CLSAT_STEP !== 'undefined' && CLSAT_STEP[a.seed]) ? CLSAT_STEP[a.seed] : 146;
+    const nMono = Math.max(1, Math.round(len / mono));
     return {
       id: l.id,
       sp: l.sp,
       type: a.seed || '?',
       len: len,
+      nMono: nMono,
       flag: a.flag || '',
       scf: l.scf,
       _locus: l
@@ -2146,12 +2164,13 @@ function populateLocusTable(){
     const lenStr = r.len >= 1000 ? (r.len/1000).toFixed(1) + 'k' : r.len + '';
     const typeColor = CLSAT_COLORS[r.type] || '#9ca3af';
     const isSel = currentLocus && currentLocus.id === r.id;
+    const flagTip = (typeof FLAG_TOOLTIPS !== 'undefined' && FLAG_TOOLTIPS[r.flag]) ? FLAG_TOOLTIPS[r.flag] : r.flag;
     html += '<tr data-id="' + r.id + '"' + (isSel ? ' class="selected"' : '') + '>' +
       '<td style="color:#60a5fa; font-weight:600;">' + r.id + '</td>' +
       '<td>' + r.sp + '</td>' +
       '<td style="color:' + typeColor + ';">' + r.type + '</td>' +
-      '<td style="text-align:right;">' + lenStr + '</td>' +
-      '<td><span class="flagDot" style="background:' + flagColor + ';"></span>' + flagShort + '</td>' +
+      '<td style="text-align:right;" title="' + r.len.toLocaleString() + ' bp">' + r.nMono + '</td>' +
+      '<td title="' + flagTip + '"><span class="flagDot" style="background:' + flagColor + ';"></span>' + flagShort + '</td>' +
       '<td style="color:#666; font-size:9px;">' + r.scf.slice(-10) + '</td>' +
       '</tr>';
   }
@@ -2181,18 +2200,31 @@ function populateScaffolds(sp){
 /* ============================================================================
    FILTERS
 ============================================================================ */
+// Collect selected values from a (possibly multi-) select; ALL/empty => no constraint
+function selectedValues(sel){
+  if (!sel) return null;
+  let vals = [];
+  if (sel.multiple){
+    vals = Array.from(sel.selectedOptions).map(o => o.value);
+  } else if (sel.value){
+    vals = [sel.value];
+  }
+  if (!vals.length || vals.indexOf("ALL") >= 0) return null;  // null = match all
+  return vals;
+}
 function passesFilter(l){
   const a = assignments[l.id];
-  // Subtype filter (assigned family = a.seed in patched schema)
-  const stVal = (typeof subtypeFilter !== "undefined" && subtypeFilter) ? subtypeFilter.value : "ALL";
-  if (stVal !== "ALL"){
-    if (!a || a.seed !== stVal) return false;
+  // Subtype filter (assigned family = a.seed)
+  const stVals = selectedValues(typeof subtypeFilter !== "undefined" ? subtypeFilter : null);
+  if (stVals){
+    if (!a || stVals.indexOf(a.seed) < 0) return false;
   }
   // Flag filter
-  const val = flagFilter.value;
-  if (val === "ALL") return true;
-  if (!a) return false;
-  return a.flag === val;
+  const flagVals = selectedValues(typeof flagFilter !== "undefined" ? flagFilter : null);
+  if (flagVals){
+    if (!a || flagVals.indexOf(a.flag) < 0) return false;
+  }
+  return true;
 }
 
 /* ============================================================================
@@ -2249,7 +2281,7 @@ function drawOverview(){
   // Get per-window data for this scaffold
   const scfData = perWindowByScaffold.get(scf) || [];
   
-  // Group by uniform display bins � snap all CLsat positions to a common grid
+  // Group by uniform display bins — snap all CLsat positions to a common grid
   // so bars from different CLsats at the same genomic region are grouped together
   const byBin = new Map();
   for (const r of scfData){
@@ -2377,8 +2409,8 @@ function renderOverview(){
   bEnt.append("title");
   const allBars = bEnt.merge(bars);
   // When a filter is active, dim bars not overlapping any passing locus.
-  const filterActive = (flagFilter.value !== "ALL") ||
-                        (typeof subtypeFilter !== "undefined" && subtypeFilter && subtypeFilter.value !== "ALL");
+  const filterActive = (selectedValues(flagFilter) !== null) ||
+                        (selectedValues(typeof subtypeFilter !== "undefined" ? subtypeFilter : null) !== null);
   const passSpans = (currentOver.loci || []).map(l => [l.start, l.end]);
   function inPassSpan(pos){
     for (const s of passSpans){ if (pos >= s[0] && pos <= s[1]) return true; }
@@ -2410,6 +2442,8 @@ function renderOverview(){
 
   const allRects = ent.merge(sel);
   allRects
+    .style("cursor", "pointer")
+    .on("click", (event, d) => { event.stopPropagation(); selectLocus(d); })
     .attr("x", d => xScaleOver(d.start))
     .attr("width", d => Math.max(4, xScaleOver(d.end) - xScaleOver(d.start)))
     .attr("fill", "rgba(255,255,255,0.01)")  // nearly transparent but clickable
@@ -2521,10 +2555,27 @@ const CLSAT_STEP = {
   CLsat3: 146,   // consensus 146 bp, scan step 146
   CLsat4: 116,   // consensus 116 bp, scan step 116
 };
+
+// Human-readable explanations for arbitration flags (Locus Table tooltips)
+const FLAG_TOOLTIPS = {
+  'UNIQUE_SEED_WITH_COMPETITOR': 'One seed family matched; another family also scored but did not override the seed.',
+  'UNIQUE_SEED_CONTRADICTION': 'A non-seed family scored >=DELTA bits above the seed - assignment contradicts the seed.',
+  'SEED_CONFLICT_RESOLVED': 'Multiple seed families overlapped this locus; resolved by highest bitscore.',
+  'SEED_CONFLICT_RESOLVED_AMBIGUOUS': 'Seed conflict resolved by bitscore, but the winning margin was small (<DELTA_AMBIG).',
+  'SEGMENT_RESOLVED': 'A composite locus segment; family assigned by dominant bitscore in this segment.',
+  'SEGMENT_RESOLVED_AMBIGUOUS': 'Segment assigned by bitscore, but the winning margin was small (<DELTA_AMBIG).',
+  'SEED_ONLY': 'Single seed family, no competing signal.',
+  'SEED_WITH_COMPETITOR': 'Seed family with a competing family present below override threshold.',
+  'SEED_CONTRADICTION': 'Competitor family overrode the seed.'
+};
 const WINDOW_STEP = 146;  // uniform display grid for grouping bars from different CLsats
 
 function drawDetailForLocus(l){
   initDetailChart();
+  // Reset any prior zoom transform so a newly selected locus starts unzoomed
+  if (svgDetail && zoomDetail){
+    svgDetail.call(zoomDetail.transform, d3.zoomIdentity);
+  }
 
   const scfData = perWindowByScaffold.get(l.scf) || [];
   // Filter to locus region
@@ -2538,7 +2589,7 @@ function drawDetailForLocus(l){
     return;
   }
 
-  // Group by uniform display bins � snap to common grid so CLsat bars align
+  // Group by uniform display bins — snap to common grid so CLsat bars align
   const byBin = new Map();
   for (const r of data){
     const binPos = Math.round(r.pos / WINDOW_STEP) * WINDOW_STEP;
@@ -2630,6 +2681,7 @@ function renderDetail(){
 
   // Render strand track if monomer analysis was done for this locus
   renderStrandTrack();
+  if (typeof drawBorderMarkers === "function") drawBorderMarkers();
 }
 
 /* ============================================================================
@@ -2643,7 +2695,7 @@ async function fetchText(path){
 }
 
 async function loadViaFetch(){
-  setStatus("Loading files via fetch()�");
+  setStatus("Loading files via fetch()…");
 
   // Load main files
   const [mText, aText, bText] = await Promise.all([
@@ -2659,7 +2711,7 @@ async function loadViaFetch(){
   buildIndexes();
   populateSelectors();
 
-  setStatus(`Loaded ${loci.length} loci. Now loading per-window bits files�`);
+  setStatus(`Loaded ${loci.length} loci. Now loading per-window bits files…`);
 
   // Load per-window bits files
   const perWindowPromises = Object.entries(FILE_BITS_CLSAT).map(async ([clsat, file]) => {
@@ -2776,7 +2828,7 @@ function bindUIOnce(){
 
   const CONTROL_BASE = "http://127.0.0.1:9001"; // kept for reference only
 
-  // Server polling disabled � monomer analysis is now client-side
+  // Server polling disabled — monomer analysis is now client-side
 
   document.getElementById("copyBedBtn").addEventListener("click", ()=>{
     const text = bedCoord.textContent;
@@ -3132,11 +3184,18 @@ function jumpToJunction(which){
     dom = [l.start - span*0.02, l.end + span*0.02];
     if (info) info.textContent = `Full locus ${l.scf}:${l.start}-${l.end}`;
   }
-  if (typeof xScaleDetail !== "undefined" && xScaleDetail && currentLocus._windows){
-    xScaleDetail.domain(dom);
-    renderDetail();
-    drawBorderMarkers();
-  }
+  if (!currentLocus._windows){ setStatus("No per-window data for this locus."); return; }
+  if (typeof xScaleDetail === "undefined" || !xScaleDetail || !svgDetail || !zoomDetail){ return; }
+  // Drive the zoom behavior so the transform stays in sync with the domain.
+  const base = (typeof baseDomainDetail !== "undefined" && baseDomainDetail) ? baseDomainDetail : xScaleDetail.domain();
+  const dsz = getDetailSize();
+  const baseSpan = base[1] - base[0];
+  const newSpan = dom[1] - dom[0];
+  let k = baseSpan / newSpan; k = Math.max(1, Math.min(50, k));
+  const xBase = d3.scaleLinear().domain(base).range([0, dsz.innerW]);
+  const tx = -k * xBase(dom[0]);
+  const t = d3.zoomIdentity.translate(tx, 0).scale(k);
+  svgDetail.transition().duration(300).call(zoomDetail.transform, t);
 }
 
 /* ---- C1: draw vertical border markers in the detail chart ---- */
@@ -3145,13 +3204,17 @@ function drawBorderMarkers(){
   const l = currentLocus;
   const {innerH} = getDetailSize();
   gMainDetail.selectAll("line.border, text.borderLbl").remove();
+  const [xmin, xmax] = xScaleDetail.domain();
+  const range = xmax - xmin;
+  const fullSpan = currentLocus.end - currentLocus.start;
+  if (range > fullSpan * 0.6) return;  // only near a junction
+  const edgeMargin = range * 0.05;
   const marks = [
     {pos: l.start, label: "array start", col: "#22d3ee"},
     {pos: l.end,   label: "array end",   col: "#f472b6"},
   ];
-  const [xmin, xmax] = xScaleDetail.domain();
   for (const m of marks){
-    if (m.pos < xmin || m.pos > xmax) continue;
+    if (m.pos < xmin + edgeMargin || m.pos > xmax - edgeMargin) continue;
     const x = xScaleDetail(m.pos);
     gMainDetail.append("line").attr("class","border")
       .attr("x1",x).attr("x2",x).attr("y1",0).attr("y2",innerH)
@@ -3171,66 +3234,94 @@ function showFlanks(){
   const fd = flankData[lid];
   if (!fd){ view.innerHTML = `<span style="color:#f87171;">No flank data for ${lid}.</span>`; return; }
 
-  const thr = document.getElementById("orthoThr").value;
-  const esc = s => (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;");
-  const trunc = (s,n)=> s.length>n ? s.slice(0,n)+"&hellip;" : s;
+  const thrSel = document.getElementById("orthoThr");
+  const thr = thrSel ? thrSel.value : "80";
+
+  // base coloring for traceable comparison
+  const BASE_COL = {A:"#22c55e", C:"#3b82f6", G:"#f59e0b", T:"#ef4444", N:"#6b7280", "-":"#374151"};
+  function colorSeq(seq, refSeq, align){
+    // align right: pad so junction-proximal ends line up. seq already oriented.
+    let out = "";
+    for (let i=0;i<seq.length;i++){
+      const ch = seq[i].toUpperCase();
+      const col = BASE_COL[ch] || "#9ca3af";
+      // if a reference is provided, dim mismatches subtly by underlining matches
+      let match = refSeq && i < refSeq.length && refSeq[i] && refSeq[i].toUpperCase() === ch;
+      out += `<span style="color:${col};${match?'border-bottom:1px solid #34d399;':''}">${ch}</span>`;
+    }
+    return out;
+  }
 
   function collapsedSat(d){
     const col = CLSAT_COLORS[d.subtype] || "#888";
-    return `<span style="background:${col}; color:#0b0f17; padding:1px 8px; border-radius:3px; font-weight:700;">`
-         + `[ ${d.subtype} &times; ${d.n_monomers} monomers, ${(d.length).toLocaleString()} bp ]</span>`;
+    return `<span style="background:${col}; color:#0b0f17; padding:1px 8px; border-radius:3px; font-weight:700; white-space:nowrap;">`
+         + `[ ${d.subtype} \u00d7 ${d.n_monomers} mon \u00b7 ${(d.length).toLocaleString()} bp ]</span>`;
   }
-  function flankSpan(f, side){
-    if (!f) return `<span style="color:#64748b;">(no ${side} flank &mdash; scaffold edge)</span>`;
-    const t = f.truncated ? ` <span style="color:#fbbf24;">(truncated ${f.len}bp)</span>` : "";
-    return `<span style="color:#94a3b8;">${esc(trunc(f.seq, 80))}</span>${t}`;
-  }
+
+  // Show the last N bases of LF (junction-proximal) and first N of RF, so the
+  // satellite junction is in the middle and orthologs stack in register.
+  const N = 60;
+  function lfTail(f){ if(!f) return null; return f.seq.slice(-N); }
+  function rfHead(f){ if(!f) return null; return f.seq.slice(0, N); }
 
   let html = "";
-  // The focal locus, drawn as: LF --- [sat] --- RF
-  html += `<div style="margin-bottom:6px;"><b style="color:#60a5fa;">${lid}</b> `
-        + `<span style="color:#9ca3af;">(${fd.sp}, ${fd.scf})</span></div>`;
-  html += `<div style="white-space:nowrap; margin-bottom:10px;">`
-        + `${flankSpan(fd.LF,"left")} &nbsp;${collapsedSat(fd)}&nbsp; ${flankSpan(fd.RF,"right")}</div>`;
+  html += `<div style="margin-bottom:8px;"><b style="color:#60a5fa;">${lid}</b> `
+        + `<span style="color:#9ca3af;">${fd.sp} \u00b7 ${fd.scf}</span></div>`;
 
-  // Orthologs: show LF orthologs and RF orthologs aligned side-by-side
-  const orthLF = (orthoData && orthoData.LF[thr] && orthoData.LF[thr][lid]) || [];
-  const orthRF = (orthoData && orthoData.RF[thr] && orthoData.RF[thr][lid]) || [];
+  // legend
+  html += `<div style="font-size:9px; color:#64748b; margin-bottom:6px;">`
+        + `Left flank shown as last ${N} bp (junction at right) \u2502 satellite collapsed \u2502 right flank first ${N} bp (junction at left). `
+        + `Underline = base matches the focal locus (top row). Click an ortholog ID to jump.</div>`;
 
-  // Union of ortholog loci across both sides
+  // focal row
+  const focalLF = lfTail(fd.LF), focalRF = rfHead(fd.RF);
+  function row(tagHtml, lfSeq, satD, rfSeq, refLF, refRF){
+    const lfHtml = lfSeq ? `<span style="display:inline-block; text-align:right; min-width:${N}ch;">${colorSeq(lfSeq, refLF)}</span>`
+                         : `<span style="display:inline-block; min-width:${N}ch; text-align:right; color:#475569;">(no left flank)</span>`;
+    const rfHtml = rfSeq ? `<span style="display:inline-block; min-width:${N}ch;">${colorSeq(rfSeq, refRF)}</span>`
+                         : `<span style="display:inline-block; min-width:${N}ch; color:#475569;">(no right flank)</span>`;
+    return `<div style="white-space:nowrap; margin:3px 0; line-height:1.4;">`
+         + `${tagHtml}<br>${lfHtml} ${collapsedSat(satD)} ${rfHtml}</div>`;
+  }
+
+  html += `<div style="border:1px solid #1e3a5f; border-radius:5px; padding:6px; margin-bottom:8px;">`
+        + row(`<span style="color:#60a5fa; font-weight:700;">${lid} (focal)</span>`, focalLF, fd, focalRF, null, null)
+        + `</div>`;
+
+  // orthologs
+  const orthLF = (orthoData && orthoData.LF && orthoData.LF[thr] && orthoData.LF[thr][lid]) || [];
+  const orthRF = (orthoData && orthoData.RF && orthoData.RF[thr] && orthoData.RF[thr][lid]) || [];
   const byLocus = {};
   for (const o of orthLF){ byLocus[o.locus] = byLocus[o.locus] || {sp:o.sp}; byLocus[o.locus].LF = o; }
   for (const o of orthRF){ byLocus[o.locus] = byLocus[o.locus] || {sp:o.sp}; byLocus[o.locus].RF = o; }
   const orthLoci = Object.keys(byLocus);
 
   if (!orthLoci.length){
-    html += `<div style="color:#64748b;">No cross-species flank orthologs at &ge;${thr}% identity.</div>`;
+    html += `<div style="color:#64748b;">No cross-species flank orthologs at \u2265${thr}% identity.</div>`;
   } else {
-    html += `<div style="color:#34d399; margin-bottom:4px;">Cross-species orthologs (&ge;${thr}% id, &ge;200bp): ${orthLoci.length}</div>`;
-    // sort by best combined bits
     orthLoci.sort((a,b)=>{
-      const sa = (byLocus[a].LF?.bits||0)+(byLocus[a].RF?.bits||0);
-      const sb = (byLocus[b].LF?.bits||0)+(byLocus[b].RF?.bits||0);
+      const sa = (byLocus[a].LF?byLocus[a].LF.bits:0)+(byLocus[a].RF?byLocus[a].RF.bits:0);
+      const sb = (byLocus[b].LF?byLocus[b].LF.bits:0)+(byLocus[b].RF?byLocus[b].RF.bits:0);
       return sb - sa;
     });
+    html += `<div style="color:#34d399; margin-bottom:4px;">Cross-species orthologs (\u2265${thr}% id, \u2265200 bp): ${orthLoci.length}</div>`;
     for (const ol of orthLoci){
       const od = flankData[ol];
       const m = byLocus[ol];
-      const lfTag = m.LF ? `<span style="color:#34d399;">LF ${m.LF.pid}%/${m.LF.aln}bp</span>` : `<span style="color:#475569;">LF &mdash;</span>`;
-      const rfTag = m.RF ? `<span style="color:#34d399;">RF ${m.RF.pid}%/${m.RF.aln}bp</span>` : `<span style="color:#475569;">RF &mdash;</span>`;
-      html += `<div style="margin:6px 0; border-top:1px dashed #1e293b; padding-top:5px; white-space:nowrap;">`
-            + `<b style="color:#60a5fa; cursor:pointer; text-decoration:underline;" onclick="jumpToLocusId('${ol}')">${ol}</b> `
-            + `<span style="color:#9ca3af;">(${m.sp})</span> &nbsp; ${lfTag} &nbsp; ${rfTag}`;
+      const lfTag = m.LF ? `<span style="color:#34d399;">LF ${m.LF.pid}% / ${m.LF.aln}bp</span>` : `<span style="color:#475569;">LF \u2014</span>`;
+      const rfTag = m.RF ? `<span style="color:#34d399;">RF ${m.RF.pid}% / ${m.RF.aln}bp</span>` : `<span style="color:#475569;">RF \u2014</span>`;
+      const tag = `<span onclick="jumpToLocusId('${ol}')" style="color:#60a5fa; font-weight:700; cursor:pointer; text-decoration:underline;">${ol}</span> `
+                + `<span style="color:#9ca3af;">${m.sp}</span> &nbsp; ${lfTag} &nbsp; ${rfTag}`;
       if (od){
-        html += `<br>` + (od.LF ? `<span style="color:#94a3b8;">${esc(trunc(od.LF.seq,80))}</span>` : `<span style="color:#64748b;">(no LF)</span>`)
-              + ` &nbsp;${collapsedSat(od)}&nbsp; `
-              + (od.RF ? `<span style="color:#94a3b8;">${esc(trunc(od.RF.seq,80))}</span>` : `<span style="color:#64748b;">(no RF)</span>`);
+        html += row(tag, lfTail(od.LF), od, rfHead(od.RF), focalLF, focalRF);
+      } else {
+        html += `<div style="margin:3px 0; color:#64748b;">${tag} (no flank seq)</div>`;
       }
-      html += `</div>`;
     }
   }
   view.innerHTML = html;
 }
+
 
 /* ---- C3: boundary-phase histogram ---- */
 function renderBphaseHist(){
