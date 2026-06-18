@@ -277,18 +277,18 @@
           <div style="color:#60a5fa; font-weight:600;">B. Flank module</div>
           <div><span style="color:#34d399;">[DONE]</span> B1. &plusmn;500bp flanks extracted for all 707 loci (flanks.json).</div>
           <div><span style="color:#34d399;">[DONE]</span> B2. Cross-species flank orthology at 70/80/90% (flank_orthologs.json).</div>
-          <div><span style="color:#f59e0b;">[WIP]</span> B3. Flank/ortholog viewer: show as traceable alignment, fix entity rendering.</div>
+          <div><span style="color:#34d399;">[DONE]</span> B3. Flank/ortholog viewer: stacked traceable view, entity rendering fixed.</div>
         </div>
         <div style="margin-bottom:8px;">
           <div style="color:#60a5fa; font-weight:600;">C. Locus-ends explorer</div>
-          <div><span style="color:#f59e0b;">[WIP]</span> C1. Junction jump buttons wiring.</div>
-          <div><span style="color:#ef4444;">[TODO]</span> C2. Redesign boundary stats: characterize the very first/last (incomplete) terminal monomers, not interior phase.</div>
+          <div><span style="color:#34d399;">[DONE]</span> C1. Junction jump buttons drive zoom properly.</div>
+          <div><span style="color:#34d399;">[DONE]</span> C2. Terminal-monomer characterization: first/last (often partial) monomer completeness + consensus span.</div>
         </div>
         <div style="margin-bottom:8px;">
           <div style="color:#60a5fa; font-weight:600;">D. Subfamilies &amp; UI polish</div>
-          <div><span style="color:#ef4444;">[TODO]</span> D1. Assign &amp; display sub-subfamily (CLsat1.1&ndash;1.5, CLsat3.1&ndash;3.2&hellip;) per locus (needs DRAGEN compute).</div>
-          <div><span style="color:#ef4444;">[TODO]</span> D2. Filter tooltips on hover; multi-select filters.</div>
-          <div><span style="color:#ef4444;">[TODO]</span> D3. Locus Table: flag tooltips; show #monomers (length as hover tooltip).</div>
+          <div><span style="color:#34d399;">[DONE]</span> D1. Sub-subfamily assigned (CLsat1.1&ndash;1.5, CLsat3.1&ndash;3.2&hellip;) &amp; shown in badge + flank panel.</div>
+          <div><span style="color:#34d399;">[DONE]</span> D2. Filter tooltips + multi-select.</div>
+          <div><span style="color:#34d399;">[DONE]</span> D3. Locus Table: flag tooltips; #monomers with length tooltip.</div>
           <div><span style="color:#34d399;">[DONE]</span> D4. Planned Actions collapsed by default.</div>
         </div>
       </div>
@@ -374,14 +374,14 @@
 
         <!-- Boundary-phase histogram (C3) -->
         <div class="row" style="margin:8px 0 4px;">
-          <label style="min-width:auto;">Boundary-phase stats:</label>
+          <label style="min-width:auto;">Terminal monomers:</label>
           <select id="bphaseSubtype">
             <option value="CLsat1">CLsat1</option>
             <option value="CLsat2">CLsat2</option>
             <option value="CLsat3">CLsat3</option>
             <option value="CLsat4">CLsat4</option>
           </select>
-          <span style="font-size:10px; color:#9ca3af;">where arrays start/end relative to monomer consensus</span>
+          <span style="font-size:10px; color:#9ca3af;">how complete the first/last (often partial) monomer of each array is</span>
         </div>
         <div id="bphaseHistView" style="margin:4px 0;"></div>
       </div>
@@ -402,6 +402,9 @@ const FILE_BITS_MATRIX   = "MASTER.locus_bits.tsv";
   const FILE_BPHASE        = "boundary_phase.json";
   const FILE_BPHASE_HIST   = "boundary_phase_hist.json";
   const FILE_ORTHOLOGS     = "flank_orthologs.json";
+  const FILE_SUBFAM        = "subfamily.json";
+  const FILE_TERMINAL      = "terminal_monomers.json";
+  const FILE_TERMHIST      = "terminal_hist.json";
 
 // Per-window bitscore files (one per CLsat)
 const FILE_BITS_CLSAT = {
@@ -1895,6 +1898,9 @@ let assignments = {};     // id -> {seed, seedBits, best, bestBits, delta, flag}
   let bphaseData = null;    // locus -> {LB,RB}
   let bphaseHist = null;    // subtype -> {start[],end[],mono}
   let orthoData = null;     // {LF:{thr:{locus:[...]}}, RF:{...}}
+  let subfamData = null;    // locus -> {major,subfamily,pid,bits,second,delta,confident}
+  let terminalData = null;  // locus -> {start:{...},end:{...}}
+  let termHist = null;      // subtype -> {mono,start[],end[]}
 let bits = {};            // id -> {b1,b2,b3,b4}
 
 // Per-window data: indexed by scaffold -> sorted array of {pos, bits, name, clsat}
@@ -2526,7 +2532,13 @@ function selectLocus(l){
     if (a && a.seed){
       const col = CLSAT_COLORS[a.seed] || "#9ca3af";
       const short = (typeof flagShortLabel === "function") ? flagShortLabel(a.flag) : a.flag;
-      badge.textContent = `${a.seed} | ${short}`;
+      const sf = (subfamData && subfamData[l.id]) ? subfamData[l.id] : null;
+      let sfLabel = a.seed;
+      if (sf && sf.subfamily){ sfLabel = sf.subfamily + (sf.confident ? "" : "?"); }
+      badge.textContent = sfLabel + " | " + short;
+      badge.title = (sf && sf.subfamily)
+        ? ("Sub-subfamily " + sf.subfamily + " (" + sf.pid + "% id, " + sf.bits + " bits" + (sf.second ? ("; 2nd: " + sf.second + " d=" + sf.delta) : "") + ")" + (sf.confident ? "" : " - low confidence"))
+        : ("Major family " + a.seed);
       badge.style.background = col;
       badge.style.color = "#0b0f17";
     } else {
@@ -2753,13 +2765,17 @@ async function loadViaFetch(){
 
   // Load optional analysis JSONs (non-fatal if missing)
   try {
-    const [fl, bp, bph, orth] = await Promise.all([
+    const [fl, bp, bph, orth, sfd, tmd, tmh] = await Promise.all([
       fetchText(FILE_FLANKS).then(t=>JSON.parse(t)).catch(()=>null),
       fetchText(FILE_BPHASE).then(t=>JSON.parse(t)).catch(()=>null),
       fetchText(FILE_BPHASE_HIST).then(t=>JSON.parse(t)).catch(()=>null),
       fetchText(FILE_ORTHOLOGS).then(t=>JSON.parse(t)).catch(()=>null),
+      fetchText(FILE_SUBFAM).then(t=>JSON.parse(t)).catch(()=>null),
+      fetchText(FILE_TERMINAL).then(t=>JSON.parse(t)).catch(()=>null),
+      fetchText(FILE_TERMHIST).then(t=>JSON.parse(t)).catch(()=>null),
     ]);
     flankData = fl; bphaseData = bp; bphaseHist = bph; orthoData = orth;
+    subfamData = sfd; terminalData = tmd; termHist = tmh;
     if (flankData) console.log(`flanks: ${Object.keys(flankData).length} loci`);
     if (orthoData) console.log(`orthologs loaded`);
     updateAnalysisAvailability();
@@ -3163,7 +3179,7 @@ function updateAnalysisAvailability(){
     pill.textContent = "no data";
     pill.className = "pill";
   }
-  if (bphaseHist) renderBphaseHist();
+  if (termHist) renderBphaseHist();
 }
 
 /* ---- C1: jump to junction ---- */
@@ -3269,6 +3285,25 @@ function showFlanks(){
   html += `<div style="margin-bottom:8px;"><b style="color:#60a5fa;">${lid}</b> `
         + `<span style="color:#9ca3af;">${fd.sp} \u00b7 ${fd.scf}</span></div>`;
 
+  // Sub-subfamily + terminal-monomer summary for this locus
+  const sfd = (subfamData && subfamData[lid]) ? subfamData[lid] : null;
+  if (sfd && sfd.subfamily){
+    html += `<div style="margin-bottom:6px; font-size:11px;">Sub-subfamily: `
+          + `<b style="color:${CLSAT_COLORS[sfd.major]||'#9ca3af'};">${sfd.subfamily}</b> `
+          + `<span style="color:#64748b;">(${sfd.pid}% id` + (sfd.second ? `, 2nd ${sfd.second} d=${sfd.delta}` : ``) + `)${sfd.confident?'':' - low conf'}</span></div>`;
+  }
+  const tmData = (terminalData && terminalData[lid]) ? terminalData[lid] : null;
+  if (tmData){
+    const tmDesc = (r, label) => {
+      if (!r || r.covered==null) return `<span style="color:#475569;">${label}: n/a</span>`;
+      const tag = r.partial ? `<span style="color:#fbbf24;">partial</span>` : `<span style="color:#34d399;">full</span>`;
+      return `<span>${label}: ${tag} ${r.covered}/${r.mono} bp (cons ${r.cons_start}\u2013${r.cons_end})</span>`;
+    };
+    html += `<div style="margin-bottom:8px; font-size:11px; line-height:1.5;">Terminal monomers: `
+          + tmDesc(tmData.start, "5' first") + ` \u2502 ` + tmDesc(tmData.end, "3' last") + `</div>`;
+  }
+
+
   // legend
   html += `<div style="font-size:9px; color:#64748b; margin-bottom:6px;">`
         + `Left flank shown as last ${N} bp (junction at right) \u2502 satellite collapsed \u2502 right flank first ${N} bp (junction at left). `
@@ -3327,41 +3362,55 @@ function showFlanks(){
 /* ---- C3: boundary-phase histogram ---- */
 function renderBphaseHist(){
   const host = document.getElementById("bphaseHistView");
-  if (!host || !bphaseHist) return;
+  if (!host) return;
+  if (!termHist){ host.innerHTML = `<span style="color:#64748b;">terminal_hist.json not loaded.</span>`; return; }
   const st = document.getElementById("bphaseSubtype").value;
-  const d = bphaseHist[st];
+  const d = termHist[st];
   if (!d){ host.innerHTML = `<span style="color:#64748b;">No data for ${st}.</span>`; return; }
   const mono = d.mono;
-  const start = d.start, end = d.end;
-  const maxV = Math.max(1, ...start.slice(1), ...end.slice(1));
-  const W = 560, H = 130, padL = 30, padB = 16, padT = 14;
+  const start = d.start || [], end = d.end || [];
+  // Histogram of covered length (0..mono) of the terminal monomer.
+  const maxV = Math.max(1, ...start.slice(0), ...end.slice(0));
+  const W = 560, H = 150, padL = 30, padB = 28, padT = 14;
   const innerW = W - padL - 8, innerH = H - padB - padT;
-  const bw = innerW / mono;
+  const bw = innerW / (mono+1);
   let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%; max-width:${W}px; background:#0c1118; border:1px solid #1e293b; border-radius:6px;">`;
-  svg += `<text x="4" y="${padT}" fill="#22d3ee" font-size="10">start</text>`;
-  svg += `<text x="4" y="${padT+innerH/2}" fill="#f472b6" font-size="10">end</text>`;
-  // start bars (cyan, upper half) and end bars (pink, lower half)
+  svg += `<text x="4" y="${padT}" fill="#22d3ee" font-size="10">5'</text>`;
+  svg += `<text x="4" y="${padT+innerH/2+6}" fill="#f472b6" font-size="10">3'</text>`;
   const halfH = innerH/2;
-  for (let c=1; c<=mono; c++){
-    const x = padL + (c-1)*bw;
+  for (let c=0; c<=mono; c++){
+    const x = padL + c*bw;
     const hs = (start[c]/maxV)*halfH;
     const he = (end[c]/maxV)*halfH;
-    if (hs>0) svg += `<rect x="${x.toFixed(1)}" y="${(padT+halfH-hs).toFixed(1)}" width="${Math.max(0.5,bw-0.3).toFixed(1)}" height="${hs.toFixed(1)}" fill="#22d3ee"><title>start @${c}: ${start[c]}</title></rect>`;
-    if (he>0) svg += `<rect x="${x.toFixed(1)}" y="${(padT+halfH).toFixed(1)}" width="${Math.max(0.5,bw-0.3).toFixed(1)}" height="${he.toFixed(1)}" fill="#f472b6"><title>end @${c}: ${end[c]}</title></rect>`;
+    if (hs>0) svg += `<rect x="${x.toFixed(1)}" y="${(padT+halfH-hs).toFixed(1)}" width="${Math.max(0.5,bw-0.2).toFixed(1)}" height="${hs.toFixed(1)}" fill="#22d3ee"><title>first monomer covers ${c} bp: ${start[c]} loci</title></rect>`;
+    if (he>0) svg += `<rect x="${x.toFixed(1)}" y="${(padT+halfH).toFixed(1)}" width="${Math.max(0.5,bw-0.2).toFixed(1)}" height="${he.toFixed(1)}" fill="#f472b6"><title>last monomer covers ${c} bp: ${end[c]} loci</title></rect>`;
   }
+  // full-monomer reference line at c=mono
+  const xFull = padL + mono*bw;
+  svg += `<line x1="${xFull}" y1="${padT}" x2="${xFull}" y2="${padT+innerH}" stroke="#34d399" stroke-width="0.7" stroke-dasharray="3,2"/>`;
+  svg += `<text x="${xFull-2}" y="${padT+innerH+10}" fill="#34d399" font-size="8" text-anchor="end">full (${mono})</text>`;
   // axis
   svg += `<line x1="${padL}" y1="${padT+halfH}" x2="${padL+innerW}" y2="${padT+halfH}" stroke="#334155" stroke-width="0.5"/>`;
-  svg += `<text x="${padL}" y="${H-3}" fill="#64748b" font-size="9">1</text>`;
-  svg += `<text x="${padL+innerW-12}" y="${H-3}" fill="#64748b" font-size="9">${mono}</text>`;
-  svg += `<text x="${padL+innerW/2-40}" y="${H-3}" fill="#64748b" font-size="9">consensus coordinate (bp)</text>`;
+  svg += `<text x="${padL}" y="${padT+innerH+10}" fill="#64748b" font-size="8">0</text>`;
+  svg += `<text x="${padL+innerW/2-50}" y="${H-4}" fill="#64748b" font-size="9">bp of the monomer present in the terminal (first/last) monomer</text>`;
   svg += `</svg>`;
-  const sPeak = start.indexOf(Math.max(...start.slice(1)));
-  const ePeak = end.indexOf(Math.max(...end.slice(1)));
+
+  // Summary: how many partial vs full
+  function partialCount(arr){
+    let part=0, full=0;
+    for (let c=0;c<arr.length;c++){ if (c < mono*0.9) part+=arr[c]; else full+=arr[c]; }
+    return {part, full};
+  }
+  const ps = partialCount(start), pe = partialCount(end);
+  const pctS = ps.part+ps.full ? Math.round(100*ps.part/(ps.part+ps.full)) : 0;
+  const pctE = pe.part+pe.full ? Math.round(100*pe.part/(pe.part+pe.full)) : 0;
   host.innerHTML = svg +
     `<div style="font-size:10px; color:#9ca3af; margin-top:3px;">`
-    + `${st}: arrays most often <span style="color:#22d3ee;">start at coord ${sPeak}</span> `
-    + `and <span style="color:#f472b6;">end at coord ${ePeak}</span> (of ${mono}).</div>`;
+    + `${st}: <span style="color:#22d3ee;">${pctS}% of arrays begin with an incomplete first monomer</span>, `
+    + `<span style="color:#f472b6;">${pctE}% end with an incomplete last monomer</span>. `
+    + `Bars left of the green line are partial terminal monomers.</div>`;
 }
+
 
 function bindEndsFlanksUI(){
   const sb = document.getElementById("jumpStartBtn"); if (sb) sb.addEventListener("click", ()=>jumpToJunction("start"));
