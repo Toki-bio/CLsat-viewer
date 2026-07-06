@@ -341,6 +341,18 @@
         </div>
         <div class="monomerList" id="monomerList"></div>
         <div id="monomerMap" style="margin:8px 0; overflow-x:auto;"></div>
+        <div id="terminalTrimWrap" style="margin:8px 0; display:none;">
+          <div class="row" style="margin:2px 0 6px;">
+            <label style="min-width:auto; font-weight:600; color:#f59e0b;">Terminal monomers vs</label>
+            <select id="trimRefSel">
+              <option value="sub" selected>sub-subfamily consensus</option>
+              <option value="major">subfamily consensus</option>
+              <option value="locus">this-locus consensus</option>
+            </select>
+            <span style="font-size:10px; color:#9ca3af;">how the first (5&prime;) and last (3&prime;) monomer trim against the chosen reference &middot; 5 bp genomic flank shown dim/lowercase</span>
+          </div>
+          <div id="terminalTrim" style="font-family:ui-monospace,monospace; font-size:11px; overflow-x:auto; background:#0c1118; border:1px solid #1e293b; border-radius:6px; padding:8px;"></div>
+        </div>
         <div style="margin:4px 0;"><button class="copyBtn" id="copyFastaAlnBtn" style="display:none;">Copy All FASTA</button></div>
         <div id="monomerMSA" style="margin:8px 0;"></div>
         <div class="alignmentBox" id="alignmentBox"></div>
@@ -372,18 +384,6 @@
           <span style="color:#64748b;">Select a locus and click &ldquo;Show flanks &amp; orthologs&rdquo;.</span>
         </div>
 
-        <!-- Boundary-phase histogram (C3) -->
-        <div class="row" style="margin:8px 0 4px;">
-          <label style="min-width:auto;">Terminal monomers:</label>
-          <select id="bphaseSubtype">
-            <option value="CLsat1">CLsat1</option>
-            <option value="CLsat2">CLsat2</option>
-            <option value="CLsat3">CLsat3</option>
-            <option value="CLsat4">CLsat4</option>
-          </select>
-          <span style="font-size:10px; color:#9ca3af;">how complete the first/last (often partial) monomer of each array is</span>
-        </div>
-        <div id="bphaseHistView" style="margin:4px 0;"></div>
       </div>
 
       <div class="hint" id="detailHint">Bars show bitscore at each scan window position. Colors = CLsat consensus.</div>
@@ -442,6 +442,24 @@ const CLUSTER_TO_CLSAT = {
   cl5: 'CLsat3', cl9: 'CLsat3',
   cl1: 'CLsat4',
 };
+// Sub-subfamily consensus sequences in the pipeline monomer phase (each starts
+// at the AAAGAAGCT boundary, co-linear with CONSENSUS_SEQS). These are identical
+// to the clustering centroids CLUSTER_SEQS (verified 100%): CLsat1.1=cl3,
+// CLsat1.2=cl4, CLsat1.3=cl6, CLsat1.4=cl7, CLsat1.5=cl8, CLsat2=cl2,
+// CLsat3.1=cl5, CLsat3.2=cl9, CLsat4=cl1. (The AAACTTGTTGG..-phase versions were
+// the same sequences rotated ~36 bp out of frame; re-phased here.)
+const SUBSUBFAM_SEQS = {
+  "CLsat1.1": CLUSTER_SEQS.cl3,
+  "CLsat1.2": CLUSTER_SEQS.cl4,
+  "CLsat1.3": CLUSTER_SEQS.cl6,
+  "CLsat1.4": CLUSTER_SEQS.cl7,
+  "CLsat1.5": CLUSTER_SEQS.cl8,
+  "CLsat2":   CLUSTER_SEQS.cl2,
+  "CLsat3.1": CLUSTER_SEQS.cl5,
+  "CLsat3.2": CLUSTER_SEQS.cl9,
+  "CLsat4":   CLUSTER_SEQS.cl1,
+};
+
 // Reverse: CLsat type ? list of cluster names
 const CLSAT_TO_CLUSTERS = {};
 for (const [cl, ct] of Object.entries(CLUSTER_TO_CLSAT)) {
@@ -1155,6 +1173,144 @@ function drawMonomerMap(containerId, result, locusStart, locusEnd) {
  * Per-ARRAY blocks showing consensus-anchored MSA with ±100bp flanks
  * on the first/last monomers to visualize satellite-to-flank transitions.
  */
+/* ============================================================================
+   TERMINAL-MONOMER TRIMMING VIEW (selectable reference consensus)
+   Renders the 5' first and 3' last monomer of the locus aligned to a chosen
+   reference (sub-subfamily / subfamily / this-locus consensus) so the trim is
+   directly visible, plus 5 bp of genomic flank (dim lowercase) at the boundary.
+============================================================================ */
+let _termTrimData = null;
+
+function collectTerminalTrim(result, rawSeq, genomicStart) {
+  _termTrimData = null;
+  if (!result || !result.success || !result.arrays || !result.arrays.length) return;
+  const gOff = genomicStart || 0;
+
+  // Dominant major CLsat across the whole locus -> major consensus + frame.
+  const cc = {};
+  result.arrays.forEach(a => a.hits.forEach(m => { const c = m.clsat || '?'; cc[c] = (cc[c]||0)+1; }));
+  const domClsat = Object.entries(cc).sort((a,b)=>b[1]-a[1])[0][0];
+  const majorCons = CONSENSUS_SEQS[domClsat];
+  if (!majorCons) return;
+  const consLen = majorCons.length;
+
+  const monSeqOf = (arr, hit) => { let s = rawSeq.substring(hit.start, hit.end+1); if (arr.strand === '-') s = revComp(s); return s; };
+
+  // Biological 5' first monomer = reading-first hit of first array;
+  // 3' last monomer = reading-last hit of last array.
+  const firstArr = result.arrays[0];
+  const lastArr  = result.arrays[result.arrays.length-1];
+  const faHits = firstArr.hits.slice(); if (firstArr.strand === '-') faHits.reverse();
+  const laHits = lastArr.hits.slice();  if (lastArr.strand  === '-') laHits.reverse();
+  const firstHit = faHits[0];
+  const lastHit  = laHits[laHits.length-1];
+
+  // 5 bp of genomic flank beyond the reading-5' edge of the first monomer and
+  // reading-3' edge of the last monomer (returned in reading orientation).
+  const flankBefore = (arr, hit) => {
+    if (arr.strand === '-') { const e = Math.min(rawSeq.length, hit.end+1+5); return revComp(rawSeq.substring(hit.end+1, e)); }
+    const s = Math.max(0, hit.start-5); return rawSeq.substring(s, hit.start);
+  };
+  const flankAfter = (arr, hit) => {
+    if (arr.strand === '-') { const s = Math.max(0, hit.start-5); return revComp(rawSeq.substring(s, hit.start)); }
+    const e = Math.min(rawSeq.length, hit.end+1+5); return rawSeq.substring(hit.end+1, e);
+  };
+
+  // This-locus consensus (major frame): column majority of all monomers projected onto majorCons.
+  const counts = Array.from({length: consLen}, () => ({}));
+  result.arrays.forEach(arr => arr.hits.forEach(hit => {
+    const s = monSeqOf(arr, hit);
+    const a = pairwiseAlign(majorCons, s);
+    let qp = a.qStart;
+    for (let k=0;k<a.qAln.length;k++){ if (a.qAln[k] !== '-'){ if (qp<consLen){ const b=a.sAln[k]; if (b!=='-') counts[qp][b]=(counts[qp][b]||0)+1; } qp++; } }
+  }));
+  let locusCons = '';
+  for (let i=0;i<consLen;i++){ const o=counts[i]; let bb=majorCons[i], bn=0; for (const k in o){ if (o[k]>bn){bn=o[k];bb=k;} } locusCons += bb; }
+
+  const sf = (typeof subfamData !== 'undefined' && subfamData && currentLocus && subfamData[currentLocus.id]) ? subfamData[currentLocus.id] : null;
+
+  _termTrimData = {
+    domClsat, majorCons, locusCons,
+    subName: sf ? sf.subfamily : null,
+    first: { seq: monSeqOf(firstArr, firstHit), flank: flankBefore(firstArr, firstHit), gStart: firstHit.start+gOff, gEnd: firstHit.end+gOff, strand: firstArr.strand, side: 'left' },
+    last:  { seq: monSeqOf(lastArr,  lastHit),  flank: flankAfter(lastArr,  lastHit),  gStart: lastHit.start+gOff,  gEnd: lastHit.end+gOff,  strand: lastArr.strand,  side: 'right' },
+  };
+}
+
+function renderTerminalTrim() {
+  const wrap = document.getElementById('terminalTrimWrap');
+  const host = document.getElementById('terminalTrim');
+  if (!host) return;
+  if (!_termTrimData){ if (wrap) wrap.style.display='none'; host.innerHTML=''; return; }
+  if (wrap) wrap.style.display='block';
+  const d = _termTrimData;
+
+  const sel = document.getElementById('trimRefSel');
+  const choice = sel ? sel.value : 'sub';
+  let refSeq, refLabel;
+  if (choice === 'locus'){ refSeq = d.locusCons; refLabel = 'this-locus consensus (' + d.domClsat + ' frame)'; }
+  else if (choice === 'major'){ refSeq = d.majorCons; refLabel = d.domClsat + ' subfamily consensus'; }
+  else {
+    if (d.subName && SUBSUBFAM_SEQS[d.subName]){ refSeq = SUBSUBFAM_SEQS[d.subName]; refLabel = d.subName + ' sub-subfamily consensus'; }
+    else { refSeq = d.majorCons; refLabel = d.domClsat + ' (no sub-subfamily consensus available)'; }
+  }
+  const consLen = refSeq.length;
+  const ntCol = {A:'#27ae60',C:'#2980b9',G:'#d35400',T:'#c0392b'};
+
+  function block(label, mon){
+    const a = pairwiseAlign(refSeq, mon.seq);
+    const covered = a.qEnd - a.qStart;
+    const trim5 = a.qStart, trim3 = consLen - a.qEnd;
+    const refDisp = refSeq.substring(0, a.qStart) + a.qAln + refSeq.substring(a.qEnd);
+    const monDisp = '-'.repeat(a.qStart) + a.sAln + '-'.repeat(consLen - a.qEnd);
+    const covStart = a.qStart, covEnd = a.qStart + a.qAln.length; // covered span within refDisp
+    const flank = mon.flank ? mon.flank.toLowerCase() : '';
+    const flankPad = '&nbsp;&nbsp;' + '&nbsp;'.repeat(Math.max(flank.length, 10));
+    const rowLabelW = 'display:inline-block; min-width:5.5ch; color:#64748b; font-size:10px;';
+
+    let h = '<div style="color:#93c5fd; margin:8px 0 2px;">' + label +
+            ' &mdash; covered ' + covered + '/' + consLen + ' bp (ref ' + (a.qStart+1) + '\u2013' + a.qEnd + '), ' +
+            (a.identity*100).toFixed(0) + '% id, <b>trim5=' + trim5 + ' trim3=' + trim3 + '</b>' +
+            ' <span style="color:#64748b;">[' + mon.gStart.toLocaleString() + '\u2013' + mon.gEnd.toLocaleString() + ' ' + mon.strand + ']</span></div>';
+
+    const flankHtml = (fl) => { let o=''; for (const ch of fl) o += '<span style="color:#4b5563;">'+ch+'</span>'; return o; };
+    const flankOrNote = flank ? flankHtml(flank) : '<span style="color:#374151; font-style:italic;">(contig edge)</span>';
+
+    let refRow = '<span style="'+rowLabelW+'">ref</span><div style="white-space:nowrap; display:inline;">' + (mon.side==='left' ? flankPad : '');
+    for (let i=0;i<refDisp.length;i++){
+      const c=refDisp[i];
+      const outsideCoverage = (i < covStart || i >= covEnd); // trimmed part of the reference: no counterpart in this monomer
+      if (c==='-') refRow += '<span style="color:#374151;">-</span>';
+      else if (outsideCoverage) refRow += '<span style="color:#4b5563;" title="not covered by this monomer">'+c+'</span>';
+      else refRow += '<span style="color:#9ca3af;">'+c+'</span>';
+    }
+    refRow += (mon.side==='right' ? flankPad : '') + '</div>';
+
+    let monRow = '<span style="'+rowLabelW+'">mono</span><div style="white-space:nowrap; display:inline;">';
+    if (mon.side==='left') monRow += flankOrNote + '<span style="color:#374151;">&nbsp;&nbsp;</span>';
+    for (let i=0;i<monDisp.length;i++){
+      const b = monDisp[i];
+      if (b === '-'){ monRow += '<span style="color:#374151;">-</span>'; continue; }
+      const r = refDisp[i];
+      const match = (r && r !== '-' && b.toUpperCase() === r.toUpperCase());
+      const col = ntCol[b.toUpperCase()] || '#9ca3af';
+      monRow += match ? '<span style="color:'+col+'; border-bottom:1px solid #34d399;">'+b+'</span>'
+                      : '<span style="color:'+col+'; background:#2a0c0c;">'+b+'</span>';
+    }
+    if (mon.side==='right') monRow += '<span style="color:#374151;">&nbsp;&nbsp;</span>' + flankOrNote;
+    monRow += '</div>';
+    return h + refRow + '<br>' + monRow;
+  }
+
+  let html = '<div style="color:#64748b; font-size:10px; margin-bottom:4px;">Reference: <b style="color:#e5e7eb;">'+refLabel+'</b>. '
+           + '<b>ref</b> row = the consensus (dim gray = part of the consensus this monomer does NOT cover \u2014 not extra/overhanging bases, just missing coverage); '
+           + '<b>mono</b> row = this genomic monomer (underline = matches ref, red background = mismatch, dashes = trimmed/uncovered). '
+           + 'Dim lowercase at the ends = 5 bp of real genomic flank outside the monomer.</div>';
+  html += block("5&prime; first monomer", d.first);
+  html += block("3&prime; last monomer", d.last);
+  host.innerHTML = html;
+}
+
 function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldName) {
   const container = document.getElementById(containerId);
   if (!container || !result || !result.success || !result.arrays.length) {
@@ -2955,7 +3111,7 @@ function bindUIOnce(){
     const copyBtn = document.getElementById("copyAlignmentBtn");
 
     // Get current coordinates and locus info
-    const [start, end] = xScaleDetail.domain().map(Math.round);
+    let [start, end] = xScaleDetail.domain().map(Math.round);
     const scf = currentLocus.scf;
     const length = end - start + 1;
 
@@ -2980,6 +3136,12 @@ function bindUIOnce(){
     try {
       // Get sequence from NCBI
       let sequence;
+      // Pad the fetch window so the first/last monomer always has real genomic
+      // flank to show (fixes empty 5' flank when the array starts at/near the
+      // edge of the visible window, i.e. almost always).
+      const TRIM_FLANK_PAD = 15;
+      start = Math.max(1, start - TRIM_FLANK_PAD);
+      end = end + TRIM_FLANK_PAD;
       try {
         sequence = await fetchNCBIFasta(scf, start, end);
         console.log("[MONOMER] Got sequence from NCBI:", sequence.length, "chars");
@@ -2989,7 +3151,10 @@ function bindUIOnce(){
         const existingFasta = document.getElementById("fastaSeq")?.textContent;
         if (existingFasta && existingFasta.startsWith(">")) {
           sequence = existingFasta;
-          console.log("[MONOMER] Using previously fetched FASTA:", sequence.length, "chars");
+          // Unpadded fallback: undo the pad so genomic-offset math below stays
+          // correct (this sequence starts at the original, unpadded position).
+          start = start + TRIM_FLANK_PAD; end = end - TRIM_FLANK_PAD;
+          console.log("[MONOMER] Using previously fetched FASTA (unpadded):", sequence.length, "chars");
         } else {
           throw new Error("Cannot fetch sequence from NCBI. Click 'Get FASTA' first, then try again.");
         }
@@ -3025,7 +3190,7 @@ function bindUIOnce(){
       mStatusEl.textContent = result.monomer_count + " monomers in " + result.array_count + " array(s), avg " + avgPct + "% identity";
 
       // Build summary per array
-      let html = '';
+      let html = '<div style="font-size:9px; color:#64748b; margin-bottom:4px;">Each line: genomic coordinates of this monomer copy (start&ndash;end), its length in bp, and its %id to the CLsat consensus (from the sliding-window scan).</div>';
       result.arrays.forEach((arr, ai) => {
         const arrStart = arr.hits[0].start + start; // offset to genomic coordinates
         const arrEnd = arr.hits[arr.hits.length - 1].end + start;
@@ -3059,6 +3224,12 @@ function bindUIOnce(){
       // Render MSA-style alignment (pairwise to consensus, stacked)
       const rawSeq = sequence.replace(/^>.*\n/gm, '').replace(/\s/g, '').toUpperCase();
       renderMonomerMSA('monomerMSA', result, rawSeq, start, scf);
+
+      // Terminal-monomer trimming view (selectable reference consensus)
+      collectTerminalTrim(result, rawSeq, start);
+      renderTerminalTrim();
+      const _trs = document.getElementById('trimRefSel');
+      if (_trs && !_trs._bound){ _trs._bound = true; _trs.addEventListener('change', renderTerminalTrim); }
 
       // Store result on locus for strand track overlay on detail chart
       if (currentLocus) {
@@ -3179,7 +3350,6 @@ function updateAnalysisAvailability(){
     pill.textContent = "no data";
     pill.className = "pill";
   }
-  if (termHist) renderBphaseHist();
 }
 
 /* ---- C1: jump to junction ---- */
@@ -3278,8 +3448,35 @@ function showFlanks(){
   // Show the last N bases of LF (junction-proximal) and first N of RF, so the
   // satellite junction is in the middle and orthologs stack in register.
   const N = 60;
+  const ALN_CTX = 200; // junction-proximal context aligned per flank (perf cap)
   function lfTail(f){ if(!f) return null; return f.seq.slice(-N); }
   function rfHead(f){ if(!f) return null; return f.seq.slice(0, N); }
+
+  // Align an ortholog flank slice to the focal flank slice (both junction-proximal,
+  // same side), choosing the better orientation, and project the ortholog bases
+  // onto the focal coordinate frame. Returns the projection array + orientation.
+  function projectJunction(focalSlice, orthoSlice){
+    const aF = pairwiseAlign(focalSlice, orthoSlice);
+    const aR = pairwiseAlign(focalSlice, revComp(orthoSlice));
+    const useR = aR.score > aF.score;
+    const a = useR ? aR : aF;
+    const proj = new Array(focalSlice.length).fill('-');
+    let qp = a.qStart;
+    for (let k=0;k<a.qAln.length;k++){ if (a.qAln[k] !== '-'){ if (qp<proj.length) proj[qp]=a.sAln[k]; qp++; } }
+    return { proj, orient: useR ? 'rc' : '+' };
+  }
+  // Ortholog LF projected onto focal LF frame, junction window (last N cols).
+  function lfTailAligned(fLF, oLF){
+    if (!fLF || !oLF) return { win:null, orient:'+' };
+    const p = projectJunction(fLF.seq.slice(-ALN_CTX), oLF.seq.slice(-ALN_CTX));
+    return { win: p.proj.slice(-N).join(''), orient: p.orient };
+  }
+  // Ortholog RF projected onto focal RF frame, junction window (first N cols).
+  function rfHeadAligned(fRF, oRF){
+    if (!fRF || !oRF) return { win:null, orient:'+' };
+    const p = projectJunction(fRF.seq.slice(0, ALN_CTX), oRF.seq.slice(0, ALN_CTX));
+    return { win: p.proj.slice(0, N).join(''), orient: p.orient };
+  }
 
   let html = "";
   html += `<div style="margin-bottom:8px;"><b style="color:#60a5fa;">${lid}</b> `
@@ -3307,7 +3504,7 @@ function showFlanks(){
   // legend
   html += `<div style="font-size:9px; color:#64748b; margin-bottom:6px;">`
         + `Left flank shown as last ${N} bp (junction at right) \u2502 satellite collapsed \u2502 right flank first ${N} bp (junction at left). `
-        + `Underline = base matches the focal locus (top row). Click an ortholog ID to jump.</div>`;
+        + `Ortholog rows are <b>aligned</b> to the focal flank (gaps shown as \u2013); underline = base matches focal; <span style="color:#f59e0b;">(rc)</span> = reverse-complement match. Click an ortholog ID to jump.</div>`;
 
   // focal row
   const focalLF = lfTail(fd.LF), focalRF = rfHead(fd.RF);
@@ -3344,12 +3541,20 @@ function showFlanks(){
     for (const ol of orthLoci){
       const od = flankData[ol];
       const m = byLocus[ol];
-      const lfTag = m.LF ? `<span style="color:#34d399;">LF ${m.LF.pid}% / ${m.LF.aln}bp</span>` : `<span style="color:#475569;">LF \u2014</span>`;
-      const rfTag = m.RF ? `<span style="color:#34d399;">RF ${m.RF.pid}% / ${m.RF.aln}bp</span>` : `<span style="color:#475569;">RF \u2014</span>`;
-      const tag = `<span onclick="jumpToLocusId('${ol}')" style="color:#60a5fa; font-weight:700; cursor:pointer; text-decoration:underline;">${ol}</span> `
-                + `<span style="color:#9ca3af;">${m.sp}</span> &nbsp; ${lfTag} &nbsp; ${rfTag}`;
+      let lfWin = null, rfWin = null, lfOri = '+', rfOri = '+';
       if (od){
-        html += row(tag, lfTail(od.LF), od, rfHead(od.RF), focalLF, focalRF);
+        const la = lfTailAligned(fd.LF, od.LF); lfWin = la.win; lfOri = la.orient;
+        const ra = rfHeadAligned(fd.RF, od.RF); rfWin = ra.win; rfOri = ra.orient;
+      }
+      const rc = (o) => o==='rc' ? ` <span style="color:#f59e0b; font-weight:700;">(rc)</span>` : '';
+      const lfTag = m.LF ? `<span style="color:#34d399;">LF ${m.LF.pid}% / ${m.LF.aln}bp${rc(lfOri)}</span>` : `<span style="color:#475569;">LF \u2014</span>`;
+      const rfTag = m.RF ? `<span style="color:#34d399;">RF ${m.RF.pid}% / ${m.RF.aln}bp${rc(rfOri)}</span>` : `<span style="color:#475569;">RF \u2014</span>`;
+      const tag = `<span onclick="jumpToLocusId('${ol}')" style="color:#60a5fa; font-weight:700; cursor:pointer; text-decoration:underline;">${ol}</span> `
+                + `<span style="color:#9ca3af;">${m.sp}</span> &nbsp; ${lfTag} &nbsp; ${rfTag} &nbsp; `
+                + `<span onclick="toggleOrthoDetail('${ol}')" style="color:#a78bfa; font-size:10px; text-decoration:underline; cursor:pointer;">[align]</span>`;
+      if (od){
+        html += row(tag, lfWin, od, rfWin, focalLF, focalRF);
+        html += `<div id="orthoDetail-${ol}" data-lid="${lid}" data-ol="${ol}" style="display:none; margin:2px 0 10px 14px; padding:6px 8px; border-left:2px solid #334155; font-family:ui-monospace,monospace; font-size:11px;"></div>`;
       } else {
         html += `<div style="margin:3px 0; color:#64748b;">${tag} (no flank seq)</div>`;
       }
@@ -3358,57 +3563,64 @@ function showFlanks(){
   view.innerHTML = html;
 }
 
-
-/* ---- C3: boundary-phase histogram ---- */
-function renderBphaseHist(){
-  const host = document.getElementById("bphaseHistView");
+// ---- Per-ortholog drill-down: full pairwise alignment with real coordinates,
+// gaps preserved (not truncated/projected to a fixed window). Answers "which
+// bases actually correspond" one ortholog at a time, traceably. ----
+function toggleOrthoDetail(ol){
+  const host = document.getElementById('orthoDetail-' + ol);
   if (!host) return;
-  if (!termHist){ host.innerHTML = `<span style="color:#64748b;">terminal_hist.json not loaded.</span>`; return; }
-  const st = document.getElementById("bphaseSubtype").value;
-  const d = termHist[st];
-  if (!d){ host.innerHTML = `<span style="color:#64748b;">No data for ${st}.</span>`; return; }
-  const mono = d.mono;
-  const start = d.start || [], end = d.end || [];
-  // Histogram of covered length (0..mono) of the terminal monomer.
-  const maxV = Math.max(1, ...start.slice(0), ...end.slice(0));
-  const W = 560, H = 150, padL = 30, padB = 28, padT = 14;
-  const innerW = W - padL - 8, innerH = H - padB - padT;
-  const bw = innerW / (mono+1);
-  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%; max-width:${W}px; background:#0c1118; border:1px solid #1e293b; border-radius:6px;">`;
-  svg += `<text x="4" y="${padT}" fill="#22d3ee" font-size="10">5'</text>`;
-  svg += `<text x="4" y="${padT+innerH/2+6}" fill="#f472b6" font-size="10">3'</text>`;
-  const halfH = innerH/2;
-  for (let c=0; c<=mono; c++){
-    const x = padL + c*bw;
-    const hs = (start[c]/maxV)*halfH;
-    const he = (end[c]/maxV)*halfH;
-    if (hs>0) svg += `<rect x="${x.toFixed(1)}" y="${(padT+halfH-hs).toFixed(1)}" width="${Math.max(0.5,bw-0.2).toFixed(1)}" height="${hs.toFixed(1)}" fill="#22d3ee"><title>first monomer covers ${c} bp: ${start[c]} loci</title></rect>`;
-    if (he>0) svg += `<rect x="${x.toFixed(1)}" y="${(padT+halfH).toFixed(1)}" width="${Math.max(0.5,bw-0.2).toFixed(1)}" height="${he.toFixed(1)}" fill="#f472b6"><title>last monomer covers ${c} bp: ${end[c]} loci</title></rect>`;
+  if (host.style.display === 'none'){
+    host.style.display = 'block';
+    if (!host.dataset.filled){
+      host.dataset.filled = '1';
+      const lid = host.dataset.lid;
+      const fd = flankData[lid], od = flankData[ol];
+      host.innerHTML = renderOrthoPairwiseBoth(lid, fd, ol, od);
+    }
+  } else {
+    host.style.display = 'none';
   }
-  // full-monomer reference line at c=mono
-  const xFull = padL + mono*bw;
-  svg += `<line x1="${xFull}" y1="${padT}" x2="${xFull}" y2="${padT+innerH}" stroke="#34d399" stroke-width="0.7" stroke-dasharray="3,2"/>`;
-  svg += `<text x="${xFull-2}" y="${padT+innerH+10}" fill="#34d399" font-size="8" text-anchor="end">full (${mono})</text>`;
-  // axis
-  svg += `<line x1="${padL}" y1="${padT+halfH}" x2="${padL+innerW}" y2="${padT+halfH}" stroke="#334155" stroke-width="0.5"/>`;
-  svg += `<text x="${padL}" y="${padT+innerH+10}" fill="#64748b" font-size="8">0</text>`;
-  svg += `<text x="${padL+innerW/2-50}" y="${H-4}" fill="#64748b" font-size="9">bp of the monomer present in the terminal (first/last) monomer</text>`;
-  svg += `</svg>`;
+}
 
-  // Summary: how many partial vs full
-  function partialCount(arr){
-    let part=0, full=0;
-    for (let c=0;c<arr.length;c++){ if (c < mono*0.9) part+=arr[c]; else full+=arr[c]; }
-    return {part, full};
+function renderOrthoPairwiseOne(focalLabel, focalSide, focalRec, orthoLabel, orthoRec){
+  if (!focalRec || !orthoRec) return `<div style="color:#475569;">(${focalSide}: not available on one side)</div>`;
+  const fSeq = focalRec.seq, oSeqF = orthoRec.seq, oSeqR = revComp(orthoRec.seq);
+  const aF = pairwiseAlign(fSeq, oSeqF), aR = pairwiseAlign(fSeq, oSeqR);
+  const useR = aR.score > aF.score;
+  const a = useR ? aR : aF;
+  const ntCol = {A:'#27ae60',C:'#2980b9',G:'#d35400',T:'#c0392b'};
+  // Real genomic coordinates of the ALIGNED span only (not the full 500bp flank).
+  const fGStart = focalRec.start + a.qStart, fGEnd = focalRec.start + a.qEnd - 1;
+  let oGStart, oGEnd;
+  if (!useR){ oGStart = orthoRec.start + a.sStart; oGEnd = orthoRec.start + a.sEnd - 1; }
+  else { oGStart = orthoRec.end - a.sEnd + 1; oGEnd = orthoRec.end - a.sStart; }
+  let out = `<div style="color:#93c5fd; margin-bottom:2px;">${focalSide} &mdash; ${a.alignLen} bp aligned, ${(a.identity*100).toFixed(1)}% id${useR ? ' <span style="color:#f59e0b; font-weight:700;">(rc)</span>' : ''}</div>`;
+  out += `<div style="color:#64748b; font-size:10px;">${focalLabel}: ${fGStart.toLocaleString()}\u2013${fGEnd.toLocaleString()} &nbsp;|&nbsp; ${orthoLabel}: ${oGStart.toLocaleString()}\u2013${oGEnd.toLocaleString()}${useR?' (-)':' (+)'}</div>`;
+  let topRow = '<div style="white-space:nowrap;">', botRow = '<div style="white-space:nowrap;">';
+  for (let i=0;i<a.qAln.length;i++){
+    const q = a.qAln[i], s = a.sAln[i];
+    if (q === '-'){ topRow += '<span style="color:#374151;">-</span>'; }
+    else { const col = ntCol[q]||'#9ca3af'; topRow += `<span style="color:${col};">${q}</span>`; }
+    if (s === '-'){ botRow += '<span style="color:#374151;">-</span>'; }
+    else {
+      const col = ntCol[s]||'#9ca3af';
+      const match = (q !== '-' && q.toUpperCase() === s.toUpperCase());
+      botRow += match ? `<span style="color:${col}; border-bottom:1px solid #34d399;">${s}</span>`
+                      : `<span style="color:${col}; background:#2a0c0c;">${s}</span>`;
+    }
   }
-  const ps = partialCount(start), pe = partialCount(end);
-  const pctS = ps.part+ps.full ? Math.round(100*ps.part/(ps.part+ps.full)) : 0;
-  const pctE = pe.part+pe.full ? Math.round(100*pe.part/(pe.part+pe.full)) : 0;
-  host.innerHTML = svg +
-    `<div style="font-size:10px; color:#9ca3af; margin-top:3px;">`
-    + `${st}: <span style="color:#22d3ee;">${pctS}% of arrays begin with an incomplete first monomer</span>, `
-    + `<span style="color:#f472b6;">${pctE}% end with an incomplete last monomer</span>. `
-    + `Bars left of the green line are partial terminal monomers.</div>`;
+  topRow += '</div>'; botRow += '</div>';
+  const gapCols = (a.qAln.match(/-/g)||[]).length, gapColsO = (a.sAln.match(/-/g)||[]).length;
+  out += topRow + botRow;
+  if (gapCols || gapColsO) out += `<div style="color:#64748b; font-size:9px; margin-top:1px;">${gapColsO} bp inserted in ${orthoLabel} not in ${focalLabel}; ${gapCols} bp in ${focalLabel} not in ${orthoLabel} (both shown as gap columns above, not dropped).</div>`;
+  return out;
+}
+
+function renderOrthoPairwiseBoth(lid, fd, ol, od){
+  let html = `<div style="color:#64748b; font-size:9px; margin-bottom:4px;">Full pairwise alignment (own coordinates, up to 500 bp per side) &mdash; unlike the table above, insertions/deletions are shown as real gap columns rather than truncated to the display window.</div>`;
+  html += renderOrthoPairwiseOne(lid, 'Left flank (LF)', fd.LF, ol, od.LF);
+  html += renderOrthoPairwiseOne(lid, 'Right flank (RF)', fd.RF, ol, od.RF);
+  return html;
 }
 
 
@@ -3418,7 +3630,6 @@ function bindEndsFlanksUI(){
   const fb = document.getElementById("jumpFullBtn");  if (fb) fb.addEventListener("click", ()=>jumpToJunction("full"));
   const sf = document.getElementById("showFlanksBtn");if (sf) sf.addEventListener("click", showFlanks);
   const ot = document.getElementById("orthoThr");     if (ot) ot.addEventListener("change", showFlanks);
-  const bs = document.getElementById("bphaseSubtype");if (bs) bs.addEventListener("change", renderBphaseHist);
 }
 
 
