@@ -1,164 +1,149 @@
-# CLsat Locus Detail Viewer – Manual
+# CLsat Locus Viewer — Manual
 
-## Overview
+An interactive browser for the CLsat satellite arrays catalogued across six *Darevskia* genome
+assemblies. It exists so that **any locus-level claim can be checked against the raw evidence** —
+per-window bitscores, monomer structure, array boundaries and cross-assembly orthology — rather than
+being taken on trust from a summary table.
 
-`locus_detail_viewer.html` is a two-panel interactive viewer for inspecting
-CLsat satellite repeat loci across multiple species and scaffolds.
-
-- **Top panel (Scaffold Overview):** shows all loci on a scaffold with overlaid
-  per-window bitscore bars (CLsat1–4), colored by consensus. Click a locus
-  rectangle to open it in the detail panel.
-- **Bottom panel (Per-window Detail):** shows individual scan-window bitscores
-  for the selected locus, with zoom/pan. Supports BED coordinate export,
-  NCBI FASTA fetching, and monomer analysis via a local server.
+The same text is available inside the app: click **? Manual** next to *Scaffold Overview*.
 
 ---
 
-## How to launch
+## Assemblies
 
-### Inside VS Code (Five Server)
-The workspace root must be served. Navigate to:
-```
-http://127.0.0.1:5500/viewer/files/out/locus_detail_viewer.html
-```
-(Five Server serves from the workspace root on port 5500 by default.)
+| Code | Species |
+|------|---------|
+| `mix` | *D. mixta* |
+| `arm` | *D. armeniaca* |
+| `val` | *D. valentini* |
+| `unp` | *D. unisexualis*, paternal-haplotype assembly |
+| `unm` | *D. unisexualis*, maternal-haplotype assembly |
+| `nai` | *D. nairensis* |
 
-### Outside VS Code (standalone)
-Double-click **`open_viewer.bat`** in `viewer/files/out/`.
-It starts a PowerShell HTTP server on port 8080 and opens the viewer
-in your default browser. Keep the console window open; close it to stop.
+## What a "locus" is
 
-No Python or Node.js required — uses PowerShell's built-in .NET HttpListener.
-
----
-
-## Files in `viewer/files/out/`
-
-### The viewer
-| File | Description |
-|------|-------------|
-| `locus_detail_viewer.html` | Main viewer (current version, ~1360 lines) |
-| `open_viewer.bat` | One-click launcher for standalone use |
-| `serve.ps1` | PowerShell HTTP server script used by the launcher |
-
-### Historical viewer versions (read-only reference)
-| File | Description |
-|------|-------------|
-| `locus_detail_viewer_stable.html` | Early stable snapshot |
-| `locus_detail_viewer_before_fasta.html` | Before NCBI FASTA integration |
-| `locus_detail_viewer_with_ncbi_fasta.html` | With FASTA, before monomer server |
-| `locus_viewer.html` | Predecessor (no per-window detail panel) |
-| `test.html` | Earlier MASTER viewer (overview only, no detail) |
-| `clsat_bits_viewer.html` | Simple single-file bitscore viewer |
-
-### Required data files (auto-loaded on startup)
-| File | Format | Description |
-|------|--------|-------------|
-| `MASTER.merged.bed` | BED (scf, start, end, name) | Locus coordinates. Locus IDs (L1, L2, …) generated from line number. The `name` column encodes `species\|scf:start-end\|MASTER`. |
-| `MASTER.final_assignment.clean.tsv` | TSV with header | Seed-priority arbitration results. Columns: `locus_id, seed_subfamily, seed_bits, best_other, best_other_bits, delta_bits, FLAG`. FLAG is one of: `SEED_ONLY`, `SEED_WITH_COMPETITOR`, `SEED_CONTRADICTION`. |
-| `MASTER.locus_bits.tsv` | TSV (no header) | Per-locus max bitscore summary. Columns: `locus_id, CLsat1_max, CLsat2_max, CLsat3_max, CLsat4_max`. |
-| `MASTER_CLsat1.bits.tsv` | TSV with header | Per-window scan bitscores for CLsat1. Columns: `scaffold, pos, bits, name, species`. Window step = **145 bp**. |
-| `MASTER_CLsat2.bits.tsv` | TSV with header | Same for CLsat2. Window step = **145 bp**. |
-| `MASTER_CLsat3.bits.tsv` | TSV with header | Same for CLsat3. Window step = **146 bp**. |
-| `MASTER_CLsat4.bits.tsv` | TSV with header | Same for CLsat4. Window step = **116 bp**. |
-
-**Important:** Each CLsat has a different monomer length and therefore a different
-scan step. The steps are determined by the consensus length minus 1:
-
-| Consensus | Length | Scan step |
-|-----------|--------|-----------|
-| CLsat1 | 146 bp | 145 bp |
-| CLsat2 | 145 bp | 145 bp |
-| CLsat3 | 146 bp | 146 bp |
-| CLsat4 | 116 bp | 116 bp |
-
-The consensus FASTA files are also present in the folder:
-`CLsat1.cons.fa`, `CLsat2.cons.fa`, `CLsat3.cons.fa`, `CLsat4.cons.fa`.
-
-### Optional: Monomer analysis server
-| File | Description |
-|------|-------------|
-| `monomer_server.py` | FastAPI server for monomer decomposition (port 8000) |
-| `server_control.py` | Control server to start/stop monomer_server (port 9001) |
-| `start_monomer_server.bat` | Launcher for monomer_server.py |
-| `start_server_control.bat` | Launcher for server_control.py |
-| `start_viewer.bat` | Combined launcher (servers + viewer) |
-
-**Note:** These require a working Python 3.10+ with FastAPI/uvicorn.
-The `.venv/` in this folder has a broken symlink to a deleted Python 3.10
-install. To fix, delete `.venv/` and recreate:
-```
-python -m venv .venv
-.venv\Scripts\activate
-pip install fastapi uvicorn
-```
+A **segmented MASTER locus**: a contiguous CLsat-similar domain, expanded outward from a TRF seed to
+its true array boundary, merged with overlapping domains, and then **split where the dominant subfamily
+changes along the array**. There are 707 such loci. IDs with a suffix (`L36.1`, `L36.2`) are segments
+of one longer array that contained a sustained subfamily transition.
 
 ---
 
-## Interaction guide
+## Quick workflow
 
-### Navigation
-- **Species dropdown** → **Scaffold dropdown** → overview draws
-- **Jump dropdown** lists contradictions (⚠) and competitors (●)
-- **Find locus** text input: type e.g. `L144` and click Go
-- **Reset zoom** resets both panels
-
-### Overview panel
-- **Scroll-zoom** to zoom, **drag** to pan
-- **Click a locus rectangle** to select it and show per-window detail
-- Locus outlines: white border = selected, thin = unselected
-- Bar colors: blue = CLsat1, green = CLsat2, pink = CLsat3, yellow = CLsat4
-
-### Detail panel
-- **Scroll-zoom** and **drag** to pan
-- **BED coordinates** update as you pan/zoom (shows visible region)
-- **Copy BED** copies `scaffold\tstart\tend` to clipboard
-- **Get FASTA** fetches the visible region sequence from NCBI E-utilities
-- **Analyze Monomers** sends the FASTA to monomer_server.py for decomposition
-
-### Filters
-- `ALL` / `SEED_ONLY` / `SEED_WITH_COMPETITOR` / `SEED_CONTRADICTION`
-  filters loci shown in the overview
+1. **Select a locus** — click a row in the **Locus Table**, click an array in the **Scaffold Overview**,
+   or type an ID (e.g. `L152`) into **Find locus** and press **Go**.
+2. **Zoom in** — mouse-wheel to zoom, drag to pan. Zoom until individual monomers resolve; the
+   monomer-level tools need the array readable, not the whole scaffold.
+3. **Get FASTA** — fetches the locus sequence.
+4. **Analyze Monomers** — splits that sequence into individual monomers.
+5. **Inspect below** — monomer list → monomer map → MSA → terminal-monomer trim.
 
 ---
 
-## Known issues and limitations
+## Panels
 
-### 1. Monomer analysis does NOT replicate searsat16
+- **Scaffold Overview** — every locus on the selected scaffold; bar height = bitscore.
+- **Per-window Bitscores** — the selected locus scanned against all four CLsat consensuses, one bar per
+  scan window. This is *why* a locus got its call. A composite array shows the dominant colour switching
+  part-way along; a contested locus shows two colours running neck-and-neck. **When a table label and
+  this track disagree, believe this track.**
+- **Locus Table** — filter by ID, assembly, family or flag. The *Show* and *Subtype* filters stay in
+  sync with the overview.
+- **Locus Ends & Flanks** — the unique sequence flanking the array, its truncation status, and the
+  cross-assembly flank matches that define positional orthology.
 
-The "Analyze Monomers" button calls `monomer_server.py` which uses a
-**sliding-window identity scan** (`find_monomers()`) and a custom
-**Python DP alignment** (`simple_align()`).
+## Monomer analysis
 
-The original `searsat16_reference.sh` pipeline does:
-1. **ssearch36** Smith-Waterman alignment (`ssearch36 -r +2/-2 -g -3 …`)
-   to find monomer matches — a proper gapped local alignment, not a
-   fixed-length window identity check
-2. **bedtools merge** with strand-awareness to merge overlapping hits
-3. **Gap-based array splitting** (>100bp gaps = separate arrays)
-4. **bedtools getfasta** to extract array sequences with ±100bp flanks
-5. **MAFFT** multiple sequence alignment (`--localpair --maxiterate 1000`)
-   of consensus + extracted array pieces
+- **Monomer list** — every monomer with coordinates, length and % identity to the consensus.
+- **Monomer map** — the array drawn as arrows; direction = monomer strand. Hover to highlight.
+- **MSA** — monomers stacked and aligned with their genomic flanks attached, so substitutions that
+  recur down the array (candidate higher-order structure) appear as vertical stripes.
 
-The monomer_server.py replacement:
-- Uses a **fixed-length sliding window** instead of ssearch36's gapped
-  Smith-Waterman — this will miss monomers with insertions/deletions
-  and truncated terminal copies
-- Uses a **simple O(mn) Python DP pairwise alignment** instead of MAFFT
-  MSA — this is extremely slow for long loci and produces a 2-sequence
-  alignment rather than a proper multi-monomer MSA
-- Only has **CLsat1 consensus hardcoded** in `DEFAULT_CONSENSUSES` —
-  CLsat2/3/4 are missing, so analysis fails for non-CLsat1 loci unless
-  `consensus_seq` is passed
-- The alignment output format (repeated consensus vs locus) doesn't
-  match searsat16's individual-monomer MAFFT output
+## Terminal monomers vs reference
 
-**Status:** This feature is non-functional without ssearch36 and MAFFT
-being available on the serving machine. The Python DP approach is not
-a viable substitute.
+Displayed **below** the monomer analysis. It answers one narrow question: does the array *begin* and
+*end* on a whole monomer, or is the first/last monomer only partial?
 
-### 2. NCBI FASTA fetch requires valid accessions
-The "Get FASTA" button calls NCBI E-utilities with the scaffold name as
-an accession. This only works if your scaffolds are deposited NCBI
-accessions (e.g., JAWWNF010000123.1). It will fail for custom/local
-scaffold names.
+- Choose the reference: **sub-subfamily**, **subfamily**, or **this-locus** consensus.
+- `ref` row — the reference consensus. Dim grey = positions this monomer does **not** cover
+  (missing coverage, *not* extra bases).
+- `mono` row — the actual genomic monomer. Underlined = matches the reference; red background = mismatch.
+- `trim5` / `trim3` — how many reference bases are missing from the start / end. Both zero means the
+  terminal monomer is complete under the current rotation convention.
+- Dim lowercase at the outer edge — 5 bp of real genomic flank *outside* the array. If the array runs
+  into a contig edge there is no flank, and the header says *(contig edge)*.
+
+> **Caveat.** A tandem monomer has no intrinsic start. "Complete" and "partial" are defined relative to
+> a rotation convention inherited from the original published CLsat clones — not a biological landmark.
+> A different, equally defensible phase would relabel some termini without changing any sequence.
+
+---
+
+## Inspection lists
+
+Two curated sets, opened from the sidebar buttons. In both, **clicking any row opens that locus**.
+
+### Orthologous loci
+
+All **550** loci with at least one usable unique flank, scored by how many *other* assemblies they are
+positionally orthologous to (flank identity ≥80 %, ≥200 bp, **direct partners only** — transitive chains
+are not followed, because the orthology graph percolates into one giant component).
+
+| Preset | Loci |
+|---|---|
+| Conserved in all 5 other assemblies | 74 |
+| In ≥3 assemblies | 296 |
+| Private (no cross-assembly ortholog) | 93 |
+| Strictly private (both flanks unique, still no ortholog) | 22 |
+
+The partner chips are clickable: use them to **jump straight to the same genomic position in another
+genome** and see what satellite sits there.
+
+Two things this list makes visible:
+
+- **Conserved position ≠ conserved content.** 42 % of orthologous locus pairs (614 / 1,461) carry a
+  *different* CLsat subfamily at the two ends — most often CLsat1 opposite CLsat3.
+- **Positional novelty is lineage-specific.** The strictly private loci concentrate in *D. mixta*
+  (14 of its 56 both-flank-anchorable loci) and in CLsat2, while *D. nairensis* — despite having the most
+  CLsat loci of any assembly — has none.
+
+### Problematic loci
+
+The **27** loci flagged by arbitration: composite arrays, short residual segments, and near-tied family
+calls. Columns show the seed call and bitscore, the strongest competitor and bitscore, and the margin Δ.
+
+Start with the two `UNIQUE_SEED_CONTRADICTION` loci (**L191**, **L425**) — those are the only cases where
+the independent rescan confidently disagrees with the seed.
+
+---
+
+## Arbitration flags
+
+| Flag | Meaning |
+|---|---|
+| `UNIQUE_SEED_WITH_COMPETITOR` | Clean seed call; a competitor scores but does not threaten it. |
+| `UNIQUE_SEED_CONTRADICTION` | The rescan confidently favours a **different** family than the seed (Δ ≥ 20 bits). Only 2 loci. |
+| `SEED_CONFLICT_RESOLVED` | Seeds from more than one subfamily fell in the locus; resolved by bitscore. |
+| `SEED_CONFLICT_RESOLVED_AMBIGUOUS` | As above, but the margin is small. |
+| `SEGMENT_RESOLVED` | Locus split at a sustained subfamily transition; each segment called cleanly. |
+| `SEGMENT_RESOLVED_AMBIGUOUS` | Split locus whose segment boundary or call is uncertain. |
+
+---
+
+## Data files
+
+The viewer is a single self-contained `index.html` that fetches static products sitting beside it:
+
+`MASTER.merged.bed` · `MASTER.final_assignment.clean.tsv` · `MASTER.locus_bits.tsv` ·
+`MASTER_CLsat{1..4}.bits.tsv` · `flanks.json` · `flank_orthologs.json` · `subfamily.json` ·
+`terminal_monomers.json` · `terminal_hist.json` · `boundary_phase.json` · `boundary_phase_hist.json` ·
+`CLsat{1..4}.cons.fa`
+
+The two inspection lists are **embedded in `index.html`** and need no extra files.
+
+## Tips
+
+- **Esc** closes any panel; every table has a search box.
+- If **Analyze Monomers** looks wrong, check that you fetched the FASTA first and that the locus is zoomed in.
+- The per-window bitscore track is the ground truth — a table label can hide a locus whose signal switches half-way.
