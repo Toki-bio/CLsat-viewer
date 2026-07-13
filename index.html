@@ -60,7 +60,10 @@
     gap:12px;
     min-width:0;
     min-height:0;
-    overflow:hidden;
+    /* the whole column scrolls, so the Scaffold Overview scrolls away with the
+       content instead of being pinned while only the detail panel scrolls */
+    overflow-y:auto;
+    overflow-x:hidden;
   }
   .chartPanel{
     background:linear-gradient(180deg,var(--panel),var(--panel2));
@@ -76,7 +79,7 @@
      own height and let the panel size to its content. */
   .topChart .chartBox{height:190px; min-height:120px;}
   .chartTop{flex-shrink:0;}
-  .detailChart{display:flex; flex-direction:column; min-height:0; overflow-y:auto;}
+  .detailChart{display:flex; flex-direction:column; min-height:0; flex:0 0 auto;}
   h1{font-size:16px; margin:0 0 8px 0;}
   h2{font-size:12px; margin:10px 0 5px 0; color:var(--muted); font-weight:600; letter-spacing:.02em;}
   .row{display:flex; gap:6px; align-items:center; margin:4px 0;}
@@ -274,38 +277,6 @@
     </div>
 
     
-    <details id="plannedActions" style="margin-top:14px;">
-      <summary style="cursor:pointer; font-size:13px; font-weight:600; color:var(--text); user-select:none;">Planned Actions <span style="font-size:9px;color:#f59e0b;">roadmap (click to expand)</span></summary>
-      <div style="font-size:10px; line-height:1.5; background:#0c1118; border:1px solid #1e293b; border-radius:6px; padding:8px; margin-top:6px; max-height:340px; overflow-y:auto;">
-        <div style="color:#94a3b8; margin-bottom:6px;">Status: <span style="color:#ef4444;">TODO</span> &middot; <span style="color:#f59e0b;">WIP</span> &middot; <span style="color:#34d399;">DONE</span></div>
-        <div style="margin-bottom:8px;">
-          <div style="color:#60a5fa; font-weight:600;">A. Bug fixes</div>
-          <div><span style="color:#34d399;">[DONE]</span> A1. Zoom resets when switching to a newly selected locus.</div>
-          <div><span style="color:#34d399;">[DONE]</span> A2. Slim themed scrollbars &amp; form controls.</div>
-          <div><span style="color:#34d399;">[DONE]</span> A3. Fixed corrupted glyphs (Array label &times;, ellipsis, arrows).</div>
-          <div><span style="color:#34d399;">[DONE]</span> A4. Subtype badge + Subtype filter; flag filter dims bars &amp; syncs table.</div>
-          <div><span style="color:#34d399;">[DONE]</span> A5. Detail chart resizable; border markers track zoom &amp; only show near junctions.</div>
-        </div>
-        <div style="margin-bottom:8px;">
-          <div style="color:#60a5fa; font-weight:600;">B. Flank module</div>
-          <div><span style="color:#34d399;">[DONE]</span> B1. &plusmn;500bp flanks extracted for all 707 loci (flanks.json).</div>
-          <div><span style="color:#34d399;">[DONE]</span> B2. Cross-species flank orthology at 70/80/90% (flank_orthologs.json).</div>
-          <div><span style="color:#34d399;">[DONE]</span> B3. Flank/ortholog viewer: stacked traceable view, entity rendering fixed.</div>
-        </div>
-        <div style="margin-bottom:8px;">
-          <div style="color:#60a5fa; font-weight:600;">C. Locus-ends explorer</div>
-          <div><span style="color:#34d399;">[DONE]</span> C1. Junction jump buttons drive zoom properly.</div>
-          <div><span style="color:#34d399;">[DONE]</span> C2. Terminal-monomer characterization: first/last (often partial) monomer completeness + consensus span.</div>
-        </div>
-        <div style="margin-bottom:8px;">
-          <div style="color:#60a5fa; font-weight:600;">D. Subfamilies &amp; UI polish</div>
-          <div><span style="color:#34d399;">[DONE]</span> D1. Sub-subfamily assigned (CLsat1.1&ndash;1.5, CLsat3.1&ndash;3.2&hellip;) &amp; shown in badge + flank panel.</div>
-          <div><span style="color:#34d399;">[DONE]</span> D2. Filter tooltips + multi-select.</div>
-          <div><span style="color:#34d399;">[DONE]</span> D3. Locus Table: flag tooltips; #monomers with length tooltip.</div>
-          <div><span style="color:#34d399;">[DONE]</span> D4. Planned Actions collapsed by default.</div>
-        </div>
-      </div>
-    </details>
 
     <div id="status" class="status">Loading…</div>
     <div class="hint">Wheel to zoom, drag to pan. Click locus to see per-window detail.</div>
