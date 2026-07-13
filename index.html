@@ -70,7 +70,12 @@
     display:flex;
     flex-direction:column;
   }
-  .topChart{flex:0 0 auto; height:200px;}
+  .topChart{flex:0 0 auto; height:auto;}
+  /* the shared .chartBox asks for min-height:300px; inside the fixed-height topChart that
+     overflowed the panel and flex-shrank the header/hint to nothing. Give the overview its
+     own height and let the panel size to its content. */
+  .topChart .chartBox{height:190px; min-height:120px;}
+  .chartTop{flex-shrink:0;}
   .detailChart{display:flex; flex-direction:column; min-height:0; overflow-y:auto;}
   h1{font-size:16px; margin:0 0 8px 0;}
   h2{font-size:12px; margin:10px 0 5px 0; color:var(--muted); font-weight:600; letter-spacing:.02em;}
@@ -3677,7 +3682,7 @@ function bindEndsFlanksUI(){
   .listBtn:hover{background:#25497a;}
   .workflowHint{background:#0d1a2b;border:1px solid #1e3a5f;border-radius:5px;
     padding:2px 8px;margin:2px 0 3px;font-size:10px;color:#8fa8c4;line-height:1.5;
-    white-space:nowrap;overflow-x:auto;}
+    white-space:nowrap;overflow-x:auto;flex-shrink:0;}
   .workflowHint b{color:#e5e7eb;}
   .wstep{display:inline-block;background:#2563eb;color:#fff;border-radius:50%;
     width:12px;height:12px;line-height:12px;text-align:center;font-size:8px;font-weight:700;}
