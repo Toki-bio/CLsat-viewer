@@ -119,6 +119,9 @@
   .bedBox{background:#0b1220; border:1px solid #243044; border-radius:10px; padding:10px; margin-top:6px; display:flex; align-items:center; gap:8px;}
   .bedCoord{font-family: ui-monospace, monospace; font-size:12px; color:#60a5fa; flex:1; user-select:all;}
   .copyBtn{padding:6px 12px; font-size:11px; cursor:pointer; background:#1e3a5f; border:1px solid #2563eb; border-radius:6px; color:#60a5fa;}
+  .copyBtn.sm{padding:2px 8px; font-size:10px; border-radius:4px; line-height:1.5;}
+  .copyBtn.sm:hover{background:#25497a; color:#cfe3ff;}
+  .hdrBtns{display:flex; gap:6px; align-items:center; flex-shrink:0;}
   .copyBtn:hover{background:#2563eb; color:#fff;}
   .copyBtn:active{transform:scale(0.95);}
   .fastaBtn{padding:6px 12px; font-size:11px; cursor:pointer; background:#1e4d3f; border:1px solid #10b981; border-radius:6px; color:#34d399;}
@@ -312,7 +315,7 @@
           <div class="kpi">Visible: <b id="kpiVis">0</b></div>
         </div>
       </div>
-      <div class="workflowHint"><b>How to use:</b> <span class="wstep">1</span> click a locus (table or overview) to select it &middot; <span class="wstep">2</span> zoom in (mouse wheel) until individual monomers resolve &middot; <span class="wstep">3</span> press <b>Get FASTA</b> &middot; <span class="wstep">4</span> press <b>Analyze Monomers</b> &middot; <span class="wstep">5</span> inspect the monomer map, MSA and terminal-monomer trim below. <a id="helpLink">Full manual &rarr;</a></div>
+      <div class="workflowHint" title="Click a locus, zoom in until monomers resolve, fetch its sequence, split it into monomers, then read the monomer map, MSA and terminal-monomer trim below."><span class="wstep">1</span> select locus &middot; <span class="wstep">2</span> zoom to monomers &middot; <span class="wstep">3</span> <b>Get FASTA</b> &middot; <span class="wstep">4</span> <b>Analyze Monomers</b> &middot; <span class="wstep">5</span> inspect below &nbsp;<a id="helpLink">manual &rarr;</a></div>
       <div class="chartBox" id="chartOverview"></div>
     </div>
 
@@ -343,11 +346,15 @@
       <div class="monomerResult" id="monomerResult">
         <div class="monomerHeader">
           <span id="monomerStatus">Analyzing monomers...</span>
-          <button class="copyBtn" id="copyAlignmentBtn" style="display:none;">Copy Alignment</button>
+          <span class="hdrBtns">
+            <button class="copyBtn sm" id="copyAlignmentBtn" style="display:none;"
+              title="Copy the consensus-anchored alignment of this locus as plain text.">Copy Alignment</button>
+            <button class="copyBtn sm" id="copyFastaAlnBtn" style="display:none;"
+              title="Copy every monomer of this locus as FASTA — one record per monomer (with genomic coordinates and strand), preceded by the reference consensus, for all arrays in the locus. Ready to paste straight into an aligner.">Copy All FASTA</button>
+          </span>
         </div>
         <div class="monomerList" id="monomerList"></div>
         <div id="monomerMap" style="margin:8px 0; overflow-x:auto;"></div>
-        <div style="margin:4px 0;"><button class="copyBtn" id="copyFastaAlnBtn" style="display:none;">Copy All FASTA</button></div>
         <div id="monomerMSA" style="margin:8px 0;"></div>
         <div class="alignmentBox" id="alignmentBox"></div>
         <div id="terminalTrimWrap" style="margin:8px 0; display:none;">
@@ -3668,11 +3675,12 @@ function bindEndsFlanksUI(){
   .listBtn{background:#1e3a5f;border:1px solid #2f4f7f;color:#cfe3ff;cursor:pointer;
     border-radius:4px;padding:3px 8px;font-size:11px;}
   .listBtn:hover{background:#25497a;}
-  .workflowHint{background:#0d1a2b;border:1px solid #1e3a5f;border-radius:6px;
-    padding:6px 10px;margin:4px 0 6px;font-size:11px;color:#a9c2dd;line-height:1.6;}
+  .workflowHint{background:#0d1a2b;border:1px solid #1e3a5f;border-radius:5px;
+    padding:2px 8px;margin:2px 0 3px;font-size:10px;color:#8fa8c4;line-height:1.5;
+    white-space:nowrap;overflow-x:auto;}
   .workflowHint b{color:#e5e7eb;}
   .wstep{display:inline-block;background:#2563eb;color:#fff;border-radius:50%;
-    width:15px;height:15px;line-height:15px;text-align:center;font-size:9.5px;font-weight:700;}
+    width:12px;height:12px;line-height:12px;text-align:center;font-size:8px;font-weight:700;}
   .workflowHint a{color:#60a5fa;cursor:pointer;text-decoration:underline;margin-left:4px;}
   .cmodal{position:fixed;inset:0;background:rgba(0,0,0,.62);display:none;z-index:9999;}
   .cmodal.open{display:flex;align-items:center;justify-content:center;}
