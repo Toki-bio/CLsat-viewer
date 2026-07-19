@@ -340,6 +340,7 @@
               title="Copy every monomer of this locus as FASTA — one record per monomer (with genomic coordinates and strand), preceded by the reference consensus, for all arrays in the locus. Ready to paste straight into an aligner.">Copy All FASTA</button>
           </span>
         </div>
+        <div id="strandStrip" style="margin:6px 0 2px;"></div>
         <div class="monomerList" id="monomerList"></div>
         <div id="monomerMap" style="margin:8px 0; overflow-x:auto;"></div>
         <div id="monomerMSA" style="margin:8px 0;"></div>
@@ -1121,7 +1122,7 @@ function drawMonomerMap(containerId, result, locusStart, locusEnd) {
       .attr('y', yTop + trackH / 2 + 3)
       .attr('text-anchor', 'end')
       .attr('class', 'monomerMap-label')
-      .text(strand === '+' ? '?+' : '?-');
+      .text(strand === '+' ? '+▶' : '◀−');
 
     // Draw each monomer as a directed arrow/rectangle
     arr.hits.forEach((m, mi) => {
@@ -1184,6 +1185,94 @@ function drawMonomerMap(containerId, result, locusStart, locusEnd) {
       .style('fill', color).style('font-size', '8px').style('font-family', 'ui-monospace, monospace')
       .text('Array ' + (ai + 1) + ' (' + arr.hits.length + '×' + strand + ')');
   });
+}
+
+/**
+ * Minimalistic strand-direction strip for a whole locus.
+ * One cell per monomer, in genomic order. A '+' monomer sits in the TOP lane,
+ * a '-' monomer in the BOTTOM lane, so a strand FLIP shows as the blocks jumping
+ * lanes -- the fastest way to spot inversions along an array. Cell fill = CLsat
+ * colour; a bright vertical tick marks every position where the strand changes.
+ * Schematic (equal-width cells, not to genomic scale) so both a 4-monomer locus
+ * and a 1000-monomer array stay readable.
+ */
+function drawStrandStrip(containerId, result){
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!result || !result.success || !result.arrays || !result.arrays.length){ el.innerHTML = ''; return; }
+
+  // Flatten every monomer into genomic order, carrying its own strand + CLsat.
+  const mons = [];
+  result.arrays.forEach(a => a.hits.forEach(h => mons.push({ start: h.start, strand: a.strand, clsat: h.clsat })));
+  mons.sort((a, b) => a.start - b.start);
+  const n = mons.length;
+  if (!n){ el.innerHTML = ''; return; }
+
+  const nPlus = mons.filter(m => m.strand === '+').length;
+  const nMinus = n - nPlus;
+  let flips = 0;
+  const flipAt = new Array(n).fill(false);
+  for (let i = 1; i < n; i++){ if (mons[i].strand !== mons[i-1].strand){ flips++; flipAt[i] = true; } }
+
+  const W = Math.max(el.clientWidth || 500, 280);
+  const labW = 20, padR = 6;
+  const innerW = W - labW - padR;
+  const cellW = Math.max(2, Math.min(15, innerW / n));
+  const stripW = cellW * n;
+  const laneH = 11, gapMid = 3, topY = 4, botY = topY + laneH + gapMid;
+  const H = botY + laneH + 4;
+
+  el.innerHTML = '';
+  const head = document.createElement('div');
+  head.style.cssText = 'font-size:10px; color:#9ca3af; margin-bottom:3px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;';
+  head.innerHTML =
+    '<b style="color:#e5e7eb;">Strand</b>' +
+    '<span><span style="color:#34d399;">&#9650; +</span> ' + nPlus + '</span>' +
+    '<span><span style="color:#f472b6;">&#9660; &minus;</span> ' + nMinus + '</span>' +
+    '<span style="color:' + (flips ? '#fbbf24' : '#64748b') + ';">' +
+      (flips ? ('&#9646; ' + flips + ' direction change' + (flips > 1 ? 's' : '')) : 'single orientation') + '</span>' +
+    '<span style="color:#475569;">top lane = +, bottom lane = &minus;</span>';
+  el.appendChild(head);
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'overflow-x:auto;';
+  el.appendChild(wrap);
+
+  const svg = d3.select(wrap).append('svg')
+    .attr('width', Math.max(W, labW + stripW + padR)).attr('height', H)
+    .style('background', '#070b12').style('border-radius', '6px').style('display', 'block');
+
+  // lane labels
+  svg.append('text').attr('x', labW - 5).attr('y', topY + laneH - 2).attr('text-anchor', 'end')
+     .attr('fill', '#34d399').attr('font-size', '10px').attr('font-family', 'ui-monospace, monospace').text('+');
+  svg.append('text').attr('x', labW - 5).attr('y', botY + laneH - 2).attr('text-anchor', 'end')
+     .attr('fill', '#f472b6').attr('font-size', '10px').attr('font-family', 'ui-monospace, monospace').text('−');
+  // faint midline
+  svg.append('line').attr('x1', labW).attr('x2', labW + stripW).attr('y1', topY + laneH + gapMid/2)
+     .attr('y2', topY + laneH + gapMid/2).attr('stroke', '#1f2937').attr('stroke-width', 1);
+
+  for (let i = 0; i < n; i++){
+    const m = mons[i];
+    const x = labW + i * cellW;
+    const y = m.strand === '+' ? topY : botY;
+    const fill = CLSAT_COLORS[m.clsat] || (m.strand === '+' ? '#34d399' : '#f472b6');
+    const g = svg.append('rect')
+      .attr('x', x + 0.4).attr('y', y).attr('width', Math.max(1, cellW - 0.8)).attr('height', laneH)
+      .attr('fill', fill).attr('rx', cellW > 4 ? 1.5 : 0);
+    g.append('title').text('#' + (i+1) + ' ' + (m.clsat || '?') + ' strand ' + m.strand +
+      (flipAt[i] ? '  (direction change here)' : ''));
+    // directional glyph only when there is room
+    if (cellW >= 9){
+      svg.append('text').attr('x', x + cellW/2).attr('y', y + laneH - 2.5)
+         .attr('text-anchor', 'middle').attr('fill', '#0b0e14').attr('font-size', '8px')
+         .attr('pointer-events', 'none').text(m.strand === '+' ? '▶' : '◀');
+    }
+    // bright tick at every strand flip, spanning both lanes
+    if (flipAt[i]){
+      svg.append('line').attr('x1', x).attr('x2', x).attr('y1', topY - 2).attr('y2', botY + laneH + 2)
+         .attr('stroke', '#fbbf24').attr('stroke-width', 1.5);
+    }
+  }
 }
 
 /**
@@ -3419,6 +3508,7 @@ function bindUIOnce(){
       if (!result.success) {
         mStatusEl.textContent = "No monomers found";
         listEl.innerHTML = '<div style="color:#fb7185; padding:8px;">' + result.message + '</div>';
+        document.getElementById('strandStrip').innerHTML = '';
         document.getElementById('monomerMap').innerHTML = '';
         document.getElementById('monomerMSA').innerHTML = '';
         setStatus("Monomer analysis: " + result.message);
@@ -3457,6 +3547,9 @@ function bindUIOnce(){
         });
       });
       listEl.innerHTML = html;
+
+      // Compact strand-direction strip (headline view of orientation + its changes)
+      drawStrandStrip('strandStrip', result);
 
       // Draw visual monomer direction map
       drawMonomerMap('monomerMap', result, start, end);
@@ -3744,7 +3837,8 @@ function showFlanks(){
   // legend
   html += `<div style="font-size:9px; color:#64748b; margin-bottom:6px;">`
         + `Left flank shown as last ${N} bp (junction at right) \u2502 satellite collapsed \u2502 right flank first ${N} bp (junction at left). `
-        + `Ortholog rows are <b>aligned</b> to the focal flank (gaps shown as \u2013); underline = base matches focal; <span style="color:#f59e0b;">(rc)</span> = reverse-complement match. Click an ortholog ID to jump.</div>`;
+        + `Ortholog rows are <b>aligned</b> to the focal flank (gaps shown as \u2013); underline = base matches focal; <span style="color:#f59e0b;">(rc)</span> = reverse-complement match. Click an ortholog ID to jump. `
+        + `<i>%id / bp / bits are the precomputed ssearch36 values; the base colouring and orientation are drawn live for display.</i></div>`;
 
   // focal row
   const focalLF = lfTail(fd.LF), focalRF = rfHead(fd.RF);
@@ -4005,9 +4099,18 @@ function bindEndsFlanksUI(){
   </ul>
 
   <h3>Monomer analysis</h3>
+  <p><b>How it is computed:</b> everything under &ldquo;Analyze Monomers&rdquo; is recomputed <i>live in your browser</i>
+  from the locus sequence (fetched from NCBI, or the FASTA you already pulled) &mdash; a Smith&ndash;Waterman scan of all
+  four CLsat consensuses across both strands, then merged into monomers and arrays. It is an independent re-derivation for
+  inspection, <b>not</b> the pipeline's own published monomer table, so identities and boundaries can differ by a base or
+  two from the catalogue. Use it to <i>see</i> structure, not as the source of record.</p>
   <ul>
+    <li><b>Strand strip</b> &mdash; the compact top row. One cell per monomer in genomic order; <b>top lane = +
+      strand, bottom lane = &minus; strand</b>, so a change of direction (inversion) shows as the cells jumping lanes,
+      with a yellow tick at each flip. Cell colour is the CLsat family. This is the quick answer to &ldquo;which way do
+      the monomers point, and where does it change?&rdquo;</li>
     <li><b>Monomer list</b> &mdash; every monomer with its coordinates, length and % identity to the consensus.</li>
-    <li><b>Monomer map</b> &mdash; the array drawn as arrows; arrow direction is monomer strand. Hover to highlight.</li>
+    <li><b>Monomer map</b> &mdash; the array drawn to genomic scale as arrows; arrow direction is monomer strand. Hover to highlight.</li>
     <li><b>MSA</b> &mdash; monomers stacked and aligned, with the genomic flanks attached, so substitutions that recur
       down the array (candidate higher-order structure) are visible as vertical stripes.</li>
   </ul>
@@ -4037,18 +4140,44 @@ function bindEndsFlanksUI(){
   are relative to the chosen rotation convention, not a biological landmark.</p>
 
   <h3>Inspection lists</h3>
-  <p>Two curated sets, opened from the buttons in the sidebar. In both, <b>clicking any row opens that locus</b>.</p>
+  <p>Three sets, opened from the buttons in the sidebar. In all three, <b>clicking any row opens that locus</b>, and
+  partner/ortholog chips jump straight to the partner locus in another genome.</p>
   <ul>
-    <li><b>Orthologous loci</b> &mdash; all 550 loci with at least one usable unique flank, scored by how many other
-      assemblies they are positionally orthologous to (flank identity &ge;80%, &ge;200&nbsp;bp; direct partners only).
-      Presets run from <b>conserved in all five</b> other assemblies (74 loci) down to <b>strictly private</b> &mdash;
-      both flanks unique yet no ortholog anywhere (22 loci). The partner chips are clickable: use them to
-      <b>jump straight to the same genomic position in another genome</b> and compare what satellite sits there.
-      Positional conservation does not imply conserved content &mdash; 42% of orthologous pairs carry a
-      <i>different</i> CLsat subfamily at the two ends.</li>
-    <li><b>Problematic loci</b> &mdash; the 27 loci flagged by arbitration. These are the edge cases: composite arrays,
-      short residual segments, and near-tied family calls. Columns show the seed call and its bitscore, the strongest
-      competitor and its bitscore, and the margin &Delta; between them.</li>
+    <li><b>Orthologous loci</b> &mdash; the <b>91</b> loci with at least one usable unique flank, scored by how many
+      other lineages they are positionally orthologous to (flank identity &ge;80%, &ge;200&nbsp;bp; single best hit per
+      target assembly). <b>58</b> have at least one partner; <b>33</b> are private. In this six-assembly set the most a
+      locus reaches is <b>two</b> other lineages (no flank is anchorable in more), so the presets are: has an ortholog,
+      in both other lineages, private, and <b>strictly private</b> &mdash; both flanks unique yet no ortholog anywhere
+      (2 loci). The &ldquo;Orthologous to&rdquo; column reads <i>distinct assemblies, then total partner loci</i>,
+      because one locus can have several partner loci inside the same assembly. Positional conservation does not imply
+      conserved content &mdash; many orthologous positions carry a <i>different</i> CLsat family in the two lineages.</li>
+    <li><b>Flank orthology table</b> &mdash; the full per-locus table for <b>all 627</b> loci (every assembly), with the
+      sub-subfamily call and both flanks' cross-assembly orthology status. Filter by anchorable / has-ortholog /
+      both-sided / same- vs different-family partner. L and R badges give each flank's class (blue = unique/anchorable,
+      amber = low-complexity, grey = truncated, pink = satellite-adjacent, purple = telomeric); a red-bordered partner
+      chip flags a different-family ortholog.</li>
+    <li><b>Problematic loci</b> &mdash; the <b>29</b> loci flagged by arbitration: 1 unique-seed contradiction (L186),
+      25 segment-boundary ambiguities, 2 seed-conflict ambiguities, and 1 no-seed locus resolved by bitscore (L540).
+      These are the edge cases: composite arrays, short residual segments, and near-tied family calls. Columns show the
+      seed call and its bitscore, the strongest competitor and its bitscore, and the margin &Delta; between them.</li>
+  </ul>
+
+  <h3>Show flanks &amp; orthologs (per locus)</h3>
+  <p>In the <b>Locus Ends &amp; Flanks</b> panel below the chart, this button lays out the selected locus's own flank
+  sequence with its cross-assembly orthologs, so you can read base-by-base <i>which</i> flanking sequence is shared.</p>
+  <ul>
+    <li><b>Data source:</b> the ortholog partners, %identity, aligned length and bit scores are the <b>precomputed
+      ssearch36 results</b> (the pipeline's authoritative flank-orthology table, loaded from
+      <code>flank_orthologs.json</code>). The base-by-base colouring and the forward/<span style="color:#f59e0b;">(rc)</span>
+      orientation you see are recomputed <i>live</i> in the browser purely to draw the picture &mdash; the numbers are
+      authoritative, the alignment rendering is a visual aid.</li>
+    <li>The focal locus is shown as the last 60&nbsp;bp of its left flank, the collapsed satellite in the middle, and the
+      first 60&nbsp;bp of its right flank, so the array&ndash;flank junctions sit adjacent to the satellite. Each ortholog
+      row is aligned onto that same frame (gaps as &ndash;; underline = base matches the focal locus).</li>
+    <li><b>[align]</b> on any ortholog opens the full pairwise alignment in real genomic coordinates, with insertions and
+      deletions shown as real gap columns rather than truncated to the 60&nbsp;bp window.</li>
+    <li>The identity threshold selector (70 / 80 / 90%) re-filters which partners are shown; 80% is the value used
+      throughout the paper.</li>
   </ul>
 
   <h3>Arbitration flags</h3>
@@ -4087,9 +4216,11 @@ const ASM_ORDER = ["mix","arm","val","unp","unm","nai"];
 
   const PRESETS={
     ortho:[
+      // NB: d.n is the number of PARTNER LOCI, not assemblies. Distinct assemblies =
+      // Object.keys(d.partners).length (max 2 in this dataset).
       ["all","All anchorable", d=>true],
-      ["c5","Conserved in all 5", d=>d.n===5],
-      ["c3","In ≥3 assemblies", d=>d.n>=3],
+      ["ortho","Has an ortholog", d=>d.n>0],
+      ["two","In both other lineages", d=>Object.keys(d.partners).length>=2],
       ["priv","Private (no ortholog)", d=>d.n===0],
       ["priv2","Strictly private (both flanks)", d=>d.n===0 && d.nuf===2]
     ],
@@ -4109,8 +4240,8 @@ const ASM_ORDER = ["mix","arm","val","unp","unm","nai"];
     ]
   };
   const NOTES={
-    ortho:"Positional orthology from unique flanking sequence (≥80% identity, ≥200 bp), direct cross-assembly partners only. Click a row to open the locus; click an ortholog chip to jump to that partner in another assembly.",
-    flag:"The 27 loci flagged by arbitration (2 unique-seed contradictions, 23 segment-boundary ambiguities, 2 seed-conflict ambiguities). Δ = bitscore margin between the seed call and its strongest competitor.",
+    ortho:"Positional orthology from unique flanking sequence (≥80% identity, ≥200 bp), single best hit per target assembly. \"Orthologous to\" lists distinct partner assemblies then the total partner-locus count (one locus can have several partner loci in the same assembly). Click a row to open the locus; click a partner chip to jump to that partner in another assembly.",
+    flag:"The 29 loci flagged by arbitration: 1 unique-seed contradiction (L186), 25 segment-boundary ambiguities, 2 seed-conflict ambiguities, and 1 no-seed locus resolved by bitscore (L540). Δ = bitscore margin between the seed call and its strongest competitor.",
     full:"Every locus (627, all six assemblies) with its sub-subfamily call and both flanks' cross-assembly orthology status (ssearch36, ≥80% identity, ≥200 bp, single best hit per target assembly). L/R badges show each flank's class (blue=unique/anchorable, amber=lowcomplex, grey=truncated, pink=satellite-adjacent, purple=telomeric). \"Both-sided\" = the pair is corroborated by evidence sourced from both an L- and an R-flank hit (matches Fig. 3's 18 both-sided pairs). Red-bordered partner chips mark loci independently confirmed orthologous by flank sequence where the two assemblies carry a different CLsat family at that position — see Discussion. Click a locus or a partner chip to jump to it."
   };
   function jump(id){ try{ jumpToLocusId(id); }catch(e){ console.warn(e); } modal.classList.remove("open"); }
@@ -4155,7 +4286,7 @@ const ASM_ORDER = ["mix","arm","val","unp","unm","nai"];
     const rs=rows(); countEl.textContent=rs.length+" loci";
     let h="<table><thead><tr>";
     h += (mode==="ortho")
-      ? "<th>Locus</th><th>Assembly</th><th>Family</th><th>Flanks</th><th>Orthologous in</th><th>Partners (click to jump)</th>"
+      ? "<th>Locus</th><th>Assembly</th><th>Family</th><th>Flanks</th><th>Orthologous to</th><th>Partners (click to jump)</th>"
       : (mode==="flag")
       ? "<th>Locus</th><th>Assembly</th><th>Category</th><th>Seed</th><th>bits</th><th>Competitor</th><th>bits</th><th>Δ</th><th>Final</th>"
       : "<th>Locus</th><th>Assembly</th><th>Family / sub-subfamily</th><th>Flanks</th><th>Ortholog partners (click to jump)</th>";
@@ -4164,9 +4295,10 @@ const ASM_ORDER = ["mix","arm","val","unp","unm","nai"];
       if(mode==="ortho"){
         const chips=ASM_ORDER.filter(a=>d.partners[a]).map(a=>
           d.partners[a].map(p=>'<span class="chip" data-jump="'+p+'">'+a+':'+p+'</span>').join("")).join("");
+        const nAsm=Object.keys(d.partners).length;
         h+='<tr class="lrow" data-jump="'+d.id+'"><td class="lid">'+d.id+'</td><td>'+d.sp+'</td><td>'+d.fam+'</td>'
           +'<td>'+(d.nuf===2?"both":"one")+'</td>'
-          +'<td>'+(d.n===0?'<span class="muted">none (private)</span>':d.n+" assemblies")+'</td>'
+          +'<td>'+(d.n===0?'<span class="muted">none (private)</span>':(nAsm+(nAsm>1?" assemblies":" assembly")+", "+d.n+" loci"))+'</td>'
           +'<td>'+(chips||'<span class="muted">—</span>')+'</td></tr>';
       } else if(mode==="flag"){
         const cls=d.cat==="UNIQUE_SEED_CONTRADICTION"?"tagC":(d.cat==="SEED_CONFLICT_RESOLVED_AMBIGUOUS"?"tagQ":"tagS");
