@@ -2842,10 +2842,33 @@ function selectLocus(l){
 
   // Highlight in overview
   renderOverview();
+  zoomOverviewToLocus(l);
 
   // Draw detail
   drawDetailForLocus(l);
   if (typeof drawBorderMarkers === "function") drawBorderMarkers();
+}
+
+// If the selected locus would render narrower than MIN_PX at the current overview zoom,
+// it can't show its own label (see the `w > 25` guard in renderOverview) and is easy to
+// miss next to a much larger neighboring locus that DOES get a label -- zoom/pan the
+// overview to comfortably frame the selection instead of leaving that to chance.
+function zoomOverviewToLocus(l){
+  if (!svgOver || !zoomOver || !xScaleOverBase) return;
+  const MIN_PX = 60;
+  const curW = xScaleOver(l.end) - xScaleOver(l.start);
+  if (curW >= MIN_PX) return;  // already comfortably visible, leave the user's zoom/pan alone
+  const len = Math.max(1, l.end - l.start);
+  const pad = Math.max(1500, len * 4);
+  const d0 = Math.max(baseDomainOver[0], l.start - pad);
+  const d1 = Math.min(baseDomainOver[1], l.end + pad);
+  const innerW = xScaleOverBase.range()[1];
+  const b0 = xScaleOverBase(d0), b1 = xScaleOverBase(d1);
+  if (b1 <= b0) return;
+  let k = innerW / (b1 - b0);
+  k = Math.max(1, Math.min(80, k));  // matches zoomOver's scaleExtent([1,80])
+  const t = d3.zoomIdentity.scale(k).translate(-b0, 0);
+  d3.select(svgOver.node()).transition().duration(200).call(zoomOver.transform, t);
 }
 
 // Per-CLsat monomer lengths (= scan window step for each consensus)
