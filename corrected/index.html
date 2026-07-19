@@ -1214,24 +1214,48 @@ function collectTerminalTrim(result, rawSeq, genomicStart) {
 
   const monSeqOf = (arr, hit) => { let s = rawSeq.substring(hit.start, hit.end+1); if (arr.strand === '-') s = revComp(s); return s; };
 
-  // Biological 5' first monomer = reading-first hit of first array;
-  // 3' last monomer = reading-last hit of last array.
-  const firstArr = result.arrays[0];
-  const lastArr  = result.arrays[result.arrays.length-1];
-  const faHits = firstArr.hits.slice(); if (firstArr.strand === '-') faHits.reverse();
-  const laHits = lastArr.hits.slice();  if (lastArr.strand  === '-') laHits.reverse();
-  const firstHit = faHits[0];
-  const lastHit  = laHits[laHits.length-1];
+  // Left-edge / right-edge monomer = the genomically outermost hit across ALL arrays
+  // of this locus (not just arrays[0]/arrays[last] by list order). splitArraysAtTransitions()
+  // can carve one gapless tandem run into several adjacent "arrays" purely on a CLsat-type
+  // change (e.g. one CLsat4 monomer sitting between two CLsat3 stretches with ~0 bp between
+  // them) -- picking the outermost hit by LIST order can then land on an internal boundary
+  // between two of those adjacent arrays instead of the true outer edge of the whole locus,
+  // and the "genomic flank" fetched there is actually the neighboring array's own bases.
+  // Using genomic min(start)/max(end) over every hit guarantees the true outer edge instead.
+  let leftHit = null, leftArr = null, rightHit = null, rightArr = null;
+  result.arrays.forEach(arr => arr.hits.forEach(h => {
+    if (!leftHit  || h.start < leftHit.start) { leftHit = h; leftArr = arr; }
+    if (!rightHit || h.end   > rightHit.end)  { rightHit = h; rightArr = arr; }
+  }));
+  const firstArr = leftArr, firstHit = leftHit, lastArr = rightArr, lastHit = rightHit;
 
-  // 5 bp of genomic flank beyond the reading-5' edge of the first monomer and
-  // reading-3' edge of the last monomer (returned in reading orientation).
-  const flankBefore = (arr, hit) => {
-    if (arr.strand === '-') { const e = Math.min(rawSeq.length, hit.end+1+5); return revComp(rawSeq.substring(hit.end+1, e)); }
-    const s = Math.max(0, hit.start-5); return rawSeq.substring(s, hit.start);
+  // A candidate flank window is only real flank if it doesn't fall inside ANY other
+  // recognized monomer hit in this locus (guards the same failure mode as above: an
+  // adjacent split-off array sitting right at the boundary).
+  const overlapsAnotherHit = (s, e, skipHit) => result.arrays.some(a => a.hits.some(h =>
+    h !== skipHit && s < h.end + 1 && e > h.start));
+
+  // 5 bp of genomic flank immediately outside the left-edge / right-edge hit, in raw
+  // (forward-strand) genomic coordinates.
+  const flankLeftOf = (hit) => {
+    const s = Math.max(0, hit.start-5);
+    if (s === hit.start || overlapsAnotherHit(s, hit.start, hit)) return '';
+    return rawSeq.substring(s, hit.start);
   };
-  const flankAfter = (arr, hit) => {
-    if (arr.strand === '-') { const s = Math.max(0, hit.start-5); return revComp(rawSeq.substring(s, hit.start)); }
-    const e = Math.min(rawSeq.length, hit.end+1+5); return rawSeq.substring(hit.end+1, e);
+  const flankRightOf = (hit) => {
+    const e = Math.min(rawSeq.length, hit.end+1+5);
+    if (e === hit.end+1 || overlapsAnotherHit(hit.end+1, e, hit)) return '';
+    return rawSeq.substring(hit.end+1, e);
+  };
+  // Orient each flank fragment to sit next to the correct end of the monomer sequence as
+  // printed (monSeqOf already reverse-complements for '-' strand hits): on '+' the raw
+  // upstream/downstream flank IS the printed leading/trailing edge; on '-' they're swapped
+  // and need reverse-complementing to read the same direction as the printed monomer.
+  const edgeFlank = (arr, hit, rawSide) => {
+    const raw = rawSide === 'left' ? flankLeftOf(hit) : flankRightOf(hit);
+    if (!raw) return { seq: '', side: rawSide };
+    if (arr.strand === '+') return { seq: raw, side: rawSide };
+    return { seq: revComp(raw), side: rawSide === 'left' ? 'right' : 'left' };
   };
 
   // This-locus consensus (major frame): column majority of all monomers projected onto majorCons.
@@ -1247,11 +1271,28 @@ function collectTerminalTrim(result, rawSeq, genomicStart) {
 
   const sf = (typeof subfamData !== 'undefined' && subfamData && currentLocus && subfamData[currentLocus.id]) ? subfamData[currentLocus.id] : null;
 
+  const leftFlank = edgeFlank(firstArr, firstHit, 'left');
+  const rightFlank = edgeFlank(lastArr, lastHit, 'right');
+  // "no flank" can mean either a real contig edge OR an adjacent monomer suppressed by
+  // overlapsAnotherHit() -- tell those apart so the UI doesn't call a same-locus neighbor
+  // a contig edge.
+  const noFlankReason = (hit, rawSide) => {
+    const s = rawSide === 'left' ? Math.max(0, hit.start-5) : hit.end+1;
+    const e = rawSide === 'left' ? hit.start : Math.min(rawSeq.length, hit.end+1+5);
+    if (s === e) return 'contig edge';
+    if (overlapsAnotherHit(s, e, hit)) return 'adjacent monomer';
+    return null;
+  };
+
   _termTrimData = {
     domClsat, majorCons, locusCons,
     subName: sf ? sf.subfamily : null,
-    first: { seq: monSeqOf(firstArr, firstHit), flank: flankBefore(firstArr, firstHit), gStart: firstHit.start+gOff, gEnd: firstHit.end+gOff, strand: firstArr.strand, side: 'left' },
-    last:  { seq: monSeqOf(lastArr,  lastHit),  flank: flankAfter(lastArr,  lastHit),  gStart: lastHit.start+gOff,  gEnd: lastHit.end+gOff,  strand: lastArr.strand,  side: 'right' },
+    first: { seq: monSeqOf(firstArr, firstHit), flank: leftFlank.seq, flankSide: leftFlank.side,
+             noFlankReason: leftFlank.seq ? null : noFlankReason(firstHit, 'left'),
+             gStart: firstHit.start+gOff, gEnd: firstHit.end+gOff, strand: firstArr.strand, side: 'left' },
+    last:  { seq: monSeqOf(lastArr,  lastHit),  flank: rightFlank.seq, flankSide: rightFlank.side,
+             noFlankReason: rightFlank.seq ? null : noFlankReason(lastHit, 'right'),
+             gStart: lastHit.start+gOff,  gEnd: lastHit.end+gOff,  strand: lastArr.strand,  side: 'right' },
   };
 }
 
@@ -1290,14 +1331,20 @@ function renderTerminalTrim() {
             ' &mdash; covered ' + covered + '/' + consLen + ' bp (ref ' + (a.qStart+1) + '\u2013' + a.qEnd + '), ' +
             (a.identity*100).toFixed(0) + '% id, <b>trim5=' + trim5 + ' trim3=' + trim3 + '</b>' +
             ' <span style="color:#64748b;">[' + mon.gStart.toLocaleString() + '\u2013' + mon.gEnd.toLocaleString() + ' ' + mon.strand + ']</span></div>'
-    if (!flank) h = h.replace('</div>', ' <span style="color:#374151; font-style:italic;">(contig edge \u2013 no genomic flank)</span></div>');
+    if (!flank) {
+      const note = mon.noFlankReason === 'adjacent monomer'
+        ? 'adjacent monomer \u2013 not real flank, suppressed'
+        : 'contig edge \u2013 no genomic flank';
+      h = h.replace('</div>', ' <span style="color:#374151; font-style:italic;">(' + note + ')</span></div>');
+    }
 
     const flankHtml = (fl) => { let o=''; for (const ch of fl) o += '<span style="color:#4b5563;">'+ch+'</span>'; return o; };
-    // alignment column must be exactly flank-wide on BOTH rows; a contig-edge note would
+    // alignment column must be exactly flank-wide on BOTH rows; a no-flank note would
     // widen the mono row and shift it out of register, so it is reported in the header instead.
     const flankOrNote = flankHtml(flank);
+    const fSide = mon.flankSide || mon.side;
 
-    let refRow = '<span style="'+rowLabelW+'">ref</span><div style="white-space:nowrap; display:inline;">' + (mon.side==='left' ? flankPad : '');
+    let refRow = '<span style="'+rowLabelW+'">ref</span><div style="white-space:nowrap; display:inline;">' + (fSide==='left' ? flankPad : '');
     for (let i=0;i<refDisp.length;i++){
       const c=refDisp[i];
       const outsideCoverage = (i < covStart || i >= covEnd); // trimmed part of the reference: no counterpart in this monomer
@@ -1305,10 +1352,10 @@ function renderTerminalTrim() {
       else if (outsideCoverage) refRow += '<span style="color:#4b5563;" title="not covered by this monomer">'+c+'</span>';
       else refRow += '<span style="color:#9ca3af;">'+c+'</span>';
     }
-    refRow += (mon.side==='right' ? flankPad : '') + '</div>';
+    refRow += (fSide==='right' ? flankPad : '') + '</div>';
 
     let monRow = '<span style="'+rowLabelW+'">mono</span><div style="white-space:nowrap; display:inline;">';
-    if (mon.side==='left') monRow += flankOrNote + '<span style="color:#374151;">&nbsp;&nbsp;</span>';
+    if (fSide==='left') monRow += flankOrNote + '<span style="color:#374151;">&nbsp;&nbsp;</span>';
     for (let i=0;i<monDisp.length;i++){
       const b = monDisp[i];
       if (b === '-'){ monRow += '<span style="color:#374151;">-</span>'; continue; }
@@ -1318,7 +1365,7 @@ function renderTerminalTrim() {
       monRow += match ? '<span style="color:'+col+'; border-bottom:1px solid #34d399;">'+b+'</span>'
                       : '<span style="color:'+col+'; background:#2a0c0c;">'+b+'</span>';
     }
-    if (mon.side==='right') monRow += '<span style="color:#374151;">&nbsp;&nbsp;</span>' + flankOrNote;
+    if (fSide==='right') monRow += '<span style="color:#374151;">&nbsp;&nbsp;</span>' + flankOrNote;
     monRow += '</div>';
     return h + refRow + '<br>' + monRow;
   }
@@ -1326,9 +1373,11 @@ function renderTerminalTrim() {
   let html = '<div style="color:#64748b; font-size:10px; margin-bottom:4px;">Reference: <b style="color:#e5e7eb;">'+refLabel+'</b>. '
            + '<b>ref</b> row = the consensus (dim gray = part of the consensus this monomer does NOT cover \u2014 not extra/overhanging bases, just missing coverage); '
            + '<b>mono</b> row = this genomic monomer (underline = matches ref, red background = mismatch, dashes = trimmed/uncovered). '
-           + 'Dim lowercase at the ends = 5 bp of real genomic flank outside the monomer.</div>';
-  html += block("5&prime; first monomer", d.first);
-  html += block("3&prime; last monomer", d.last);
+           + 'Dim lowercase at the ends = 5 bp of genomic sequence outside this locus’s outermost recognized monomer on that '
+           + 'side (suppressed and labeled instead when that 5 bp would actually fall inside another recognized monomer — '
+           + 'which happens when a gapless run was split into adjacent sub-arrays by a CLsat-type change).</div>';
+  html += block("Left-edge monomer (genomic)", d.first);
+  html += block("Right-edge monomer (genomic)", d.last);
   host.innerHTML = html;
 }
 
@@ -3941,17 +3990,25 @@ function bindEndsFlanksUI(){
   </ul>
 
   <h3>Terminal monomers vs reference</h3>
-  <p>Shown <b>below</b> the monomer analysis. It asks a narrow question: does the array <i>begin</i> and <i>end</i> on a
-  whole monomer, or is the first/last monomer only partial?</p>
+  <p>Shown <b>below</b> the monomer analysis. It asks a narrow question: does this locus's outermost recognized
+  monomer on each side <i>begin</i> and <i>end</i> on a whole monomer, or is it only partial? The two panels are the
+  <b>left-edge</b> and <b>right-edge</b> monomer <i>by genomic position</i> — the hit with the smallest start and the
+  hit with the largest end across every array of the locus, not simply the first/last array in list order (a locus can
+  have several arrays, and one array of a different CLsat type can sit right next to another with almost no gap; using
+  list order there can pick an internal boundary instead of the true outer edge).</p>
   <ul>
     <li>Pick the reference: <b>sub-subfamily</b>, <b>subfamily</b>, or <b>this-locus</b> consensus.</li>
     <li><code>ref</code> row = the reference consensus. Dim grey = positions this monomer does <b>not</b> cover
       (missing coverage &mdash; not extra bases).</li>
     <li><code>mono</code> row = the actual genomic monomer. Underlined = matches the reference; red background = mismatch.</li>
     <li><code>trim5</code> / <code>trim3</code> = how many reference bases are missing from the start / end. Both zero
-      means the terminal monomer is complete under the current rotation convention.</li>
-    <li>Dim lowercase at the outer edge = 5&nbsp;bp of real genomic flank <i>outside</i> the array. If the array runs into
-      a contig edge there is no flank, and the header says <i>(contig edge)</i>.</li>
+      means the terminal monomer is complete under the current rotation convention — this is the normal case for a
+      full-length copy and does not by itself imply anything is wrong, even when identity to the reference is well
+      below 100%.</li>
+    <li>Dim lowercase at the outer edge = 5&nbsp;bp of genomic sequence outside this locus's outermost monomer on that
+      side. If that 5&nbsp;bp would actually fall inside another recognized monomer of the same locus (an adjacent
+      array, not real flank), it is suppressed and the header says <i>(adjacent monomer)</i> instead of showing it. A
+      true contig edge (no sequence at all past the array) says <i>(contig edge)</i>.</li>
   </ul>
   <p><b>Caveat worth remembering:</b> a tandem monomer has no intrinsic start. &ldquo;Complete&rdquo; and &ldquo;partial&rdquo;
   are relative to the chosen rotation convention, not a biological landmark.</p>
