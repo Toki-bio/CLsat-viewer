@@ -1484,13 +1484,12 @@ function renderTerminalTrim() {
       return h;
     }
     const aln = monomerAln(E.mon.seq);
-    const complete = (aln.trim5 === 0 && aln.trim3 === 0);
+    const covLen = consLen - aln.trim5 - aln.trim3;
     h += '<div style="color:#64748b; font-size:10px; margin-bottom:1px;">'
        + (side==='left' ? 'first' : 'last') + ' monomer '
        + '<span>['+E.mon.gStart.toLocaleString()+'–'+E.mon.gEnd.toLocaleString()+' '+E.mon.strand+']</span> — '
-       + (aln.identity*100).toFixed(0)+'% id, <b>trim5='+aln.trim5+' trim3='+aln.trim3+'</b> '
-       + (complete ? '<span style="color:#34d399;">(complete monomer)</span>'
-                   : '<span style="color:#fbbf24;">(partial — '+(aln.trim5+aln.trim3)+' consensus bp uncovered)</span>')
+       + (aln.identity*100).toFixed(0)+'% id, aligns to consensus '+(aln.trim5+1)+'–'+(consLen-aln.trim3)+' of '+consLen+' bp'
+       + (aln.trim5||aln.trim3 ? ' <span style="color:#64748b;">('+aln.trim5+' bp / '+aln.trim3+' bp of the consensus frame unaligned at the two ends)</span>' : '')
        + '</div>' + aln.html;
     return h;
   }
@@ -1498,8 +1497,8 @@ function renderTerminalTrim() {
   let html = '<div style="color:#64748b; font-size:10px; margin-bottom:4px;">'
            + 'The two ends of catalogue locus <b style="color:#93c5fd;">'+(d.locusId||'')+'</b>, anchored to its stored boundaries (not the fetched fragment). '
            + 'Each end states whether the array <b>breaks into flank</b> or <b>abuts another satellite</b> (split locus), from the precomputed flank class. '
-           + 'Trim rows use reference <b style="color:#e5e7eb;">'+refLabel+'</b> (ref = consensus, dim grey = uncovered; mono underline = match, red = mismatch; '
-           + 'trim5/trim3 = consensus bases missing at each end — both zero means the terminal monomer is complete).</div>';
+           + 'The alignment rows below use reference <b style="color:#e5e7eb;">'+refLabel+'</b> (ref = consensus, dim grey = uncovered; mono underline = match, red = mismatch). '
+           + 'The coverage span is descriptive only — not a complete/partial-monomer call (a tandem monomer has no intrinsic start).</div>';
   html += endBlock('Left end (locus start) — first monomer', d.left, 'left');
   html += endBlock('Right end (locus end) — last monomer', d.right, 'right');
   host.innerHTML = html;
@@ -4169,16 +4168,19 @@ function bindEndsFlanksUI(){
       (<b>sub-subfamily</b> / <b>subfamily</b> / <b>this-locus</b> consensus): <code>ref</code> row = consensus (dim grey
       = positions this monomer does not cover), <code>mono</code> row = the genomic monomer (underline = match, red =
       mismatch).</li>
-    <li><code>trim5</code> / <code>trim3</code> = reference bases missing at each end; both zero &rArr; a complete
-      monomer (normal for a full-length copy, even at well under 100% identity). Non-zero &rArr; the array ends on a
-      partial monomer.</li>
+    <li>The header reports which consensus positions the edge monomer aligns to (e.g. &ldquo;aligns to consensus
+      1&ndash;146 of 146 bp&rdquo;). This is <b>purely descriptive coverage</b> &mdash; it is <u>not</u> a
+      &ldquo;complete vs partial monomer&rdquo; call. A tandem monomer has no intrinsic start, so the consensus only
+      fixes an arbitrary reading frame; unaligned bases at an end usually just mean the edge monomer is phased
+      differently or diverges locally, not that a fractional repeat was found. Treat the numbers as a rough coverage
+      readout, nothing more.</li>
     <li>If you have zoomed into the middle of a large locus so an end lies outside the analysed window, that block says
       so and points you at the <b>Start border</b> / <b>End border</b> / <b>Full locus</b> buttons &mdash; click one and
       re-run Analyze Monomers to bring the end into view.</li>
   </ul>
-  <p><b>Caveat worth remembering:</b> a tandem monomer has no intrinsic start; &ldquo;complete&rdquo; vs
-  &ldquo;partial&rdquo; is relative to the chosen consensus rotation, not a biological landmark. The <i>break</i> verdict
-  (flank vs next satellite), however, is a real property of the locus boundary.</p>
+  <p><b>What is solid here vs not:</b> the <i>break</i> verdict (flank vs next satellite vs contig edge) is a real
+  property of the locus boundary and is the point of this panel. The monomer-coverage numbers are only a descriptive
+  aid &mdash; do not read them as a biological complete/partial classification.</p>
 
   <h3>Inspection lists</h3>
   <p>Three sets, opened from the buttons in the sidebar. In all three, <b>clicking any row opens that locus</b>, and
