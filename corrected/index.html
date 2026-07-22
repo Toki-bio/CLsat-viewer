@@ -166,6 +166,12 @@
   .msaBlock .msaGap{color:#444;}
   .msaBlock .msaCons{color:#9ca3af;}
   .msaBlock .msaIdent{color:#666; font-size:9px; margin-left:4px;}
+  .flankGroup{display:inline-block;}
+  .flankPill{display:inline-block; background:#12151f; color:#7c8494; border:1px solid #232c3d; border-radius:3px; padding:0 5px; margin:0 2px; font-size:9px; cursor:pointer; user-select:none; white-space:nowrap; vertical-align:middle;}
+  .flankPill:hover{background:#1a2030; color:#a8b3c7;}
+  .flankFull{display:none; cursor:pointer;}
+  .flankGroup.expanded .flankFull{display:inline;}
+  .flankGroup.expanded .flankPill{display:none;}
   /* Species button bar */
   .speciesBar{display:flex; gap:4px; flex-wrap:wrap; margin:4px 0;}
   .speciesBar .spBtn{padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; background:#0b1220; border:1px solid #243044; color:var(--muted); transition:all 0.15s;}
@@ -1528,6 +1534,22 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
     if (b === c) return '<span class="msaBase msaMatch"' + t + '>' + b + '</span>';
     return '<span class="msaBase msaMismatch"' + t + ' style="background:#2a0c0c; color:' + (ntCol[b]||'#888') + ';">' + b + '</span>';
   }
+
+  // Collapse a run of boundary flank bases into a clickable pill; short runs
+  // (<=FLANK_COLLAPSE_THRESH) are shown in full since there's nothing to gain
+  // from collapsing them. distFn(k) gives the tooltip offset for base k.
+  const FLANK_COLLAPSE_THRESH = 20;
+  function flankGroupHTML(seqStr, distFn) {
+    if (!seqStr.length) return '';
+    let full = '';
+    for (let k = 0; k < seqStr.length; k++) full += baseSpan(seqStr[k], '', 'flank', 'flank ' + distFn(k));
+    if (seqStr.length <= FLANK_COLLAPSE_THRESH) return full;
+    const preview = seqStr.slice(0, 6).toLowerCase();
+    return '<span class="flankGroup">'
+         + '<span class="flankPill" title="click to expand ' + seqStr.length + 'bp flank">' + preview + '…(' + seqStr.length + 'bp)</span>'
+         + '<span class="flankFull" title="click to collapse">' + full + '</span>'
+         + '</span>';
+  }
   const sepSpan = '<span class="msaBase" style="color:#f59e0b; font-weight:bold;">\u2502</span>';
 
   let html = '';
@@ -2057,10 +2079,7 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
       if (row.isFirst && nBefore > 0) {
         const padCount = nBefore - row.flankLeftStr.length;
         for (let k = 0; k < padCount; k++) html += '<span class="msaBase"> </span>';
-        for (let k = 0; k < row.flankLeftStr.length; k++) {
-          const dist = -(row.flankLeftStr.length - k);
-          html += baseSpan(row.flankLeftStr[k], '', 'flank', 'flank ' + dist);
-        }
+        html += flankGroupHTML(row.flankLeftStr, k => -(row.flankLeftStr.length - k));
         html += sepSpan;
       } else if (nBefore > 0) {
         for (let k = 0; k < nBefore; k++) html += '<span class="msaBase"> </span>';
@@ -2087,9 +2106,7 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
       // Right flank columns (only for isLast)
       if (row.isLast && nAfter > 0) {
         if (!row.monOverRight.length) html += sepSpan;
-        for (let k = 0; k < row.flankRightStr.length; k++) {
-          html += baseSpan(row.flankRightStr[k], '', 'flank', 'flank +' + (k+1));
-        }
+        html += flankGroupHTML(row.flankRightStr, k => (k+1));
         const padCount = nAfter - row.flankRightStr.length;
         for (let k = 0; k < padCount; k++) html += '<span class="msaBase"> </span>';
       } else if (nAfter > 0 && !row.monOverRight.length) {
@@ -2110,6 +2127,21 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
   });
 
   container.innerHTML = html;
+
+  // Wire flank pill expand/collapse (click pill to show full bases, click
+  // the expanded run to collapse it back)
+  container.querySelectorAll('.flankPill').forEach(pill => {
+    pill.addEventListener('click', (e) => {
+      e.stopPropagation();
+      pill.closest('.flankGroup').classList.add('expanded');
+    });
+  });
+  container.querySelectorAll('.flankFull').forEach(full => {
+    full.addEventListener('click', (e) => {
+      e.stopPropagation();
+      full.closest('.flankGroup').classList.remove('expanded');
+    });
+  });
 
   // Store FASTA data for copy button (all arrays combined)
   const fastaBtn = document.getElementById('copyFastaAlnBtn');
