@@ -158,7 +158,8 @@
   .msaBlock .msaRow{white-space:nowrap; height:1.15em; cursor:default;}
   .msaBlock .msaRow.hl{background:#1a1a3a;}
   .msaBlock .msaRow.dim{opacity:0.3;}
-  .msaBlock .msaName{color:#9ca3af; display:inline-block; width:26ch; text-align:left; flex-shrink:0; overflow:hidden; text-overflow:ellipsis;}
+  .msaBlock .msaName{color:#9ca3af; display:inline-block; width:26ch; text-align:left; flex-shrink:0; overflow:hidden; text-overflow:ellipsis; position:sticky; left:0; z-index:2; background:#070b12;}
+  .msaBlock .msaRow.hl .msaName{background:#1a1a3a;}
   .msaBlock .msaBase{display:inline-block; width:1ch; text-align:center;}
   .msaBlock .msaMatch{background:#0c2a0c; color:#34d399;}
   .msaBlock .msaMismatch{font-weight:bold;}
