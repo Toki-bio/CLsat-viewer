@@ -2528,10 +2528,17 @@ function populateLocusTable(){
     let va = a[col], vb = b[col];
     if (col === 'len') return (va - vb) * dir;
     if (col === 'id') {
-      // Natural sort: L1, L2, ... L10, L11
-      const na = parseInt(va.replace(/\D/g,'')) || 0;
-      const nb = parseInt(vb.replace(/\D/g,'')) || 0;
-      return (na - nb) * dir;
+      // Natural sort: L1, L2, L2.1, L2.2, L3, ... L12, L13, L13.1, L13.2, L14
+      // (main locus number and .segment number parsed and compared separately --
+      // stripping all non-digits and parsing as one int, the previous approach,
+      // silently concatenates "13" and "2" into "132" and sorts L13.2 next to L132)
+      const parseLocusId = (s) => {
+        const m = /^\D*(\d+)(?:\.(\d+))?/.exec(s);
+        return m ? [parseInt(m[1], 10), m[2] ? parseInt(m[2], 10) : 0] : [0, 0];
+      };
+      const [na, sa] = parseLocusId(va);
+      const [nb, sb] = parseLocusId(vb);
+      return ((na - nb) || (sa - sb)) * dir;
     }
     if (typeof va === 'string') va = va.toLowerCase();
     if (typeof vb === 'string') vb = vb.toLowerCase();
