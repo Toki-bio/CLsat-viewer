@@ -3432,7 +3432,7 @@ function bindUIOnce(){
     const wrap = document.querySelector('.wrap');
     wrap.classList.toggle('collapsed');
     document.getElementById('collapseBtn').textContent = wrap.classList.contains('collapsed') ? '\u00bb' : '\u00ab';
-    setTimeout(() => { drawOverview(); if (currentLocus) drawDetail(); }, 250);
+    setTimeout(() => { drawOverview(); if (currentLocus) drawDetailForLocus(currentLocus); }, 250);
   });
 
   document.getElementById("resetBtn").addEventListener("click", ()=>{
@@ -3474,8 +3474,30 @@ function bindUIOnce(){
       if (!changed) return;
       clearTimeout(t);
       t = setTimeout(() => {
-        try { drawOverview(); } catch(e){}
-        try { if (currentLocus) drawDetail(); } catch(e){}
+        // NB: the redraw entry point is drawDetailForLocus(locus) -- there is no drawDetail().
+        // An earlier version called drawDetail() inside a catch-all, so the ReferenceError was
+        // swallowed and resizing appeared to do nothing. Log failures rather than hide them.
+        try { drawOverview(); } catch(err){ console.warn("overview redraw failed:", err); }
+        try {
+          if (currentLocus){
+            // drawDetailForLocus() rebuilds the SVG and resets the zoom to identity, which
+            // would throw away the user's zoom on every resize tick. Capture the visible
+            // domain first and re-apply it as an equivalent zoom transform afterwards, so a
+            // resize changes the chart's SIZE and nothing else.
+            const prev = (xScaleDetail && currentLocus._windows) ? xScaleDetail.domain().slice() : null;
+            drawDetailForLocus(currentLocus);
+            if (prev && xScaleDetailBase && svgDetail && zoomDetail){
+              const [a, b] = prev;
+              const pxA = xScaleDetailBase(a), pxB = xScaleDetailBase(b);
+              const innerW = xScaleDetailBase.range()[1];
+              if (pxB - pxA > 1){
+                const k = innerW / (pxB - pxA);
+                svgDetail.call(zoomDetail.transform,
+                               d3.zoomIdentity.scale(k).translate(-pxA, 0));
+              }
+            }
+          }
+        } catch(err){ console.warn("detail redraw failed:", err); }
       }, 120);
     });
     ["chartOverview","chartDetail"].forEach(id => {
