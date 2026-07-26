@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
 <meta http-equiv="Pragma" content="no-cache" />
 <meta http-equiv="Expires" content="0" />
-<title>[corrected 626-locus catalogue] CLsat Locus Detail Viewer – Per-window Bitscores</title>
+<title>[corrected 627-locus catalogue] CLsat Locus Detail Viewer – Per-window Bitscores</title>
 
 <!-- D3.js - load from CDN -->
 <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
@@ -508,7 +508,7 @@ for (const [cl, ct] of Object.entries(CLUSTER_TO_CLSAT)) {
   CLSAT_TO_CLUSTERS[ct].push(cl);
 }
 
-const VIEWER_VERSION = "v2.11-626loci-ui-20260726";
+const VIEWER_VERSION = "v2.12-627loci-20260726";
 console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
 // Show version in UI header
 document.addEventListener('DOMContentLoaded', () => {
@@ -4347,7 +4347,7 @@ function bindEndsFlanksUI(){
       (2 loci). The &ldquo;Orthologous to&rdquo; column reads <i>distinct assemblies, then total partner loci</i>,
       because one locus can have several partner loci inside the same assembly. Positional conservation does not imply
       conserved content &mdash; many orthologous positions carry a <i>different</i> CLsat family in the two lineages.</li>
-    <li><b>Flank orthology table</b> &mdash; the full per-locus table for <b>all 626</b> loci (every assembly), with the
+    <li><b>Flank orthology table</b> &mdash; the full per-locus table for <b>all 627</b> loci (every assembly), with the
       sub-subfamily call and both flanks' cross-assembly orthology status. Filter by anchorable / has-ortholog /
       both-sided / same- vs different-family partner. L and R badges give each flank's class (blue = unique/anchorable,
       amber = low-complexity, grey = truncated, pink = satellite-adjacent, purple = telomeric); a red-bordered partner
@@ -4431,7 +4431,7 @@ const ASM_ORDER = ["mix","arm","val","unp","unm","nai"];
       ["sc","Seed-conflict", d=>d.cat==="SEED_CONFLICT_RESOLVED_AMBIGUOUS"]
     ],
     full:[
-      ["all","All loci (626)", d=>true],
+      ["all","All loci (627)", d=>true],
       ["anchor","Anchorable (≥1 unique flank)", d=>d.lfc==="unique"||d.rfc==="unique"],
       ["ortho","Has ortholog", d=>d.ortho],
       ["both","Both-sided (full homology)", d=>d.both],
@@ -4442,7 +4442,7 @@ const ASM_ORDER = ["mix","arm","val","unp","unm","nai"];
   const NOTES={
     ortho:"Positional orthology from unique flanking sequence (≥80% identity, ≥200 bp), single best hit per target assembly. \"Orthologous to\" lists distinct partner assemblies then the total partner-locus count (one locus can have several partner loci in the same assembly). Click a row to open the locus; click a partner chip to jump to that partner in another assembly.",
     flag:"28 loci annotated by arbitration. Only L186 is a genuine seed/rescan contradiction — treat it as the one open question here. The rest are not errors: 26 are close-margin family calls under a flat 15-bit cutoff (Δ varies widely beneath that line — sort by Δ to see it), and L540 is confidently resolved (Δ 49.4) but flagged only for lacking an initial seed. Δ = bitscore margin between the seed call and its strongest competitor.",
-    full:"Every locus (626, all six assemblies) with its sub-subfamily call and both flanks' cross-assembly orthology status (ssearch36, ≥80% identity, ≥200 bp, single best hit per target assembly). L/R badges show each flank's class (blue=unique/anchorable, amber=lowcomplex, grey=truncated, pink=satellite-adjacent, purple=telomeric). \"Both-sided\" = the pair is corroborated by evidence sourced from both an L- and an R-flank hit (matches Fig. 3's 18 both-sided pairs). Red-bordered partner chips mark loci independently confirmed orthologous by flank sequence where the two assemblies carry a different CLsat family at that position — see Discussion. Click a locus or a partner chip to jump to it."
+    full:"Every locus (627, all six assemblies) with its sub-subfamily call and both flanks' cross-assembly orthology status (ssearch36, ≥80% identity, ≥200 bp, single best hit per target assembly). L/R badges show each flank's class (blue=unique/anchorable, amber=lowcomplex, grey=truncated, pink=satellite-adjacent, purple=telomeric). \"Both-sided\" = the pair is corroborated by evidence sourced from both an L- and an R-flank hit (matches Fig. 3's 18 both-sided pairs). Red-bordered partner chips mark loci independently confirmed orthologous by flank sequence where the two assemblies carry a different CLsat family at that position — see Discussion. Click a locus or a partner chip to jump to it."
   };
   function jump(id){ try{ jumpToLocusId(id); }catch(e){ console.warn(e); } modal.classList.remove("open"); }
   function openList(m){
