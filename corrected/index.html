@@ -508,7 +508,7 @@ for (const [cl, ct] of Object.entries(CLUSTER_TO_CLSAT)) {
   CLSAT_TO_CLUSTERS[ct].push(cl);
 }
 
-const VIEWER_VERSION = "v2.18-contigedge-20260727";
+const VIEWER_VERSION = "v2.19-clip-20260727";
 console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
 // Show version in UI header
 document.addEventListener('DOMContentLoaded', () => {
@@ -2664,7 +2664,10 @@ function initOverviewChart(){
   svgOver = d3.select("#chartOverview").append("svg").attr("width", w).attr("height", h);
   gMainOver = svgOver.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
   gMainOver.append("rect").attr("x",0).attr("y",0).attr("width",innerW).attr("height",innerH).attr("fill","#070b12");
-  gBarsOver = gMainOver.append("g").attr("class","bars");  // bars layer
+  svgOver.append("defs").append("clipPath").attr("id","overPlotClip")
+    .append("rect").attr("x",0).attr("y",0).attr("width",innerW).attr("height",innerH);
+  gBarsOver = gMainOver.append("g").attr("class","bars")   // bars layer, clipped as above
+    .attr("clip-path","url(#overPlotClip)");
   gLociOver = gMainOver.append("g").attr("class","loci");  // locus outlines on top
   gAxisOver = svgOver.append("g").attr("transform", `translate(${margin.left},${margin.top + innerH})`);
 
@@ -2973,7 +2976,13 @@ function initDetailChart(){
   svgDetail = d3.select("#chartDetail").append("svg").attr("width", w).attr("height", h);
   gMainDetail = svgDetail.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
   gMainDetail.append("rect").attr("x",0).attr("y",0).attr("width",innerW).attr("height",innerH).attr("fill","#070b12");
-  gBarsDetail = gMainDetail.append("g").attr("class","bars");
+  // Bars are centred on their window position (x - barW/2), so at low window counts barW gets
+  // wide enough that the first and last bars spill outside the plot and paint over the y-axis
+  // and its tick labels. Clip the bar layer to the plot rectangle.
+  svgDetail.append("defs").append("clipPath").attr("id","detailPlotClip")
+    .append("rect").attr("x",0).attr("y",0).attr("width",innerW).attr("height",innerH);
+  gBarsDetail = gMainDetail.append("g").attr("class","bars")
+    .attr("clip-path","url(#detailPlotClip)");
   gAxisDetail = svgDetail.append("g").attr("transform", `translate(${margin.left},${margin.top + innerH})`);
 
   // Y axis group
