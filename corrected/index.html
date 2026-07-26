@@ -508,7 +508,7 @@ for (const [cl, ct] of Object.entries(CLUSTER_TO_CLSAT)) {
   CLSAT_TO_CLUSTERS[ct].push(cl);
 }
 
-const VIEWER_VERSION = "v2.14-overview-flanks-20260727";
+const VIEWER_VERSION = "v2.15-scanlimit-20260727";
 console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
 // Show version in UI header
 document.addEventListener('DOMContentLoaded', () => {
@@ -3138,8 +3138,12 @@ function drawDetailForLocus(l){
     // A window outside this locus is only "flank" if it has no scanned satellite data of its
     // own. If it came from the main tracks it belongs to the neighbouring locus and is real
     // satellite: show it in family colour, dimmed, so the boundary is legible either way.
-    w.neighbour = w.outside && w.hasMain && w.best >= SAT_BITS;
-    w.noise     = !w.neighbour && (w.outside || w.best < SAT_BITS);
+    // Grey must mean ONE thing: below the satellite floor. Previously any window outside the
+    // locus was forced grey even when it scored well over the floor, so real signal sitting
+    // just beyond a called boundary was painted as "noise" and read as a hidden grey locus.
+    w.signal    = w.best >= SAT_BITS;
+    w.neighbour = w.outside && w.signal;   // real satellite, but not part of this locus
+    w.noise     = !w.signal;
   }
   kpiWindows.textContent = windows.filter(w => !w.outside).length;
 
@@ -3946,14 +3950,26 @@ function drawBorderMarkers(){
     {pos: l.start, label: "array start", col: "#22d3ee"},
     {pos: l.end,   label: "array end",   col: "#f472b6"},
   ];
+  // Where the flank scan stops. Beyond these the chart is black because nothing was
+  // scanned, which is a different statement from "scanned, nothing there" -- without the
+  // marker the two are indistinguishable and the scan edge looks like a data cliff.
+  const fw = (flankWindowByScaffold.get(l.scf) || [])
+    .filter(r => r.pos >= xmin && r.pos <= xmax).map(r => r.pos);
+  if (fw.length){
+    const lo = Math.min(...fw), hi = Math.max(...fw);
+    if (lo < l.start) marks.push({pos: lo, label: "scan limit", col: "#94a3b8", dim: true});
+    if (hi > l.end)   marks.push({pos: hi, label: "scan limit", col: "#94a3b8", dim: true});
+  }
   for (const m of marks){
     if (m.pos < xmin + edgeMargin || m.pos > xmax - edgeMargin) continue;
     const x = xScaleDetail(m.pos);
     gMainDetail.append("line").attr("class","border")
       .attr("x1",x).attr("x2",x).attr("y1",0).attr("y2",innerH)
-      .attr("stroke",m.col).attr("stroke-width",2).attr("stroke-dasharray","4,3");
+      .attr("stroke",m.col).attr("stroke-width",m.dim?1:2)
+      .attr("stroke-dasharray",m.dim?"2,4":"4,3").attr("opacity",m.dim?0.8:1);
     gMainDetail.append("text").attr("class","borderLbl")
-      .attr("x",x+3).attr("y",12).attr("fill",m.col).attr("font-size","10px")
+      .attr("x",x+3).attr("y",m.dim?24:12).attr("fill",m.col).attr("font-size","10px")
+      .attr("opacity",m.dim?0.85:1)
       .text(m.label);
   }
 }
