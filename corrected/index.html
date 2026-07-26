@@ -508,7 +508,7 @@ for (const [cl, ct] of Object.entries(CLUSTER_TO_CLSAT)) {
   CLSAT_TO_CLUSTERS[ct].push(cl);
 }
 
-const VIEWER_VERSION = "v2.12-627loci-20260726";
+const VIEWER_VERSION = "v2.13-neighbour-edge-20260727";
 console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
 // Show version in UI header
 document.addEventListener('DOMContentLoaded', () => {
@@ -2876,14 +2876,17 @@ function renderOverview(){
   eEnt.append("rect").attr("class", "ceBand");
   eEnt.append("text").attr("class", "ceLabel");
   const eAll = eEnt.merge(eSel);
+  // A 6 px opaque band hid ~6 px of real bars at the edge, and the label sat at y=12 INSIDE
+  // the plot, printing over the histogram. Use a thin translucent rule on the exact scaffold
+  // coordinate, and lift the label into the top margin so it never covers data.
   eAll.select("rect.ceBand")
-    .attr("x", d => xScaleOver(d.x) - (d.side === "start" ? 0 : 6))
-    .attr("width", 6)
+    .attr("x", d => xScaleOver(d.x) - (d.side === "start" ? 0 : 2))
+    .attr("width", 2)
     .attr("y", 0).attr("height", innerH)
-    .attr("fill", "#ff5c5c").attr("opacity", 0.85);
+    .attr("fill", "#ff5c5c").attr("opacity", 0.55);
   eAll.select("text.ceLabel")
-    .attr("x", d => xScaleOver(d.x) + (d.side === "start" ? 10 : -10))
-    .attr("y", 12)
+    .attr("x", d => xScaleOver(d.x) + (d.side === "start" ? 6 : -6))
+    .attr("y", -6)
     .attr("text-anchor", d => d.side === "start" ? "start" : "end")
     .attr("fill", "#ff8f8f").attr("font-size", "10px").attr("font-weight", "600")
     .text("CONTIG EDGE");
@@ -3088,7 +3091,16 @@ function drawDetailForLocus(l){
   const flankBits = (flankWindowByScaffold.get(l.scf) || []).filter(
     r => (r.pos >= l.start - FLANK_VIEW && r.pos < l.start) ||
          (r.pos > l.end && r.pos <= l.end + FLANK_VIEW));
-  const data = inLocus.concat(flankBits);
+  // Windows from the MAIN tracks that fall in the flank view but outside this locus belong
+  // to a NEIGHBOURING locus -- for a segmented array the piece next door is real satellite,
+  // not flank. Previously these were dropped, so the space beside a segment boundary was
+  // blank and looked like missing data. Include them, tagged so they render as context.
+  const neighbourBits = scfData.filter(
+    r => (r.pos >= l.start - FLANK_VIEW && r.pos < l.start) ||
+         (r.pos > l.end && r.pos <= l.end + FLANK_VIEW));
+  const data = inLocus
+    .concat(neighbourBits.map(r => ({...r, _src: 'main'})))
+    .concat(flankBits.map(r => ({...r, _src: 'flank'})));
 
   if (!inLocus.length){
     kpiWindows.textContent = "0";
@@ -3103,9 +3115,11 @@ function drawDetailForLocus(l){
   for (const r of data){
     const binPos = Math.round(r.pos / WINDOW_STEP) * WINDOW_STEP;
     if (!byBin.has(binPos)){
-      byBin.set(binPos, {pos: binPos, CLsat1: 0, CLsat2: 0, CLsat3: 0, CLsat4: 0});
+      byBin.set(binPos, {pos: binPos, CLsat1: 0, CLsat2: 0, CLsat3: 0, CLsat4: 0,
+                         hasMain: false, hasFlank: false});
     }
     const bin = byBin.get(binPos);
+    if (r._src === 'flank') bin.hasFlank = true; else bin.hasMain = true;
     if (r.bits > bin[r.clsat]) bin[r.clsat] = r.bits;
   }
 
@@ -3114,9 +3128,13 @@ function drawDetailForLocus(l){
   // Mark each window: outside the locus (flank), or inside but below the satellite
   // threshold (an internal break). Both are drawn grey as NOISE.
   for (const w of windows){
-    w.outside = (w.pos < l.start || w.pos > l.end);
-    w.best    = Math.max(w.CLsat1, w.CLsat2, w.CLsat3, w.CLsat4);
-    w.noise   = w.outside || w.best < SAT_BITS;
+    w.outside   = (w.pos < l.start || w.pos > l.end);
+    w.best      = Math.max(w.CLsat1, w.CLsat2, w.CLsat3, w.CLsat4);
+    // A window outside this locus is only "flank" if it has no scanned satellite data of its
+    // own. If it came from the main tracks it belongs to the neighbouring locus and is real
+    // satellite: show it in family colour, dimmed, so the boundary is legible either way.
+    w.neighbour = w.outside && w.hasMain && w.best >= SAT_BITS;
+    w.noise     = !w.neighbour && (w.outside || w.best < SAT_BITS);
   }
   kpiWindows.textContent = windows.filter(w => !w.outside).length;
 
@@ -3183,7 +3201,8 @@ function renderDetail(){
       barData.push({pos: w.pos, clsat: "noise", bits: w.best, noise: true,
                     outside: w.outside});
     } else {
-      const items = CLSATS.map(c => ({pos: w.pos, clsat: c, bits: w[c], noise: false}));
+      const items = CLSATS.map(c => ({pos: w.pos, clsat: c, bits: w[c], noise: false,
+                                      neighbour: !!w.neighbour}));
       items.sort((a,b) => b.bits - a.bits);   // tallest drawn first = behind
       barData.push(...items);
     }
@@ -3202,10 +3221,12 @@ function renderDetail(){
     .attr("y", d => yScale(Math.min(d.bits, maxBits)))
     .attr("height", d => Math.max(0, innerH - yScale(Math.min(d.bits, maxBits))))
     .attr("fill", d => d.noise ? NOISE_COLOR : (CLSAT_COLORS[d.clsat] || "#888"))
-    .attr("opacity", d => d.noise ? 0.55 : 1);
+    // neighbour = real satellite belonging to the adjacent locus; dimmed so it reads as
+    // context rather than part of the selected locus.
+    .attr("opacity", d => d.noise ? 0.55 : (d.neighbour ? 0.4 : 1));
   all.select("title").text(d => d.noise
     ? `${d.outside ? "flank" : "internal break"} — background pos=${d.pos} best bits=${fmt(d.bits)} (below ${SAT_BITS} = noise)`
-    : `${d.clsat} pos=${d.pos} bits=${fmt(d.bits)}`);
+    : `${d.clsat} pos=${d.pos} bits=${fmt(d.bits)}${d.neighbour ? " — adjacent locus" : ""}`);
 
   // Bars are OVERLAID (not stacked) and opaque, so z-order is what makes all four families
   // visible: the tallest must be painted first and the shortest last. A keyed data join
