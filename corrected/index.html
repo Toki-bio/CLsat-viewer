@@ -508,7 +508,7 @@ for (const [cl, ct] of Object.entries(CLUSTER_TO_CLSAT)) {
   CLSAT_TO_CLUSTERS[ct].push(cl);
 }
 
-const VIEWER_VERSION = "v2.16-scanlimit-20260727";
+const VIEWER_VERSION = "v2.17-edgegap-20260727";
 console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
 // Show version in UI header
 document.addEventListener('DOMContentLoaded', () => {
@@ -3093,9 +3093,13 @@ function drawDetailForLocus(l){
   // indistinguishable from "never scanned".
   // NB: named flankBits, NOT flankData — there is already a global `flankData`
   // (locus -> {LF,RF,...}) and shadowing it here would be a trap for the next reader.
+  // Take the whole flank-view span, not just strictly-outside positions. The flank scan now
+  // reaches ~300 bp back INSIDE each array edge, because a scan can only place a window whose
+  // full width fits in its interval and so always stopped ~2 monomers short of the boundary,
+  // leaving a black gap beside every locus. Those inward windows are real locus sequence and
+  // are classified as inside by the usual bounds test below.
   const flankBits = (flankWindowByScaffold.get(l.scf) || []).filter(
-    r => (r.pos >= l.start - FLANK_VIEW && r.pos < l.start) ||
-         (r.pos > l.end && r.pos <= l.end + FLANK_VIEW));
+    r => r.pos >= l.start - FLANK_VIEW && r.pos <= l.end + FLANK_VIEW);
   // Windows from the MAIN tracks that fall in the flank view but outside this locus belong
   // to a NEIGHBOURING locus -- for a segmented array the piece next door is real satellite,
   // not flank. Previously these were dropped, so the space beside a segment boundary was
