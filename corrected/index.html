@@ -508,7 +508,7 @@ for (const [cl, ct] of Object.entries(CLUSTER_TO_CLSAT)) {
   CLSAT_TO_CLUSTERS[ct].push(cl);
 }
 
-const VIEWER_VERSION = "v2.13-neighbour-edge-20260727";
+const VIEWER_VERSION = "v2.14-overview-flanks-20260727";
 console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
 // Show version in UI header
 document.addEventListener('DOMContentLoaded', () => {
@@ -2697,8 +2697,13 @@ function drawOverview(){
   kpiLoci.textContent = all.length;
   kpiVis.textContent = arr.length;
 
-  // Get per-window data for this scaffold
-  const scfData = perWindowByScaffold.get(scf) || [];
+  // Get per-window data for this scaffold.
+  // Include the FLANK track too: those windows were scanned and score below the satellite
+  // floor, so they belong on the chart as background. Without them the space between loci
+  // rendered as empty black, which reads as "never examined" when it actually means "examined
+  // and nothing there" -- the same distinction the flank scan exists to make.
+  const scfData = (perWindowByScaffold.get(scf) || [])
+    .concat(flankWindowByScaffold.get(scf) || []);
   
   // Group by uniform display bins — snap all CLsat positions to a common grid
   // so bars from different CLsats at the same genomic region are grouped together
