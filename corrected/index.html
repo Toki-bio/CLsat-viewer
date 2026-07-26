@@ -508,7 +508,7 @@ for (const [cl, ct] of Object.entries(CLUSTER_TO_CLSAT)) {
   CLSAT_TO_CLUSTERS[ct].push(cl);
 }
 
-const VIEWER_VERSION = "v2.15-scanlimit-20260727";
+const VIEWER_VERSION = "v2.16-scanlimit-20260727";
 console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
 // Show version in UI header
 document.addEventListener('DOMContentLoaded', () => {
@@ -3953,12 +3953,28 @@ function drawBorderMarkers(){
   // Where the flank scan stops. Beyond these the chart is black because nothing was
   // scanned, which is a different statement from "scanned, nothing there" -- without the
   // marker the two are indistinguishable and the scan edge looks like a data cliff.
-  const fw = (flankWindowByScaffold.get(l.scf) || [])
-    .filter(r => r.pos >= xmin && r.pos <= xmax).map(r => r.pos);
-  if (fw.length){
-    const lo = Math.min(...fw), hi = Math.max(...fw);
-    if (lo < l.start) marks.push({pos: lo, label: "scan limit", col: "#94a3b8", dim: true});
-    if (hi > l.end)   marks.push({pos: hi, label: "scan limit", col: "#94a3b8", dim: true});
+  // Walk outward from the array edge through CONTIGUOUS flank windows only. Taking the
+  // min/max across the view would mark a position that is itself scanned whenever the view
+  // happens to span two separate flank runs with an unscanned gap between them.
+  const fpos = (flankWindowByScaffold.get(l.scf) || []).map(r => r.pos);
+  if (fpos.length){
+    const GAP = 2000;   // larger than the ~146 bp window step, smaller than any real gap
+    const left = [...new Set(fpos.filter(p => p < l.start))].sort((a,b) => b - a);
+    let lo = null;
+    for (let i = 0; i < left.length; i++){
+      if (i === 0 ? (l.start - left[i] <= GAP) : (left[i-1] - left[i] <= GAP)) lo = left[i];
+      else break;
+    }
+    const right = [...new Set(fpos.filter(p => p > l.end))].sort((a,b) => a - b);
+    let hi = null;
+    for (let i = 0; i < right.length; i++){
+      if (i === 0 ? (right[i] - l.end <= GAP) : (right[i] - right[i-1] <= GAP)) hi = right[i];
+      else break;
+    }
+    if (lo !== null && lo >= xmin && lo <= xmax)
+      marks.push({pos: lo, label: "scan limit", col: "#94a3b8", dim: true});
+    if (hi !== null && hi >= xmin && hi <= xmax)
+      marks.push({pos: hi, label: "scan limit", col: "#94a3b8", dim: true});
   }
   for (const m of marks){
     if (m.pos < xmin + edgeMargin || m.pos > xmax - edgeMargin) continue;
