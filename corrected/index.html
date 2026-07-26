@@ -508,7 +508,7 @@ for (const [cl, ct] of Object.entries(CLUSTER_TO_CLSAT)) {
   CLSAT_TO_CLUSTERS[ct].push(cl);
 }
 
-const VIEWER_VERSION = "v2.17-edgegap-20260727";
+const VIEWER_VERSION = "v2.18-contigedge-20260727";
 console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
 // Show version in UI header
 document.addEventListener('DOMContentLoaded', () => {
@@ -3950,9 +3950,17 @@ function drawBorderMarkers(){
   const fullSpan = currentLocus.end - currentLocus.start;
   if (range > fullSpan * 0.6) return;  // only near a junction
   const edgeMargin = range * 0.05;
+  // If a boundary coincides with the scaffold end it is an ASSEMBLY TRUNCATION, not a
+  // biological array end -- the same distinction the scaffold overview marks in red. Say so
+  // here too, rather than drawing a generic "array end" over a contig edge.
+  const _L = scafLen.get(l.scf);
+  const startIsEdge = l.start <= EDGE_TOL;
+  const endIsEdge   = _L && l.end >= _L - EDGE_TOL;
   const marks = [
-    {pos: l.start, label: "array start", col: "#22d3ee"},
-    {pos: l.end,   label: "array end",   col: "#f472b6"},
+    {pos: l.start, label: startIsEdge ? "array start — CONTIG EDGE" : "array start",
+     col: startIsEdge ? "#ff5c5c" : "#22d3ee"},
+    {pos: l.end,   label: endIsEdge   ? "array end — CONTIG EDGE"   : "array end",
+     col: endIsEdge   ? "#ff5c5c" : "#f472b6"},
   ];
   // Where the flank scan stops. Beyond these the chart is black because nothing was
   // scanned, which is a different statement from "scanned, nothing there" -- without the
@@ -3979,6 +3987,24 @@ function drawBorderMarkers(){
       marks.push({pos: lo, label: "scan limit", col: "#94a3b8", dim: true});
     if (hi !== null && hi >= xmin && hi <= xmax)
       marks.push({pos: hi, label: "scan limit", col: "#94a3b8", dim: true});
+  }
+  // A scan window is two monomers wide, so no window can START later than (end - window).
+  // The final ~2 monomers of an array therefore carry no bar. Everywhere else the flank scan
+  // now tiles across the boundary and fills this, but at a contig edge there is no sequence
+  // beyond to scan from, so the blank tail is irreducible -- label it instead of leaving it
+  // looking like missing data.
+  if (endIsEdge || startIsEdge){
+    const lastIn = (currentLocus._windows || []).filter(w => !w.outside).map(w => w.pos);
+    if (lastIn.length){
+      const tail = Math.max(...lastIn);
+      if (endIsEdge && l.end - tail > 60 && tail >= xmin && tail <= xmax){
+        const x = xScaleDetail((tail + l.end) / 2);
+        gMainDetail.append("text").attr("class","borderLbl")
+          .attr("x", x).attr("y", innerH - 6).attr("text-anchor","middle")
+          .attr("fill","#64748b").attr("font-size","9px")
+          .text("last " + (l.end - tail) + " bp: too short to window");
+      }
+    }
   }
   for (const m of marks){
     if (m.pos < xmin + edgeMargin || m.pos > xmax - edgeMargin) continue;
