@@ -6,9 +6,14 @@ every other clone on disk, is history.
 ## The live page
 
 <https://toki-bio.github.io/CLsat-viewer/> — served from the **root** of this repository.
+There is no other page.
 
-`corrected/` is a **frozen snapshot** from 2026-07-17 (627-locus catalogue, v2.19). It is
-not the live page and is not maintained. Do not deploy there.
+`corrected/` no longer holds a viewer. From 2026-07-29 it contains a single redirect to
+the root, so that any previously shared `/corrected/` link still resolves. Do not put data
+files back into it, and do not deploy there. The split between a stale root page and a
+maintained `corrected/` subpage was the single worst source of confusion in this project's
+history — the root page served a superseded 706-locus catalogue for months while corrected
+work accumulated out of sight.
 
 ## Deploy target
 
@@ -51,9 +56,10 @@ happened between v2.19 and this deploy.
 
 | version | catalogue | note |
 |---|---|---|
-| unversioned (to 2026-07-27) | **706 loci** | superseded; pre-correction data. Archived as `index_pre_v2.20_706locus_20260728.html` |
+| unversioned (to 2026-07-29) | **706 loci** | superseded; pre-correction data. Archived as `index_archive_706locus_pre2026-07-29.html` |
 | v2.19-clip-20260727 | 627 loci | only ever at `corrected/`, never at root |
-| v2.20-candidates-20260728 | 634 loci | 627 catalogue + 7 uncatalogued candidates (flag `CANDIDATE_UNCATALOGUED`) |
+| v2.20-candidates-20260728 | 634 loci | 627 catalogue + 7 uncatalogued candidates (flag `CANDIDATE_UNCATALOGUED`); `corrected/` only |
+| **v2.21-overlaid-20260729** | 634 loci | **first version served at the root.** Adds the "bars are overlaid, not stacked" banner and the 1 kb segment-boundary tolerance note; `corrected/` reduced to a redirect |
 
 The root page served the superseded 706-locus catalogue for months while corrected work
 accumulated in `corrected/`. That is the mistake this file exists to prevent.
