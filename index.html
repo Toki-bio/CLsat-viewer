@@ -212,19 +212,27 @@
       Click a locus in the scaffold overview to see per-window bitscores below.
     </div>
 
-    <div style="margin:10px 0 4px 0; padding:8px 10px; border-radius:6px;
+    <div id="overlayNote" style="margin:8px 0 2px 0; padding:5px 8px; border-radius:5px;
                 background:#3b1d1d; border:1px solid #b45309; color:#fbbf24;
-                font-size:12px; font-weight:700; line-height:1.45;">
-      &#9888; Bars are <span style="text-decoration:underline;">OVERLAID, not stacked</span>.
-      <div style="font-weight:400; color:#fcd34d; margin-top:3px;">
-        All four CLsat tracks are drawn at the same position, tallest behind. The height of
-        each colour is that family&rsquo;s own bitscore &mdash; never a sum. Do not read the
-        top of a bar as a total.
-      </div>
+                font-size:11px; line-height:1.35; display:flex; gap:6px; align-items:flex-start;">
+      <span style="flex:1;"><b>Bars are overlaid, not stacked</b> &mdash; each colour&rsquo;s
+        height is that family&rsquo;s own bitscore, never a sum.</span>
+      <button id="overlayNoteClose" title="Dismiss"
+              style="background:none;border:none;color:#fbbf24;cursor:pointer;
+                     font-size:14px;line-height:1;padding:0 2px;">&times;</button>
     </div>
-
-    <h2>Navigation</h2>
-    <div class="speciesBar" id="speciesBar"></div>
+    <script>
+      (function(){
+        var n = document.getElementById('overlayNote'),
+            b = document.getElementById('overlayNoteClose');
+        if (!n || !b) return;
+        try { if (localStorage.getItem('clsatOverlayNoteDismissed') === '1') n.style.display = 'none'; } catch(e){}
+        b.addEventListener('click', function(){
+          n.style.display = 'none';
+          try { localStorage.setItem('clsatOverlayNoteDismissed','1'); } catch(e){}
+        });
+      })();
+    </script>
     <div class="row">
       <label>Scaffold</label>
       <select id="scaffoldSel"></select>
@@ -374,7 +382,6 @@
               title="Copy every monomer of this locus as FASTA — one record per monomer (with genomic coordinates and strand), preceded by the reference consensus, for all arrays in the locus. Ready to paste straight into an aligner.">Copy All FASTA</button>
           </span>
         </div>
-        <div id="strandStrip" style="margin:6px 0 2px;"></div>
         <div class="monomerList" id="monomerList"></div>
         <div id="monomerMap" style="margin:8px 0; overflow-x:auto;"></div>
         <div id="monomerMSA" style="margin:8px 0;"></div>
@@ -521,7 +528,7 @@ for (const [cl, ct] of Object.entries(CLUSTER_TO_CLSAT)) {
   CLSAT_TO_CLUSTERS[ct].push(cl);
 }
 
-const VIEWER_VERSION = "v2.21-overlaid-20260729";
+const VIEWER_VERSION = "v2.23-strand-20260729";
 console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
 // Show version in UI header
 document.addEventListener('DOMContentLoaded', () => {
@@ -1231,85 +1238,6 @@ function drawMonomerMap(containerId, result, locusStart, locusEnd) {
  * Schematic (equal-width cells, not to genomic scale) so both a 4-monomer locus
  * and a 1000-monomer array stay readable.
  */
-function drawStrandStrip(containerId, result){
-  const el = document.getElementById(containerId);
-  if (!el) return;
-  if (!result || !result.success || !result.arrays || !result.arrays.length){ el.innerHTML = ''; return; }
-
-  // Flatten every monomer into genomic order, carrying its own strand + CLsat.
-  const mons = [];
-  result.arrays.forEach(a => a.hits.forEach(h => mons.push({ start: h.start, strand: a.strand, clsat: h.clsat })));
-  mons.sort((a, b) => a.start - b.start);
-  const n = mons.length;
-  if (!n){ el.innerHTML = ''; return; }
-
-  const nPlus = mons.filter(m => m.strand === '+').length;
-  const nMinus = n - nPlus;
-  let flips = 0;
-  const flipAt = new Array(n).fill(false);
-  for (let i = 1; i < n; i++){ if (mons[i].strand !== mons[i-1].strand){ flips++; flipAt[i] = true; } }
-
-  const W = Math.max(el.clientWidth || 500, 280);
-  const labW = 20, padR = 6;
-  const innerW = W - labW - padR;
-  const cellW = Math.max(2, Math.min(15, innerW / n));
-  const stripW = cellW * n;
-  const laneH = 11, gapMid = 3, topY = 4, botY = topY + laneH + gapMid;
-  const H = botY + laneH + 4;
-
-  el.innerHTML = '';
-  const head = document.createElement('div');
-  head.style.cssText = 'font-size:10px; color:#9ca3af; margin-bottom:3px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;';
-  head.innerHTML =
-    '<b style="color:#e5e7eb;">Strand</b>' +
-    '<span><span style="color:#34d399;">&#9650; +</span> ' + nPlus + '</span>' +
-    '<span><span style="color:#f472b6;">&#9660; &minus;</span> ' + nMinus + '</span>' +
-    '<span style="color:' + (flips ? '#fbbf24' : '#64748b') + ';">' +
-      (flips ? ('&#9646; ' + flips + ' direction change' + (flips > 1 ? 's' : '')) : 'single orientation') + '</span>' +
-    '<span style="color:#475569;">top lane = +, bottom lane = &minus;</span>';
-  el.appendChild(head);
-
-  const wrap = document.createElement('div');
-  wrap.style.cssText = 'overflow-x:auto;';
-  el.appendChild(wrap);
-
-  const svg = d3.select(wrap).append('svg')
-    .attr('width', Math.max(W, labW + stripW + padR)).attr('height', H)
-    .style('background', '#070b12').style('border-radius', '6px').style('display', 'block');
-
-  // lane labels
-  svg.append('text').attr('x', labW - 5).attr('y', topY + laneH - 2).attr('text-anchor', 'end')
-     .attr('fill', '#34d399').attr('font-size', '10px').attr('font-family', 'ui-monospace, monospace').text('+');
-  svg.append('text').attr('x', labW - 5).attr('y', botY + laneH - 2).attr('text-anchor', 'end')
-     .attr('fill', '#f472b6').attr('font-size', '10px').attr('font-family', 'ui-monospace, monospace').text('−');
-  // faint midline
-  svg.append('line').attr('x1', labW).attr('x2', labW + stripW).attr('y1', topY + laneH + gapMid/2)
-     .attr('y2', topY + laneH + gapMid/2).attr('stroke', '#1f2937').attr('stroke-width', 1);
-
-  for (let i = 0; i < n; i++){
-    const m = mons[i];
-    const x = labW + i * cellW;
-    const y = m.strand === '+' ? topY : botY;
-    const fill = CLSAT_COLORS[m.clsat] || (m.strand === '+' ? '#34d399' : '#f472b6');
-    const g = svg.append('rect')
-      .attr('x', x + 0.4).attr('y', y).attr('width', Math.max(1, cellW - 0.8)).attr('height', laneH)
-      .attr('fill', fill).attr('rx', cellW > 4 ? 1.5 : 0);
-    g.append('title').text('#' + (i+1) + ' ' + (m.clsat || '?') + ' strand ' + m.strand +
-      (flipAt[i] ? '  (direction change here)' : ''));
-    // directional glyph only when there is room
-    if (cellW >= 9){
-      svg.append('text').attr('x', x + cellW/2).attr('y', y + laneH - 2.5)
-         .attr('text-anchor', 'middle').attr('fill', '#0b0e14').attr('font-size', '8px')
-         .attr('pointer-events', 'none').text(m.strand === '+' ? '▶' : '◀');
-    }
-    // bright tick at every strand flip, spanning both lanes
-    if (flipAt[i]){
-      svg.append('line').attr('x1', x).attr('x2', x).attr('y1', topY - 2).attr('y2', botY + laneH + 2)
-         .attr('stroke', '#fbbf24').attr('stroke-width', 1.5);
-    }
-  }
-}
-
 /**
  * Render monomer alignment as MSA with integrated flanks.
  * Per-ARRAY blocks showing consensus-anchored MSA with ±100bp flanks
@@ -3759,7 +3687,6 @@ function bindUIOnce(){
       if (!result.success) {
         mStatusEl.textContent = "No monomers found";
         listEl.innerHTML = '<div style="color:#fb7185; padding:8px;">' + result.message + '</div>';
-        document.getElementById('strandStrip').innerHTML = '';
         document.getElementById('monomerMap').innerHTML = '';
         document.getElementById('monomerMSA').innerHTML = '';
         setStatus("Monomer analysis: " + result.message);
@@ -3768,7 +3695,17 @@ function bindUIOnce(){
 
       // Display results
       const avgPct = (result.avg_identity * 100).toFixed(1);
-      mStatusEl.textContent = result.monomer_count + " monomers in " + result.array_count + " array(s), avg " + avgPct + "% identity";
+      (function(){
+        // Strand is constant within an array, so summarise across arrays here; the
+        // per-monomer direction is carried by the arrow shape of each cartoon below.
+        var sp = 0, sm = 0;
+        (result.arrays || []).forEach(function(a){ (a.strand === '+') ? sp++ : sm++; });
+        var strandTxt = (sp && sm)
+          ? ', MIXED orientation (' + sp + ' array(s) +, ' + sm + ' \u2212)'
+          : (result.array_count ? ', all on ' + (sp ? '+' : '\u2212') + ' strand' : '');
+        mStatusEl.textContent = result.monomer_count + " monomers in " + result.array_count
+          + " array(s), avg " + avgPct + "% identity" + strandTxt;
+      })();
 
       // Build summary per array
       let html = '<div style="font-size:9px; color:#64748b; margin-bottom:4px;">Each line: genomic coordinates of this monomer copy (start&ndash;end), its length in bp, and its %id to the CLsat consensus (from the sliding-window scan).</div>';
@@ -3800,7 +3737,6 @@ function bindUIOnce(){
       listEl.innerHTML = html;
 
       // Compact strand-direction strip (headline view of orientation + its changes)
-      drawStrandStrip('strandStrip', result);
 
       // Draw visual monomer direction map
       drawMonomerMap('monomerMap', result, start, end);
