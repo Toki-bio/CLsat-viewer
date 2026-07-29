@@ -531,7 +531,7 @@ for (const [cl, ct] of Object.entries(CLUSTER_TO_CLSAT)) {
   CLSAT_TO_CLUSTERS[ct].push(cl);
 }
 
-const VIEWER_VERSION = "v2.23-strand-20260729";
+const VIEWER_VERSION = "v2.24-loader-20260729";
 console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
 // Show version in UI header
 document.addEventListener('DOMContentLoaded', () => {
@@ -2225,8 +2225,24 @@ function renderStrandTrack() {
 }
 
 function getBaseUrl() {
-  const loc = window.location.href;
-  return loc.substring(0, loc.lastIndexOf('/') + 1);
+  // Resolve the directory this page lives in. The naive lastIndexOf('/') form breaks on a
+  // directory URL with no trailing slash (".../CLsat-viewer"), where it points one level
+  // too high and every data fetch 404s.
+  const href = window.location.href;
+  const bare = () => { const h = href.split(/[?#]/)[0]; return h.substring(0, h.lastIndexOf('/') + 1); };
+  try {
+    const u = new URL(href);
+    if (u.protocol === 'file:') return bare();      // origin is unusable for file://
+    let p = u.pathname;
+    if (!p.endsWith('/')) {
+      const last = p.substring(p.lastIndexOf('/') + 1);
+      // a final segment containing a dot is a file; otherwise it is a directory
+      p = last.indexOf('.') >= 0 ? p.substring(0, p.lastIndexOf('/') + 1) : p + '/';
+    }
+    return u.origin + p;
+  } catch (e) {
+    return bare();
+  }
 }
 const BASE_URL = getBaseUrl();
 
@@ -3262,7 +3278,10 @@ function renderDetail(){
 ============================================================================ */
 async function fetchText(path){
   const url = BASE_URL + path;
-  const r = await fetch(url, {cache:"no-store"});
+  // No {cache:"no-store"}: the page pulls ~156 MB of bitscore tracks, and
+  // forbidding cache re-downloaded all of it on every reload. Pages serves
+  // ETags, so revalidation is cheap and unchanged bodies are reused.
+  const r = await fetch(url);
   if (!r.ok) throw new Error(`Cannot load ${url} (HTTP ${r.status})`);
   return await r.text();
 }
