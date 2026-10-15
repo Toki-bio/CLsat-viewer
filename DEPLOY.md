@@ -91,3 +91,7 @@ accumulated in `corrected/`. That is the mistake this file exists to prevent.
 just shipped (634 for v2.20 onward: 627 catalogue loci + C1–C7). If it says 706, the deploy did not happen.
 The embedded lists must match too: `FULL_TABLE` 627 rows, `FLAGGED_LOCI` 35 (28 + 7 candidates),
 `ORTHO_LOCI` 91.
+
+- v3.0-config-20261015: page reads `viewer_config.json` (generated); embedded lists, consensus,
+  colour, step and species constants removed from `index.html`. Deploy = merge to `main`;
+  regenerate `viewer_config.json` whenever a data file changes.

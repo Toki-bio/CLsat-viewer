@@ -82,3 +82,22 @@ guide, and known limitations.
 ## License
 
 This project is provided for academic and research use.
+
+## v3.0 — config-driven page (2026-10-15)
+
+`index.html` no longer embeds anything about this dataset. Everything run-specific is read at load
+time from **`viewer_config.json`**: family names, monomer lengths, colours, consensus and
+sub-subfamily sequences, species order and labels, the page title, the three inspection lists
+(orthologous loci, flagged loci, full flank-orthology table) and their notes. The file is written by
+`satpipe viewer <run_dir>` (Toki-bio/CLsat_workflow) for a pipeline run; for this deployed
+catalogue it is regenerated from the shipped data files with
+
+    python tests/viewer/make_config_from_viewer_dir.py . viewer_meta.json     # in CLsat_workflow
+
+where `viewer_meta.json` (here) holds the former embedded constants. The lists are rebuilt from
+`MASTER.merged.bed`, `MASTER.final_assignment.clean.tsv`, `flanks.json`, `flank_orthologs.json` and
+`subfamily.json`; the orthologous-loci and flagged-loci lists are identical to the former embedded
+ones. One definition changed: the "both-sided" mark in the full table now means *a partner pair
+supported by both an L-sourced and an R-sourced hit* (11 loci), computed from `flank_orthologs.json`;
+the former `both_flanks_orthologous` column of `full_flank_ortho_table.tsv` (20 loci) came from a
+script that was never deposited and cannot be reproduced from the shipped files.
