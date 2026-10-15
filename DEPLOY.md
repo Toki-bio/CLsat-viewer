@@ -21,8 +21,8 @@ This clone: `C:\Users\T\Documents\clsat_viewer_update\repo_deploy2` (remote
 `github.com/Toki-bio/CLsat-viewer`, branch `main`).
 
 Four other clones exist on disk and are all stale — two from February 2026 at v2.10, two
-from June 2026 with a personal access token embedded in the remote URL. Do not use them.
-If you find yourself in one, stop.
+from June 2026 whose remote URL embeds a credential (revoke that token on GitHub and delete
+those clones). Do not use them. If you find yourself in one, stop.
 
 ## Where the current files are built
 
@@ -34,17 +34,36 @@ Runtime set (everything else in `viewer_v2` is helper scripts and backups — do
 ```
 index.html
 flanks.json  subfamily.json  flank_orthologs.json
-boundary_phase.json  boundary_phase_hist.json
 full_flank_ortho_table.tsv  scaffold_lengths.tsv
 MASTER.merged.bed  MASTER.final_assignment.clean.tsv  MASTER.locus_bits.tsv
-MASTER_flank.bits.tsv
-MASTER_CLsat1.bits.tsv  MASTER_CLsat2.bits.tsv  MASTER_CLsat3.bits.tsv  MASTER_CLsat4.bits.tsv
+MASTER_flank.bits.tsv.gz
+MASTER_CLsat1.bits.tsv.gz  MASTER_CLsat2.bits.tsv.gz  MASTER_CLsat3.bits.tsv.gz  MASTER_CLsat4.bits.tsv.gz
 CLsat1.cons.fa  CLsat2.cons.fa  CLsat3.cons.fa  CLsat4.cons.fa
 ```
 
-Before overwriting, archive the outgoing page as `index_pre_<version>_<date>.html`.
+Since v2.25 the five per-window bitscore tracks are committed **gzip-compressed** (`gzip -9 -n`, 11 MB
+instead of 161 MB; the page inflates them with `DecompressionStream`, and falls back to a plain
+`.tsv` of the same name if the `.gz` is missing). Do not commit the uncompressed files.
 
-Leave `README.md`, `VIEWER_MANUAL.md` and the `index_*.html` archives alone.
+`terminal_monomers.json` is optional. The file that shipped until 2026-10-15 was built from the
+superseded 707-locus catalogue: 260 current loci were missing and 115 shared IDs carried another
+locus's record. It is kept as `terminal_monomers.707locus.withdrawn.json` and is **not loaded**.
+Regenerate it with the corrected `05_subfamily_terminal_boundary/terminal_monomers.sh` from the
+workflow repo, then save it as `terminal_monomers.json`; the page shows the panel only for records
+whose monomer length matches the locus family. `boundary_phase*.json` and `terminal_hist.json`
+were empty or unused and are gone.
+
+Previous pages live in git history (`git log -- index.html`); do not keep `index_*.html` archives
+in the Pages root, because they are served live.
+
+Leave `README.md` and `VIEWER_MANUAL.md` alone unless the code they describe changed.
+
+## Δ sign convention in `MASTER.final_assignment.clean.tsv`
+
+Column 6 is **assigned-family bits − strongest other family**, for every flag (since 2026-10-15).
+Before that date the `UNIQUE_SEED_*` rows carried the opposite sign (best other − seed), so the
+viewer printed a mixed column. `arbitration_patched.sh` in the workflow repo now writes the uniform
+convention; a TSV produced by an older run must be sign-flipped on those rows before deploy.
 
 ## Version
 
@@ -60,6 +79,8 @@ happened between v2.19 and this deploy.
 | v2.19-clip-20260727 | 627 loci | only ever at `corrected/`, never at root |
 | v2.20-candidates-20260728 | 634 loci | 627 catalogue + 7 uncatalogued candidates (flag `CANDIDATE_UNCATALOGUED`); `corrected/` only |
 | **v2.21-overlaid-20260729** | 634 loci | **first version served at the root.** Adds the "bars are overlaid, not stacked" banner and the 1 kb segment-boundary tolerance note; `corrected/` reduced to a redirect |
+| v2.24-loader-20260729 | 634 loci | browser caching allowed; `getBaseUrl` hardened |
+| v2.25-audit-20261015 | 634 loci | audit fixes: Smith–Waterman in a Web Worker with 3 bytes/cell and single-pass hit extraction; gzip tracks; L541 in the full table; uniform Δ sign; complete flag vocabulary; stale terminal-monomer file withdrawn; manuals rewritten from current data |
 
 The root page served the superseded 706-locus catalogue for months while corrected work
 accumulated in `corrected/`. That is the mistake this file exists to prevent.
@@ -67,4 +88,10 @@ accumulated in `corrected/`. That is the mistake this file exists to prevent.
 ## Catalogue counts, for checking a deploy landed
 
 `wc -l MASTER.merged.bed` at the root should equal the locus count of the version you
-just shipped (634 for v2.20). If it says 706, the deploy did not happen.
+just shipped (634 for v2.20 onward: 627 catalogue loci + C1–C7). If it says 706, the deploy did not happen.
+The embedded lists must match too: `FULL_TABLE` 627 rows, `FLAGGED_LOCI` 35 (28 + 7 candidates),
+`ORTHO_LOCI` 91.
+
+- v3.0-config-20261015: page reads `viewer_config.json` (generated); embedded lists, consensus,
+  colour, step and species constants removed from `index.html`. Deploy = merge to `main`;
+  regenerate `viewer_config.json` whenever a data file changes.

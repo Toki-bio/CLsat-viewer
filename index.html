@@ -6,10 +6,10 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
 <meta http-equiv="Pragma" content="no-cache" />
 <meta http-equiv="Expires" content="0" />
-<title>CLsat Locus Detail Viewer – Per-window Bitscores</title>
+<title>Satellite locus viewer</title>
 
 <!-- D3.js - load from CDN -->
-<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
 
 <style>
   :root{
@@ -207,7 +207,7 @@
 <button class="collapseBtn" id="collapseBtn" title="Toggle sidebar">‹</button>
 <div class="wrap">
   <div class="sidebar">
-    <h1>CLsat Locus Detail Viewer <span id="versionTag" style="font-size:9px; color:#f59e0b; font-weight:normal;"></span></h1>
+    <h1><span id="pageTitle">Satellite locus viewer</span> <span id="versionTag" style="font-size:9px; color:#f59e0b; font-weight:normal;"></span></h1>
     <div class="small">
       Click a locus in the scaffold overview to see per-window bitscores below.
     </div>
@@ -266,7 +266,7 @@
     <div class="locusTableWrap" id="locusTableWrap">
       <table class="locusTable" id="locusTable">
         <thead><tr>
-          <th data-col="id">ID ?</th>
+          <th data-col="id">ID ↕</th>
           <th data-col="sp">Species</th>
           <th data-col="type" title="Assigned CLsat family">Type</th>
           <th data-col="len" title="Number of monomers (hover a cell for length in bp)">Monomers</th>
@@ -282,30 +282,22 @@
       <label title="The arbitration outcome that assigned each locus to its CLsat family.">Show flag</label>
       <select id="flagFilter" multiple size="6" style="height:auto; min-width:200px;">
         <option value="ALL" selected>ALL</option>
-        <option value="UNIQUE_SEED_WITH_COMPETITOR" title="One seed family matched; another scored but did not override.">UNIQUE_SEED_WITH_COMPETITOR</option>
-        <option value="UNIQUE_SEED_CONTRADICTION" title="A non-seed family overrode the seed.">UNIQUE_SEED_CONTRADICTION</option>
+        <option value="UNIQUE_SEED_ONLY" title="One seed family matched and no other family scored.">UNIQUE_SEED_ONLY</option>
+        <option value="UNIQUE_SEED_WITH_COMPETITOR" title="One seed family matched; another family also scored but the seed call was kept (&Delta; &gt; -20 bits).">UNIQUE_SEED_WITH_COMPETITOR</option>
+        <option value="UNIQUE_SEED_CONTRADICTION" title="The symmetric rescan scores another family &ge;20 bits above the seed; the seed family is retained in the catalogue and the locus is flagged.">UNIQUE_SEED_CONTRADICTION</option>
         <option value="SEED_CONFLICT_RESOLVED" title="Overlapping seeds resolved by bitscore.">SEED_CONFLICT_RESOLVED</option>
         <option value="SEED_CONFLICT_RESOLVED_AMBIGUOUS" title="Seed conflict resolved, small margin.">SEED_CONFLICT_RESOLVED_AMBIGUOUS</option>
         <option value="SEGMENT_RESOLVED" title="Composite-locus segment assigned by bitscore.">SEGMENT_RESOLVED</option>
         <option value="SEGMENT_RESOLVED_AMBIGUOUS" title="Segment assigned, small margin.">SEGMENT_RESOLVED_AMBIGUOUS</option>
+        <option value="NO_SEED_RESOLVED" title="No seed fell in this locus; family assigned by the symmetric rescan alone.">NO_SEED_RESOLVED</option>
+        <option value="NO_SEED_AMBIGUOUS" title="No seed; rescan assignment with a small margin.">NO_SEED_AMBIGUOUS</option>
         <option value="CANDIDATE_UNCATALOGUED" title="CLsat-matching locus absent from the published catalogue; shown for inspection only, not a catalogue member.">CANDIDATE_UNCATALOGUED</option>
       </select>
     </div>
     <div class="row" title="Filter loci by assigned CLsat family or sub-subfamily. Hold Ctrl (Cmd on Mac) to select several.">
-      <label title="CLsat major family (CLsat1-4) or sub-subfamily (CLsat1.1-1.5, CLsat3.1-3.2) assigned to the locus. Selecting a major family includes all of its sub-subfamilies.">Subtype</label>
+      <label title="Family or sub-subfamily assigned to the locus. Selecting a family includes all of its sub-subfamilies.">Subtype</label>
       <select id="subtypeFilter" multiple size="8" style="height:auto; min-width:120px;">
         <option value="ALL" selected>ALL</option>
-        <option value="CLsat1">CLsat1</option>
-        <option value="CLsat1.1">CLsat1.1</option>
-        <option value="CLsat1.2">CLsat1.2</option>
-        <option value="CLsat1.3">CLsat1.3</option>
-        <option value="CLsat1.4">CLsat1.4</option>
-        <option value="CLsat1.5">CLsat1.5</option>
-        <option value="CLsat2">CLsat2</option>
-        <option value="CLsat3">CLsat3</option>
-        <option value="CLsat3.1">CLsat3.1</option>
-        <option value="CLsat3.2">CLsat3.2</option>
-        <option value="CLsat4">CLsat4</option>
       </select>
     </div>
 
@@ -321,13 +313,8 @@
       </select>
     </div>
 
-    <h2>CLsat colors</h2>
-    <div class="legend">
-      <div class="legendItem"><span class="swatch" style="background:rgba(96,165,250,0.9)"></span> CLsat1</div>
-      <div class="legendItem"><span class="swatch" style="background:rgba(52,211,153,0.9)"></span> CLsat2</div>
-      <div class="legendItem"><span class="swatch" style="background:rgba(244,114,182,0.9)"></span> CLsat3</div>
-      <div class="legendItem"><span class="swatch" style="background:rgba(251,191,36,0.9)"></span> CLsat4</div>
-    </div>
+    <h2>Family colors</h2>
+    <div class="legend" id="familyLegend"></div>
 
     
 
@@ -447,20 +434,12 @@ const FILE_MASTER_MERGED = "MASTER.merged.bed";
 const FILE_ASSIGN        = "MASTER.final_assignment.clean.tsv";
 const FILE_BITS_MATRIX   = "MASTER.locus_bits.tsv";
   const FILE_FLANKS        = "flanks.json";
-  const FILE_BPHASE        = "boundary_phase.json";
-  const FILE_BPHASE_HIST   = "boundary_phase_hist.json";
   const FILE_ORTHOLOGS     = "flank_orthologs.json";
   const FILE_SUBFAM        = "subfamily.json";
   const FILE_TERMINAL      = "terminal_monomers.json";
-  const FILE_TERMHIST      = "terminal_hist.json";
 
-// Per-window bitscore files (one per CLsat)
-const FILE_BITS_CLSAT = {
-  CLsat1: "MASTER_CLsat1.bits.tsv",
-  CLsat2: "MASTER_CLsat2.bits.tsv",
-  CLsat3: "MASTER_CLsat3.bits.tsv",
-  CLsat4: "MASTER_CLsat4.bits.tsv",
-};
+// Per-window bitscore files (one per family) -- filled from viewer_config.json
+let FILE_BITS_CLSAT = {};
 
 // Scaffold lengths — lets us show when an array runs into a contig edge, i.e. the boundary
 // is an assembly truncation and NOT a biological array end.
@@ -471,67 +450,88 @@ const FILE_FLANK_BITS = "MASTER_flank.bits.tsv";
 
 // A window whose best bitscore is below this is NOISE, not satellite. Drawn grey so the
 // background level is visible and real hits stand out against it.
-const SAT_BITS    = 50;
+let SAT_BITS    = 50;      // from viewer_config.json (expansion min_bits)
 const NOISE_COLOR = "#5a6070";
 // A locus edge within this many bp of a scaffold end is a contig edge, not a real boundary.
-const EDGE_TOL    = 50;
+let EDGE_TOL    = 50;      // from viewer_config.json
 // How far beyond each locus edge the detail chart shows flank.
-const FLANK_VIEW  = 5000;
+let FLANK_VIEW  = 5000;    // from viewer_config.json
 
 /* ============================================================================
-   CONSENSUS SEQUENCES (embedded so no server is needed)
+   RUN CONFIGURATION (viewer_config.json, written by `satpipe viewer`)
+   Families, monomer lengths, colours, consensus and sub-subfamily sequences, species order and
+   labels, inspection lists and notes all come from that file; nothing run-specific is embedded.
 ============================================================================ */
-const CONSENSUS_SEQS = {
-  CLsat1: "AAAGAAGCTAGTTNGGATGTATTTGGCTTTTCTAACGTTCAGTTTGGCTTACTTGCGTGATTTTGCATTAACAGCTCAAATACAGCTAACTTTGGAAATGAACACGATGGAAACTTGTTGGTGTGTTTTCTATGCATTTCGACCTG",
-  CLsat2: "AAAGAAGCTCATTGGGATGTAGTTGTGTTTCTAAGCTTCATTTTAGCTTATTTGCGTGATTTCGCTTTTAAGGCTCAAATACAGCTATCTTTTGAAAGCAACACGTTAGAAACTTCTTGGTGTGTTTTTCATGCATTTGGACCCA",
-  CLsat3: "AAAGAAGCTCGTTCGGATGTCTTTCTGTTTTCTAAGCTTCATTTGAGCTTCTTTGCGTCAATTTGCACTCCAGACTCAAAAACGGCTCTCTTTTGAAAGGAACACCAAAGAAGCTTGTTCGTGTGTTTCCCATGCATTTCCAGCCC",
-  CLsat4: "AAAGAAGCTCGTTTGGATGTATTTGCGTGACTTTGCATTCACAACTCAAAAACACATATCTTTTGAAATGAAGGTGATGGAAGCTTGTTCGTGTGTTTTCTATGCATTTCGAGCCT",
-};
+let VIEWER_CONFIG = null;
+let FAMILIES = [];            // family names, in config order (= column order of MASTER.locus_bits.tsv)
+let CONSENSUS_SEQS = {};      // family -> monomer consensus
 
-// Cluster consensus sequences (cl1–cl9) and their CLsat subfamily mapping
-const CLUSTER_SEQS = {
-  cl3: "AAAGAAGCTAGTTGGGATGTATTTGGCTTTTCTAACGTTCAGTTTGGCTTACTTGCGTGATTTTGCATTAACAGCTCAAATACAGCTAACTTTGGAAATGAACACGATGGAAACTTGTTGGTGTGTTTTCTATGCATTTCGACCTG",
-  cl6: "AAAGAAGCATGTTAGGATGTACTTGGCTTTCCTAACGTTCAGTTTGGCTTATTTGCGTGATTTGGCATTAACAGCTCAAATACACCTAACTTTGCAAATGAACACGATAGAAACTTGTTGGTGTGTTTTCTATGCATTTCGACCTG",
-  cl4: "AAAGAAGCTAGTTCGGACGTACTTGGCTTTTGTAACGTTCAATTTGGCTCATTTGCGCGATTTTGCATTAACAGCTCAAGTACACCTAACTTTGCAAATGAACACGATGGGAACTTGCTGGTGTGTTTTCTATGCATTTCGACCTG",
-  cl7: "AAAGAAGCTATTTCGGATGTACTTGGCTTGTGTAACGTTCAGTTTGGCTCATTTGCGCGATTTTGCATTAACAGCTCAAGTACACCTAACTTGGGAGAGAAACACGATGGACGCTTGCTGGTGTGTTTTCTATGCATTTCGACCTG",
-  cl8: "AAAGAAGCTAGTTTGGGTGTTCAGTTTGGCTTACTTGCGTGATTTTGCATTAACAGCTCAAATACAGCTAACTTTGGAAATGAACACGATGGAAACTTGTTGGTGTGTTTTCTATGCATTTCGACCTG",
-  cl2: "AAAGAAGCTCATTGGGATGTAGTTGTGTTTCTAAGCTTCATTTTAGCTTATTTGCGTGATTTCGCTTTTAAGGCTCAAATACAGCTATCTTTTGAAAGCAACACGTTAGAAACTTCTTGGTGTGTTTTTCATGCATTTGGACCCA",
-  cl5: "AAAGAAGCTCGTTCGGATGTCTTTCTGTTTTCTAAGCTTCATTTGAGCTTCTTTGCGTCAATTTGCACTCCAGACTCAAAAACGGCTCTCTTTTGAAAGGAACACCAAAGAAGCTTGTTCGTGTGTTTCCCATGCATTTCCAGCCC",
-  cl9: "AAAGAAGCTCGTTCGGATGTATTTGTGTTTTCTAACCTTCATTTTAACTTATTTGCGTGACTTTGCATTCACAACTCAAAAACACCTATCTTTTGAAATAAACATGATAGAAGCTTGTTCGTCTGTTTTCCATGCATTTCGACCCC",
-  cl1: "AAAGAAGCTCGTTTGGATGTATTTGCGTGACTTTGCATTCACAACTCAAAAACACATATCTTTTGAAATGAAGGTGATGGAAGCTTGTTCGTGTGTTTTCTATGCATTTCGAGCCT",
-};
-const CLUSTER_TO_CLSAT = {
-  cl3: 'CLsat1', cl6: 'CLsat1', cl4: 'CLsat1', cl7: 'CLsat1', cl8: 'CLsat1',
-  cl2: 'CLsat2',
-  cl5: 'CLsat3', cl9: 'CLsat3',
-  cl1: 'CLsat4',
-};
-// Sub-subfamily consensus sequences in the pipeline monomer phase (each starts
-// at the AAAGAAGCT boundary, co-linear with CONSENSUS_SEQS). These are identical
-// to the clustering centroids CLUSTER_SEQS (verified 100%): CLsat1.1=cl3,
-// CLsat1.2=cl4, CLsat1.3=cl6, CLsat1.4=cl7, CLsat1.5=cl8, CLsat2=cl2,
-// CLsat3.1=cl5, CLsat3.2=cl9, CLsat4=cl1. (The AAACTTGTTGG..-phase versions were
-// the same sequences rotated ~36 bp out of frame; re-phased here.)
-const SUBSUBFAM_SEQS = {
-  "CLsat1.1": CLUSTER_SEQS.cl3,
-  "CLsat1.2": CLUSTER_SEQS.cl4,
-  "CLsat1.3": CLUSTER_SEQS.cl6,
-  "CLsat1.4": CLUSTER_SEQS.cl7,
-  "CLsat1.5": CLUSTER_SEQS.cl8,
-  "CLsat2":   CLUSTER_SEQS.cl2,
-  "CLsat3.1": CLUSTER_SEQS.cl5,
-  "CLsat3.2": CLUSTER_SEQS.cl9,
-  "CLsat4":   CLUSTER_SEQS.cl1,
-};
+// Sub-subfamily consensus sequences (optional, config key "subfamilies") and their family
+let CLUSTER_SEQS = {};
+let CLUSTER_TO_CLSAT = {};
+let SUBSUBFAM_SEQS = CLUSTER_SEQS;
 
-// Reverse: CLsat type ? list of cluster names
-const CLSAT_TO_CLUSTERS = {};
-for (const [cl, ct] of Object.entries(CLUSTER_TO_CLSAT)) {
-  if (!CLSAT_TO_CLUSTERS[ct]) CLSAT_TO_CLUSTERS[ct] = [];
-  CLSAT_TO_CLUSTERS[ct].push(cl);
+// Reverse: family -> list of sub-subfamily names
+let CLSAT_TO_CLUSTERS = {};
+let CLSAT_COLORS = {};
+let CLSAT_STEP = {};
+let WINDOW_STEP = 146;        // display grid for grouping bars of different families (max monomer length)
+let ORTHO_LOCI = [], FLAGGED_LOCI = [], FULL_TABLE = [], ASM_ORDER = [], SPECIES_LABEL = {};
+let LIST_NOTES = {ortho: "", flag: "", full: ""};
+let LIST_COUNTS = {};
+
+function esc_(t){ return String(t).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/** Apply viewer_config.json: fill every run-specific table and the config-driven DOM parts. */
+function applyViewerConfig(cfg){
+  VIEWER_CONFIG = cfg;
+  FAMILIES = cfg.families.map(f => f.name);
+  CONSENSUS_SEQS = {}; CLSAT_COLORS = {}; CLSAT_STEP = {}; FILE_BITS_CLSAT = {};
+  for (const f of cfg.families){
+    CONSENSUS_SEQS[f.name] = (f.consensus || "").toUpperCase();
+    CLSAT_COLORS[f.name] = f.colour || "#9ca3af";
+    CLSAT_STEP[f.name] = f.mono;
+    FILE_BITS_CLSAT[f.name] = f.bits_file || ("MASTER_" + f.name + ".bits.tsv");
+  }
+  WINDOW_STEP = cfg.window_step || Math.max(...FAMILIES.map(f => CLSAT_STEP[f]), 1);
+  if (cfg.sat_bits != null) SAT_BITS = +cfg.sat_bits;
+  if (cfg.edge_tol != null) EDGE_TOL = +cfg.edge_tol;
+  if (cfg.flank_view != null) FLANK_VIEW = +cfg.flank_view;
+  CLUSTER_SEQS = {}; CLUSTER_TO_CLSAT = {}; CLSAT_TO_CLUSTERS = {};
+  for (const [name, rec] of Object.entries(cfg.subfamilies || {})){
+    CLUSTER_SEQS[name] = (rec.seq || "").toUpperCase();
+    CLUSTER_TO_CLSAT[name] = rec.family;
+    (CLSAT_TO_CLUSTERS[rec.family] = CLSAT_TO_CLUSTERS[rec.family] || []).push(name);
+  }
+  SUBSUBFAM_SEQS = CLUSTER_SEQS;
+  ASM_ORDER = (cfg.species || []).map(x => x.code);
+  SPECIES_LABEL = {}; for (const x of (cfg.species || [])) SPECIES_LABEL[x.code] = x.label || x.code;
+  const L = cfg.lists || {};
+  ORTHO_LOCI = L.ortho || []; FLAGGED_LOCI = L.flagged || []; FULL_TABLE = L.full || [];
+  FLAGGED_LOCI.sort((a,b)=>(a.cat==="UNIQUE_SEED_CONTRADICTION")===(b.cat==="UNIQUE_SEED_CONTRADICTION")?0:(a.cat==="UNIQUE_SEED_CONTRADICTION"?-1:1));
+  LIST_NOTES = Object.assign({ortho:"", flag:"", full:""}, cfg.notes || {});
+  LIST_COUNTS = cfg.counts || {};
+  // DOM: title, legend, family / sub-subfamily filter
+  const title = cfg.title || "Satellite locus viewer";
+  document.title = title;
+  const pt = document.getElementById("pageTitle"); if (pt) pt.textContent = title;
+  const leg = document.getElementById("familyLegend");
+  if (leg) leg.innerHTML = FAMILIES.map(f => '<div class="legendItem"><span class="swatch" style="background:' + CLSAT_COLORS[f] + '"></span> ' + esc_(f) + ' <span style="color:#64748b">' + CLSAT_STEP[f] + ' bp</span></div>').join("");
+  const sel = document.getElementById("subtypeFilter");
+  if (sel){
+    sel.innerHTML = '<option value="ALL" selected>ALL</option>' + FAMILIES.map(f =>
+      '<option value="' + esc_(f) + '">' + esc_(f) + '</option>' +
+      (CLSAT_TO_CLUSTERS[f] || []).filter(sname => sname !== f).map(sname => '<option value="' + esc_(sname) + '">' + esc_(sname) + '</option>').join("")).join("");
+  }
+  const mi = document.getElementById("manualIntro");
+  if (mi && ASM_ORDER.length) mi.innerHTML = 'A locus-resolved browser for the satellite arrays catalogued across ' + ASM_ORDER.length +
+    ' assemblies (<span class="k">' + ASM_ORDER.map(esc_).join(", ") + '</span>) in run <span class="k">' + esc_(cfg.run_name || "") + '</span>. Every array in the catalogue is a ' +
+    '<b>segmented MASTER locus</b> &mdash; a contiguous satellite-similar domain, split where the dominant family changes along the array.';
+  console.log("[viewer] config applied: " + FAMILIES.length + " families, " + ASM_ORDER.length + " assemblies, lists " +
+              ORTHO_LOCI.length + "/" + FLAGGED_LOCI.length + "/" + FULL_TABLE.length);
 }
 
-const VIEWER_VERSION = "v2.24-loader-20260729";
+const VIEWER_VERSION = "v3.0-config-20261015";
 console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
 // Show version in UI header
 document.addEventListener('DOMContentLoaded', () => {
@@ -541,115 +541,96 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /* ============================================================================
    CLIENT-SIDE SMITH-WATERMAN MONOMER FINDER (replaces monomer_server.py)
-   Mimics the searsat16 pipeline:
-     1. Smith-Waterman local alignment of consensus vs locus
-     2. Merge overlapping hits (like bedtools merge -s -d -1)
+   Approximates the searsat16 pipeline (see README "Monomer analysis" for the differences):
+     1. Smith-Waterman local alignment of each consensus vs locus, both strands
+     2. Merge overlapping same-strand hits (like bedtools merge -s -d -1), capped at 1.3x consensus
      3. Filter by min homology% and min length (Slf * consensus length)
-     4. Split into arrays at >100bp gaps
-     5. Require >=4 monomers per array
+     4. Resolve overlaps between consensuses, re-score, split into arrays at gaps >100 bp
+     5. Require MIN_MONOMERS_PER_ARRAY (3; searsat16 uses 4) monomers per array
 ============================================================================ */
 
 /** Smith-Waterman local alignment with affine-gap scoring.
- *  Scoring matches searsat16: match=+2, mismatch=-2, gap_open=-3, gap_extend=-1
+ *  Scoring matches ssearch36 -r +2/-2 -g -3 with the FASTA36 DNA default -f -16:
+ *  match=+2, mismatch=-2, first gap residue -16 (gapOpen -13 + gapExt -3), extension -3.
  *  Returns all non-overlapping hits above a score threshold.
+ *
+ *  Memory: H is Int16 (scores are small integers), the traceback is Uint8, and the
+ *  E/F gap matrices are kept as a single rolling row — 3 bytes per cell instead of 14.
+ *  Hit extraction collects every cell above threshold in ONE pass, sorts them, and
+ *  takes the best cell whose subject column is still free; previously the whole
+ *  matrix was rescanned once per hit (quadratic in the number of monomers).
  */
 function smithWaterman(query, subject, opts = {}) {
-  // Scoring mirrors ssearch36 -r +2/-2 -g -3 (FASTA36 defaults: -f -16 gap open, -g -3 gap extend)
-  // In affine model first gap residue costs gapOpen+gapExt, matching ssearch36's -f = -16
   const match    = opts.match    ??  2;
   const mismatch = opts.mismatch ?? -2;
   const gapOpen  = opts.gapOpen  ?? -13;  // -13 + (-3) = -16 = ssearch36 default DNA gap open
   const gapExt   = opts.gapExt   ??  -3;  // ssearch36 -g -3
   const qLen = query.length;
   const sLen = subject.length;
-
-  // Affine gap: H = substitution matrix, E = gap in subject, F = gap in query
-  const H = new Float32Array((qLen + 1) * (sLen + 1));
-  const E = new Float32Array((qLen + 1) * (sLen + 1));
-  const F = new Float32Array((qLen + 1) * (sLen + 1));
-  const traceH = new Uint8Array((qLen + 1) * (sLen + 1)); // 0=stop,1=diag,2=up(F),3=left(E)
-
   const w = sLen + 1;
+  const nCells = (qLen + 1) * w;
+  const integerScores = [match, mismatch, gapOpen, gapExt].every(Number.isInteger) && qLen * Math.max(match, 1) < 32000;
+  const H = integerScores ? new Int16Array(nCells) : new Float32Array(nCells);
+  const traceH = new Uint8Array(nCells); // 0=stop,1=diag,2=up(F),3=left(E)
+  const Frow = new Float64Array(w);      // F for the previous row (gap in query, vertical)
   const qU = query.toUpperCase();
   const sU = subject.toUpperCase();
-
-  // Collect all cells above threshold for multi-hit extraction
-  let allMax = 0;
+  const threshold = Math.max(qLen * match * 0.35, 20);  // 35% of a perfect single-monomer match
+  const candI = [], candJ = [], candV = [];
 
   for (let i = 1; i <= qLen; i++) {
+    const qc = qU[i-1];
+    const qIsN = qc === 'N';
+    const rowOff = i * w, prevOff = (i - 1) * w;
+    let Eprev = -Infinity;     // E for (i, j-1): gap in subject, horizontal
+    let Hleft = 0;             // H[i][j-1]
     for (let j = 1; j <= sLen; j++) {
-      const idx = i * w + j;
-      const sc = (qU[i-1] === sU[j-1] && qU[i-1] !== 'N') ? match : mismatch;
-      E[idx] = Math.max(H[(i) * w + (j-1)] + gapOpen + gapExt, E[(i) * w + (j-1)] + gapExt);
-      F[idx] = Math.max(H[(i-1) * w + (j)] + gapOpen + gapExt, F[(i-1) * w + (j)] + gapExt);
-      const diag = H[(i-1) * w + (j-1)] + sc;
-      const best = Math.max(0, diag, E[idx], F[idx]);
-      H[idx] = best;
-      if (best === 0) traceH[idx] = 0;
-      else if (best === diag) traceH[idx] = 1;
-      else if (best === F[idx]) traceH[idx] = 2;
-      else traceH[idx] = 3;
-      if (best > allMax) allMax = best;
+      const sc = (qc === sU[j-1] && !qIsN) ? match : mismatch;
+      const e = Math.max(Hleft + gapOpen + gapExt, Eprev + gapExt);
+      const f = Math.max(H[prevOff + j] + gapOpen + gapExt, Frow[j] + gapExt);
+      const diag = H[prevOff + j - 1] + sc;
+      const best = Math.max(0, diag, e, f);
+      H[rowOff + j] = best;
+      let t = 0;
+      if (best !== 0) { if (best === diag) t = 1; else if (best === f) t = 2; else t = 3; }
+      traceH[rowOff + j] = t;
+      if (best >= threshold) { candI.push(i); candJ.push(j); candV.push(best); }
+      Eprev = e; Frow[j] = f; Hleft = best;
     }
   }
 
-  // Threshold: require score >= 35% of perfect single-monomer match
-  const threshold = Math.max(qLen * match * 0.35, 20);
+  // Order candidates: highest score first; ties in row-major order (as the old full-matrix scan did)
+  const order = new Uint32Array(candV.length);
+  for (let k = 0; k < order.length; k++) order[k] = k;
+  order.sort((x, y) => (candV[y] - candV[x]) || (candI[x] - candI[y]) || (candJ[x] - candJ[y]));
 
-  // Extract multiple non-overlapping hits by repeated traceback
-  const used = new Uint8Array((qLen + 1) * (sLen + 1));
+  const colUsed = new Uint8Array(w);
   const hits = [];
-
-  for (let pass = 0; pass < 5000; pass++) {
-    // Find max cell not yet used
-    let maxVal = 0, maxI = 0, maxJ = 0;
-    for (let i = 1; i <= qLen; i++) {
-      for (let j = 1; j <= sLen; j++) {
-        const idx = i * w + j;
-        if (!used[idx] && H[idx] > maxVal) {
-          maxVal = H[idx]; maxI = i; maxJ = j;
-        }
-      }
-    }
-    if (maxVal < threshold) break;
-
-    // Traceback
-    let i = maxI, j = maxJ;
+  for (let k = 0; k < order.length && hits.length < 5000; k++) {
+    const c = order[k];
+    if (colUsed[candJ[c]]) continue;
+    const maxVal = candV[c];
+    let i = candI[c], j = candJ[c];
     let alignLen = 0, matches = 0;
     const endJ = j; // subject end (1-based)
     while (i > 0 && j > 0 && H[i * w + j] > 0) {
-      const idx = i * w + j;
-      used[idx] = 1;
-      const t = traceH[idx];
-      if (t === 1) { // diagonal
-        if (qU[i-1] === sU[j-1] && qU[i-1] !== 'N') matches++;
-        alignLen++;
-        i--; j--;
-      } else if (t === 2) { // up (gap in subject)
-        alignLen++;
-        i--;
-      } else if (t === 3) { // left (gap in query)
-        alignLen++;
-        j--;
-      } else break;
+      const t = traceH[i * w + j];
+      if (t === 1) { if (qU[i-1] === sU[j-1] && qU[i-1] !== 'N') matches++; alignLen++; i--; j--; }
+      else if (t === 2) { alignLen++; i--; }
+      else if (t === 3) { alignLen++; j--; }
+      else break;
     }
     const startJ = j; // subject start (0-based)
-    const identity = alignLen > 0 ? matches / alignLen : 0;
     hits.push({
       start: startJ,
       end: endJ - 1,  // 0-based inclusive
       score: maxVal,
-      identity: identity,
+      identity: alignLen > 0 ? matches / alignLen : 0,
       length: endJ - startJ,
       alignLen: alignLen,
       matches: matches,
     });
-    // Mark all cells in the hit region to avoid re-picking overlapping hits
-    for (let ii = 1; ii <= qLen; ii++) {
-      for (let jj = startJ + 1; jj <= endJ; jj++) {
-        used[ii * w + jj] = 1;
-      }
-    }
+    for (let jj = startJ + 1; jj <= endJ; jj++) colUsed[jj] = 1;
   }
 
   hits.sort((a, b) => a.start - b.start);
@@ -719,8 +700,6 @@ function splitWideHits(hits, fallbackConsensus, rawSeq, maxHitLen) {
     if (!splitOk) {
       console.warn('[splitWideHits] Could not decompose ' + span + 'bp hit at ' + m.start + '-' + m.end);
       out.push(m);
-    } else {
-      console.log('[splitWideHits] Split ' + span + 'bp hit into ' + out.length + ' sub-hits');
     }
   }
   // Re-sort by start
@@ -777,7 +756,6 @@ function pairwiseAlign(query, subject) {
  *  Never merges hits from different CLsat types. */
 function mergeHits(hits, maxMergeLen = Infinity) {
   if (!hits.length) return [];
-  console.log('[mergeHits] cap=' + maxMergeLen + ', input=' + hits.length + ' hits');
   const sorted = [...hits].sort((a, b) => a.start - b.start);
   const merged = [{...sorted[0]}];
   for (let i = 1; i < sorted.length; i++) {
@@ -796,20 +774,17 @@ function mergeHits(hits, maxMergeLen = Infinity) {
       merged.push({...cur});
     }
   }
-  // Log any wide hits that survived
-  const wide = merged.filter(h => (h.end - h.start + 1) > maxMergeLen);
-  if (wide.length > 0) console.warn('[mergeHits] WARNING: ' + wide.length + ' hits wider than cap! Spans:', wide.map(h => h.end - h.start + 1));
-  console.log('[mergeHits] output=' + merged.length + ' hits, max span=' + Math.max(...merged.map(h => h.end - h.start + 1)));
   return merged;
 }
 
 /** Split hit array into tandem arrays at gaps >100bp, keep only arrays with >=minTandems.
- *  searsat16 uses >=4 per sub-array; we use 3 as default for viewer (more permissive). */
-function splitIntoArrays(hits, minTandems = 3) {
+ *  searsat16 uses >=4 per sub-array; the viewer uses MIN_MONOMERS_PER_ARRAY (3). */
+function splitIntoArrays(hits, minTandems = MIN_MONOMERS_PER_ARRAY) {
   if (!hits.length) return [];
   const arrays = [[hits[0]]];
   for (let i = 1; i < hits.length; i++) {
-    const gap = hits[i].start - hits[i-1].end;
+    // true gap in bp between inclusive ends (searsat16: xa[i]-xb[i-1] on BED coordinates)
+    const gap = hits[i].start - hits[i-1].end - 1;
     if (gap > 100) {
       arrays.push([hits[i]]);
     } else {
@@ -821,9 +796,9 @@ function splitIntoArrays(hits, minTandems = 3) {
 
 /**
  * Split arrays at CLsat-type transition points.
- * When consecutive monomers switch CLsat type (e.g. CLsat3 ? CLsat1),
+ * When consecutive monomers switch CLsat type (e.g. CLsat3 → CLsat1),
  * split into sub-arrays so each gets its own consensus MSA.
- * Sub-arrays at boundaries (=1 monomer) are kept; interior sub-arrays need =2.
+ * Sub-arrays at boundaries (≥1 monomer) are kept; interior sub-arrays need ≥2.
  */
 function splitArraysAtTransitions(arrays) {
   const result = [];
@@ -841,7 +816,6 @@ function splitArraysAtTransitions(arrays) {
       continue;
     }
     // Split at type transitions
-    console.log('[transition] Array with mixed types:', types.join(','));
     const subArrays = [{ strand: arr.strand, hits: [hits[0]] }];
     for (let i = 1; i < hits.length; i++) {
       const prevType = hits[i-1].clsat || '?';
@@ -853,15 +827,14 @@ function splitArraysAtTransitions(arrays) {
       }
     }
     // Keep sub-arrays: boundary ones (first/last) with =1 monomer,
-    // interior ones with =2 monomers
+    // interior ones with ≥2 monomers
     for (let si = 0; si < subArrays.length; si++) {
       const sa = subArrays[si];
       const isBoundary = (si === 0 || si === subArrays.length - 1);
-      if (sa.hits.length >= 1) {
+      if (sa.hits.length >= (isBoundary ? 1 : 2)) {
         result.push(sa);
       }
     }
-    console.log('[transition] Split into ' + subArrays.length + ' sub-arrays');
   }
   return result;
 }
@@ -877,19 +850,19 @@ function splitArraysAtTransitions(arrays) {
  * Run SW-based monomer scan for ONE consensus against a cleaned sequence.
  * Returns an array of hits (not filtered into arrays yet), each tagged with clsat.
  */
-function scanOneConsensus(seq, consName, minIdentity) {
+function scanOneConsensus(seq, consName, minIdentity, rawScan) {
   const consensus = CONSENSUS_SEQS[consName];
   if (!consensus) return [];
   const seqLen = seq.length;
   const consLen = consensus.length;
   const Slf = 0.9;
   const minLen = Math.floor(Slf * consLen);
+  const maxSpan = Math.floor(consLen * 1.3);
 
-  const fwdHits = smithWaterman(consensus, seq);
+  const fwdHits = (rawScan ? rawScan.fwd : smithWaterman(consensus, seq)).map(h => ({...h}));
   fwdHits.forEach(h => { h.strand = '+'; h.clsat = consName; });
 
-  const rcSeq = revComp(seq);
-  const rcHitsRaw = smithWaterman(consensus, rcSeq);
+  const rcHitsRaw = rawScan ? rawScan.rc : smithWaterman(consensus, revComp(seq));
   const rcHits = rcHitsRaw.map(h => {
     const newStart = seqLen - h.end - 1;
     const newEnd = seqLen - h.start - 1;
@@ -903,14 +876,53 @@ function scanOneConsensus(seq, consName, minIdentity) {
     };
   });
 
-  let combined = [...fwdHits, ...rcHits]
+  // searsat16 order: merge overlapping same-strand hits first (bedtools merge -s -d -1),
+  // THEN filter by identity and length. Filtering first discarded overlapping
+  // sub-threshold fragments that only pass once merged.
+  let combined = [...mergeHits(fwdHits, maxSpan), ...mergeHits(rcHits, maxSpan)]
     .filter(h => h.identity >= minIdentity && h.length >= minLen);
 
   // Split any raw hits wider than 1.3× consensus (should be rare, but defensive)
-  const maxSpan = Math.floor(consLen * 1.3);
   combined = splitWideHits(combined, consensus, seq, maxSpan);
 
   return combined;
+}
+
+/**
+ * Run the Smith-Waterman scans (4 consensuses x 2 strands) off the main thread.
+ * Resolves to { [consName]: {fwd: hits[], rc: hits[]} }. Falls back to the main
+ * thread when Workers are unavailable (file:// in some browsers).
+ */
+let _swWorkerUrl = null;
+function runScansInWorker(seq, scanNames, onProgress) {
+  const consMap = {}; scanNames.forEach(cn => { if (CONSENSUS_SEQS[cn]) consMap[cn] = CONSENSUS_SEQS[cn]; });
+  const runInline = () => {
+    const out = {}; const rc = revComp(seq);
+    for (const cn of Object.keys(consMap)) {
+      out[cn] = { fwd: smithWaterman(consMap[cn], seq), rc: smithWaterman(consMap[cn], rc) };
+    }
+    return out;
+  };
+  if (typeof Worker === 'undefined' || typeof Blob === 'undefined') return Promise.resolve(runInline());
+  if (!_swWorkerUrl) {
+    const src = smithWaterman.toString() + '\n' + revComp.toString() + '\n' +
+      'onmessage = function(ev){ const {seq, cons} = ev.data; const rc = revComp(seq); const out = {}; const names = Object.keys(cons); let k = 0;' +
+      ' for (const cn of names){ postMessage({progress: cn, done: k, total: names.length});' +
+      '   out[cn] = { fwd: smithWaterman(cons[cn], seq), rc: smithWaterman(cons[cn], rc) }; k++; }' +
+      ' postMessage({result: out}); };';
+    _swWorkerUrl = URL.createObjectURL(new Blob([src], {type: 'application/javascript'}));
+  }
+  return new Promise((resolve) => {
+    let worker;
+    try { worker = new Worker(_swWorkerUrl); }
+    catch (e) { console.warn('[SW] Worker unavailable, running inline:', e); resolve(runInline()); return; }
+    worker.onmessage = (ev) => {
+      if (ev.data.progress !== undefined) { if (onProgress) onProgress(ev.data); return; }
+      worker.terminate(); resolve(ev.data.result);
+    };
+    worker.onerror = (e) => { console.warn('[SW] Worker failed, running inline:', e.message); worker.terminate(); resolve(runInline()); };
+    worker.postMessage({ seq, cons: consMap });
+  });
 }
 
 /**
@@ -963,9 +975,6 @@ function reassignBestConsensus(hits, rawSeq) {
       }
     }
     if (bestCn !== hit.clsat) {
-      console.log('[reassign] ' + hit.start + '-' + hit.end + ' (' + hit.strand +
-        '): ' + hit.clsat + ' -> ' + bestCn +
-        ' (score ' + hit.score + ' -> ' + bestScore + ')');
       hit.clsat = bestCn;
       hit.score = bestScore;
     }
@@ -1013,33 +1022,29 @@ function assignCluster(hits, rawSeq) {
   return hits;
 }
 
-function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
+const SW_MAX_BP = 200000;             // hard limit for the browser scan
+const MIN_MONOMERS_PER_ARRAY = 3;     // searsat16 uses 4 per sub-array; the viewer is deliberately more permissive
+
+async function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75, onProgress) {
   const seq = sequence.replace(/^>.*\n/gm, '').replace(/\s/g, '').toUpperCase();
   const seqLen = seq.length;
 
-  if (seqLen > 50000) {
-    console.warn("[SW] Large sequence (" + seqLen + " bp) — analysis may take a while");
-  }
-  if (seqLen > 200000) {
-    return { success: false, message: "Sequence too large (" + (seqLen/1000).toFixed(0) + " kb). Zoom in to <50 kb first." };
+  if (seqLen > SW_MAX_BP) {
+    return { success: false, message: "Sequence too large (" + (seqLen/1000).toFixed(0) + " kb). The browser scan is limited to " + (SW_MAX_BP/1000) + " kb; zoom in and fetch a shorter region." };
   }
 
-  // Determine which consensus(es) to scan
   // Always scan ALL consensuses to detect transition zones between CLsat types
   let scanNames = Object.keys(CONSENSUS_SEQS);
-  console.log("[SW] Scanning all consensuses:", scanNames.join(', ') + " (assigned: " + consensusName + ")");
+  const rawScans = await runScansInWorker(seq, scanNames, onProgress);
 
-  // Scan with each consensus
   let allHits = [];
   for (const cn of scanNames) {
-    const hits = scanOneConsensus(seq, cn, minIdentity);
-    console.log("[SW] " + cn + ": " + hits.length + " raw hits");
+    const hits = scanOneConsensus(seq, cn, minIdentity, rawScans[cn]);
     allHits.push(...hits);
   }
 
   // Always resolve overlaps across consensuses (keep best score at each position)
   allHits = resolveOverlaps(allHits);
-  console.log("[SW] After overlap resolution: " + allHits.length + " hits");
 
   // Re-score each hit against ALL consensuses to fix fragile boundary assignments
   allHits = reassignBestConsensus(allHits, seq);
@@ -1048,8 +1053,6 @@ function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
   allHits = assignCluster(allHits, seq);
 
   allHits.sort((a, b) => a.start - b.start);
-
-  console.log("[SW] Sequence: " + seqLen + " bp, Filtered hits: " + allHits.length);
 
   if (allHits.length === 0) {
     return {
@@ -1072,11 +1075,8 @@ function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
   plusHits = splitWideHits(plusHits, primaryCons, seq, maxMergeLen);
   minusHits = splitWideHits(minusHits, primaryCons, seq, maxMergeLen);
 
-  const plusArrays = splitIntoArrays(plusHits, 3);
-  const minusArrays = splitIntoArrays(minusHits, 3);
-
-  console.log("[SW] + strand: " + plusHits.length + " merged -> " + plusArrays.length + " arrays");
-  console.log("[SW] - strand: " + minusHits.length + " merged -> " + minusArrays.length + " arrays");
+  const plusArrays = splitIntoArrays(plusHits, MIN_MONOMERS_PER_ARRAY);
+  const minusArrays = splitIntoArrays(minusHits, MIN_MONOMERS_PER_ARRAY);
 
   // Combine results
   let allArrays = [
@@ -1104,7 +1104,7 @@ function analyzeMonomersSW(sequence, consensusName, minIdentity = 0.75) {
     array_count: allArrays.length,
     consensus_name: resultConsName,
     consensus_names: usedClsats,
-    consensus_length: CONSENSUS_SEQS[usedClsats[0]]?.length || 146,
+    consensus_length: CONSENSUS_SEQS[usedClsats[0]]?.length || WINDOW_STEP,
     avg_identity: avgIdent,
     monomers: allMonomers,
     arrays: allArrays,
@@ -1566,7 +1566,7 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
     const maxHitLen = Math.floor(consLen * 1.3);
     let displayHits = splitWideHits(arr.hits.slice(), consensus, rawSeq, maxHitLen);
     // splitWideHits re-sorts ascending by genomic start.
-    // For minus-strand, reverse to biological 5'?3' order AFTER the re-sort
+    // For minus-strand, reverse to biological 5'→3' order AFTER the re-sort
     // so that isFirst (mi=0) = biological 5' start and isLast = biological 3' end.
     if (strand === '-') displayHits.reverse();
     // Re-create displayIndices to match (indices are only used for origIdx / monId)
@@ -2137,7 +2137,7 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
     });
   });
 
-  // Wire up cross-highlighting from MSA rows ? arrow map
+  // Wire up cross-highlighting from MSA rows → arrow map
   container.querySelectorAll('.msaRow[data-monid]').forEach(row => {
     row.addEventListener('mouseenter', () => highlightMonomer(row.dataset.monid, true));
     row.addEventListener('mouseleave', () => highlightMonomer(null, false));
@@ -2252,12 +2252,9 @@ const BASE_URL = getBaseUrl();
 let loci = [];            // {id, sp, scf, start, end, name}
 let assignments = {};     // id -> {seed, seedBits, best, bestBits, delta, flag}
   let flankData = null;     // locus -> {LF,RF,subtype,n_monomers,...}
-  let bphaseData = null;    // locus -> {LB,RB}
-  let bphaseHist = null;    // subtype -> {start[],end[],mono}
   let orthoData = null;     // {LF:{thr:{locus:[...]}}, RF:{...}}
   let subfamData = null;    // locus -> {major,subfamily,pid,bits,second,delta,confident}
   let terminalData = null;  // locus -> {start:{...},end:{...}}
-  let termHist = null;      // subtype -> {mono,start[],end[]}
 let bits = {};            // id -> {b1,b2,b3,b4}
 
 // Per-window data: indexed by scaffold -> sorted array of {pos, bits, name, clsat}
@@ -2285,12 +2282,7 @@ let xScaleDetail, xAxisDetail, xScaleDetailBase;
 let baseDomainDetail = [0,1];
 let currentLocus = null;
 
-const CLSAT_COLORS = {
-  CLsat1: "#60a5fa",  // blue (solid)
-  CLsat2: "#34d399",  // green (solid)
-  CLsat3: "#f472b6",  // pink (solid)
-  CLsat4: "#fbbf24",  // yellow (solid)
-};
+// CLSAT_COLORS: see applyViewerConfig()
 
 const fmt = d => typeof d === "number" ? d.toFixed(1) : d;
 const key = (sp, scf) => `${sp}\t${scf}`;
@@ -2370,9 +2362,11 @@ function parseBitsMatrix(text){
   const lines = text.trim().split("\n");
   for (const line of lines){
     const p = line.split("\t");
-    if (p.length < 5) continue;
+    if (p.length < 1 + FAMILIES.length) continue;
     if (p[0].toLowerCase() === "locus_id" || p[0].toLowerCase() === "locus") continue;
-    obj[p[0]] = { b1: +p[1], b2: +p[2], b3: +p[3], b4: +p[4] };
+    const rec = {};
+    FAMILIES.forEach((f, i) => { rec[f] = +p[i + 1]; });
+    obj[p[0]] = rec;
   }
   return obj;
 }
@@ -2471,7 +2465,7 @@ function populateLocusTable(){
   let rows = loci.map(l => {
     const a = assignments[l.id] || {};
     const len = l.end - l.start;
-    const mono = (typeof CLSAT_STEP !== 'undefined' && CLSAT_STEP[a.seed]) ? CLSAT_STEP[a.seed] : 146;
+    const mono = CLSAT_STEP[a.seed] || WINDOW_STEP;
     const nMono = Math.max(1, Math.round(len / mono));
     return {
       id: l.id,
@@ -2534,10 +2528,10 @@ function populateLocusTable(){
     'SEED_CONFLICT_RESOLVED_AMBIGUOUS': '#c084fc',
     'SEGMENT_RESOLVED': '#38bdf8',
     'SEGMENT_RESOLVED_AMBIGUOUS': '#7dd3fc',
-    'CANDIDATE_UNCATALOGUED': '#64748b',
-    'SEED_ONLY': '#34d399',
-    'SEED_WITH_COMPETITOR': '#f59e0b',
-    'SEED_CONTRADICTION': '#ef4444'
+    'NO_SEED_RESOLVED': '#2dd4bf',
+    'NO_SEED_AMBIGUOUS': '#5eead4',
+    'UNIQUE_SEED_ONLY': '#34d399',
+    'CANDIDATE_UNCATALOGUED': '#64748b'
   };
   let html = '';
   for (const r of rows) {
@@ -2682,7 +2676,8 @@ function drawOverview(){
   for (const r of scfData){
     const binPos = Math.round(r.pos / WINDOW_STEP) * WINDOW_STEP;
     if (!byBin.has(binPos)){
-      byBin.set(binPos, {pos: binPos, CLsat1: 0, CLsat2: 0, CLsat3: 0, CLsat4: 0});
+      const b0 = {pos: binPos}; for (const f of FAMILIES) b0[f] = 0;
+      byBin.set(binPos, b0);
     }
     const bin = byBin.get(binPos);
     if (r.bits > bin[r.clsat]) bin[r.clsat] = r.bits;
@@ -2691,7 +2686,7 @@ function drawOverview(){
   // A window below the satellite threshold is an INTERNAL BREAK, not absence of data.
   // Flag it so renderOverview can draw it grey instead of as a stub of family colour.
   for (const w of overviewWindows){
-    w.best  = Math.max(w.CLsat1, w.CLsat2, w.CLsat3, w.CLsat4);
+    w.best  = Math.max(0, ...FAMILIES.map(f => w[f] || 0));
     w.noise = w.best < SAT_BITS;
   }
   const satW = overviewWindows.filter(w => !w.noise);
@@ -2734,7 +2729,7 @@ function flagCategory(flag){
   if (flag.indexOf("SEED_CONFLICT") >= 0) return "conflict";
   if (flag.indexOf("SEGMENT") >= 0)       return "segment";
   if (flag.indexOf("COMPETITOR") >= 0)    return "competitor";
-  if (flag === "SEED_ONLY") return "ok";
+  if (flag.indexOf("NO_SEED") >= 0)       return "noseed";
   return "ok";
 }
 function flagShortLabel(flag){
@@ -2745,9 +2740,10 @@ function flagShortLabel(flag){
     case "SEED_CONFLICT_RESOLVED_AMBIGUOUS": return "CONFL?";
     case "SEGMENT_RESOLVED":                 return "SEG";
     case "SEGMENT_RESOLVED_AMBIGUOUS":       return "SEG?";
-    case "SEED_ONLY":                        return "OK";
-    case "SEED_WITH_COMPETITOR":             return "COMP";
-    case "SEED_CONTRADICTION":               return "CONTRA";
+    case "NO_SEED_RESOLVED":                 return "NOSEED";
+    case "NO_SEED_AMBIGUOUS":                return "NOSEED?";
+    case "UNIQUE_SEED_ONLY":                 return "OK";
+    case "CANDIDATE_UNCATALOGUED":           return "CAND";
     default: return flag || "";
   }
 }
@@ -2761,6 +2757,7 @@ function fillColorForLocus(l){
   if (cat === "ambiguous")     return "#c084fc";
   if (cat === "segment")       return "#38bdf8";
   if (cat === "competitor")    return "#f59e0b";
+  if (cat === "noseed")        return "#2dd4bf";
   return "#22c55e";
 }
 
@@ -2797,7 +2794,7 @@ function renderOverview(){
   }
 
   // Build bar data (4 bars per window, sorted by bits descending so tallest drawn first = in back)
-  const CLSATS = ["CLsat1", "CLsat2", "CLsat3", "CLsat4"];
+  const CLSATS = FAMILIES;
   const barData = [];
   for (const w of visWindows){
     if (w.noise){
@@ -3002,8 +2999,8 @@ function selectLocus(l){
   }
   const b = bits[l.id] || {};
   let s = `Selected: ${l.id}\n${l.scf}:${l.start}-${l.end}\n`;
-  if (a) s += `Seed: ${a.seed} (${fmt(a.seedBits)}), Best other: ${a.best} (${fmt(a.bestBits)}), ?=${fmt(a.delta)}, Flag=${a.flag}\n`;
-  s += `Max bits: CLsat1=${fmt(b.b1||0)} CLsat2=${fmt(b.b2||0)} CLsat3=${fmt(b.b3||0)} CLsat4=${fmt(b.b4||0)}`;
+  if (a) s += `Seed: ${a.seed} (${fmt(a.seedBits)}), Best other: ${a.best} (${fmt(a.bestBits)}), Δ=${fmt(a.delta)}, Flag=${a.flag}\n`;
+  s += "Max bits: " + FAMILIES.map(f => f + "=" + fmt(b[f] || 0)).join(" ");
   setStatus(s);
 
   // Highlight in overview
@@ -3037,27 +3034,23 @@ function zoomOverviewToLocus(l){
   d3.select(svgOver.node()).transition().duration(200).call(zoomOver.transform, t);
 }
 
-// Per-CLsat monomer lengths (= scan window step for each consensus)
-const CLSAT_STEP = {
-  CLsat1: 146,   // 6-genome run: consensus 146 bp, scan step = MONO = 146
-  CLsat2: 145,   // consensus 145 bp, scan step 145
-  CLsat3: 146,   // consensus 146 bp, scan step 146
-  CLsat4: 116,   // consensus 116 bp, scan step 116
-};
+// CLSAT_STEP (monomer length per family): see applyViewerConfig()
 
 // Human-readable explanations for arbitration flags (Locus Table tooltips)
 const FLAG_TOOLTIPS = {
-  'UNIQUE_SEED_WITH_COMPETITOR': 'One seed family matched; another family also scored but did not override the seed.',
-  'UNIQUE_SEED_CONTRADICTION': 'A non-seed family scored >=DELTA bits above the seed - assignment contradicts the seed.',
+  'UNIQUE_SEED_ONLY': 'One seed family matched and no other family scored in the rescan.',
+  'UNIQUE_SEED_WITH_COMPETITOR': 'One seed family matched; another family also scored. The seed call is kept; Δ = seed bits − strongest other family (negative = the other family scored higher, but by less than 20 bits).',
+  'UNIQUE_SEED_CONTRADICTION': 'The symmetric rescan scores another family ≥20 bits above the seed (Δ ≤ −20). The seed family is retained as the catalogue call; the locus is flagged for inspection.',
   'SEED_CONFLICT_RESOLVED': 'Multiple seed families overlapped this locus; resolved by highest bitscore.',
   'SEED_CONFLICT_RESOLVED_AMBIGUOUS': 'Seed conflict resolved by bitscore, but the winning margin was small (<DELTA_AMBIG).',
   'SEGMENT_RESOLVED': 'A composite locus segment; family assigned by dominant bitscore in this segment.',
   'SEGMENT_RESOLVED_AMBIGUOUS': 'Segment assigned by bitscore, but the winning margin was small (<DELTA_AMBIG).',
-  'SEED_ONLY': 'Single seed family, no competing signal.',
-  'SEED_WITH_COMPETITOR': 'Seed family with a competing family present below override threshold.',
-  'SEED_CONTRADICTION': 'Competitor family overrode the seed.'
+  'NO_SEED_RESOLVED': 'No seed fell inside this locus; the family is the rescan winner (L540; L541 was added by hand).',
+  'NO_SEED_AMBIGUOUS': 'No seed; rescan winner with a small margin (<DELTA_AMBIG).',
+  'CANDIDATE_UNCATALOGUED': 'CLsat-matching array found by the post-catalogue singleton screen; shown for inspection, not a catalogue member.'
 };
-const WINDOW_STEP = 146;  // uniform display grid for grouping bars from different CLsats
+// Δ convention (all flags, since 2026-10-15): assigned-family bits − strongest other family. Negative = another family scored higher.
+// WINDOW_STEP: see applyViewerConfig()
 
 function drawDetailForLocus(l){
   initDetailChart();
@@ -3101,8 +3094,8 @@ function drawDetailForLocus(l){
   for (const r of data){
     const binPos = Math.round(r.pos / WINDOW_STEP) * WINDOW_STEP;
     if (!byBin.has(binPos)){
-      byBin.set(binPos, {pos: binPos, CLsat1: 0, CLsat2: 0, CLsat3: 0, CLsat4: 0,
-                         hasMain: false, hasFlank: false});
+      const b0 = {pos: binPos, hasMain: false, hasFlank: false}; for (const f of FAMILIES) b0[f] = 0;
+      byBin.set(binPos, b0);
     }
     const bin = byBin.get(binPos);
     if (r._src === 'flank') bin.hasFlank = true; else bin.hasMain = true;
@@ -3115,7 +3108,7 @@ function drawDetailForLocus(l){
   // threshold (an internal break). Both are drawn grey as NOISE.
   for (const w of windows){
     w.outside   = (w.pos < l.start || w.pos > l.end);
-    w.best      = Math.max(w.CLsat1, w.CLsat2, w.CLsat3, w.CLsat4);
+    w.best      = Math.max(0, ...FAMILIES.map(f => w[f] || 0));
     // A window outside this locus is only "flank" if it has no scanned satellite data of its
     // own. If it came from the main tracks it belongs to the neighbouring locus and is real
     // satellite: show it in family colour, dimmed, so the boundary is legible either way.
@@ -3181,7 +3174,7 @@ function renderDetail(){
   }
 
   // Build bar data: 4 bars per window, sorted by bits descending so tallest drawn first (in back)
-  const CLSATS = ["CLsat1", "CLsat2", "CLsat3", "CLsat4"];
+  const CLSATS = FAMILIES;
   const barData = [];
   for (const w of vis){
     if (w.noise){
@@ -3286,7 +3279,37 @@ async function fetchText(path){
   return await r.text();
 }
 
+/** Fetch a text file that is shipped gzip-compressed as <path>.gz (GitHub Pages does not
+ *  negotiate Content-Encoding, so the page inflates it itself with DecompressionStream).
+ *  Falls back to the uncompressed <path> when the .gz is absent or the browser lacks
+ *  DecompressionStream. */
+async function fetchTextMaybeGz(path){
+  if (typeof DecompressionStream !== 'undefined'){
+    const url = BASE_URL + path + '.gz';
+    const r = await fetch(url);
+    if (r.ok && r.body){
+      const ct = (r.headers.get('content-type') || '').toLowerCase();
+      // A host that already inflated the body (Content-Encoding) hands us plain text.
+      if (ct.startsWith('text/')) return await r.text();
+      const inflated = r.body.pipeThrough(new DecompressionStream('gzip'));
+      return await new Response(inflated).text();
+    }
+  }
+  return await fetchText(path);
+}
+
 async function loadViaFetch(){
+  setStatus("Loading viewer_config.json…");
+  try {
+    const cfgText = await fetchText("viewer_config.json");
+    applyViewerConfig(JSON.parse(cfgText));
+  } catch (e) {
+    setStatus("viewer_config.json is missing or invalid: " + e.message +
+              "\nThis page is run-specific only through that file; write it with `satpipe viewer <run_dir>`.");
+    fileOk.textContent = "\u2717 no viewer_config.json";
+    fileOk.className = "pill bad";
+    throw e;
+  }
   setStatus("Loading files via fetch()…");
 
   // Load main files
@@ -3324,7 +3347,7 @@ async function loadViaFetch(){
 
   // Flank windows (optional). Same format as the in-locus bits files.
   try {
-    const t = await fetchText(FILE_FLANK_BITS);
+    const t = await fetchTextMaybeGz(FILE_FLANK_BITS);
     const rows = [];
     for (const line of t.split(/\r?\n/)){
       if (!line || line.startsWith("scaffold\t")) continue;
@@ -3347,7 +3370,7 @@ async function loadViaFetch(){
   // Load per-window bits files
   const perWindowPromises = Object.entries(FILE_BITS_CLSAT).map(async ([clsat, file]) => {
     try {
-      const text = await fetchText(file);
+      const text = await fetchTextMaybeGz(file);
       const rows = parsePerWindowBits(text, clsat);
       buildPerWindowIndex(rows);
       return {clsat, count: rows.length};
@@ -3383,17 +3406,16 @@ async function loadViaFetch(){
 
   // Load optional analysis JSONs (non-fatal if missing)
   try {
-    const [fl, bp, bph, orth, sfd, tmd, tmh] = await Promise.all([
+    const [fl, orth, sfd, tmd] = await Promise.all([
       fetchText(FILE_FLANKS).then(t=>JSON.parse(t)).catch(()=>null),
-      fetchText(FILE_BPHASE).then(t=>JSON.parse(t)).catch(()=>null),
-      fetchText(FILE_BPHASE_HIST).then(t=>JSON.parse(t)).catch(()=>null),
       fetchText(FILE_ORTHOLOGS).then(t=>JSON.parse(t)).catch(()=>null),
       fetchText(FILE_SUBFAM).then(t=>JSON.parse(t)).catch(()=>null),
+      // terminal_monomers.json is optional; the 2026-07 catalogue correction left the old
+      // 707-locus file in place and it was withdrawn on 2026-10-15 (see DEPLOY.md).
       fetchText(FILE_TERMINAL).then(t=>JSON.parse(t)).catch(()=>null),
-      fetchText(FILE_TERMHIST).then(t=>JSON.parse(t)).catch(()=>null),
     ]);
-    flankData = fl; bphaseData = bp; bphaseHist = bph; orthoData = orth;
-    subfamData = sfd; terminalData = tmd; termHist = tmh;
+    flankData = fl; orthoData = orth;
+    subfamData = sfd; terminalData = tmd;
     if (flankData) console.log(`flanks: ${Object.keys(flankData).length} loci`);
     if (orthoData) console.log(`orthologs loaded`);
     updateAnalysisAvailability();
@@ -3541,7 +3563,7 @@ function bindUIOnce(){
       const btn = document.getElementById("copyBedBtn");
       const orig = btn.textContent;
       btn.textContent = "Copied!";
-      console.log("[BED Copy] ? Successfully copied to clipboard");
+      console.log("[BED Copy] ✓ Successfully copied to clipboard");
       setStatus(`BED coordinates copied:\n${text}\n\nReady for: bedtools getfasta -fi genome.fa -bed coords.bed`);
       setTimeout(()=> btn.textContent = orig, 1500);
     }).catch(e => {
@@ -3566,16 +3588,13 @@ function bindUIOnce(){
     const scf = currentLocus.scf;
     const length = end - start + 1;
     
-    console.log("[FASTA] === FETCH START ===");
-    console.log("[FASTA] Locus:", currentLocus);
-    console.log("[FASTA] Scaffold:", scf);
-    console.log("[FASTA] Coordinates:", start, "-", end, "(length:", length, "bp)");
     
     // Warning for large sequences
     if (length > 15000) {
       const proceed = confirm(
         `Warning: This will fetch ${length.toLocaleString()} nucleotides from NCBI.\n\n` +
-        `Large sequences may take time to download and display.\n\n` +
+        `Large sequences take time to download and display, and Analyze Monomers is limited to ` +
+        `${(SW_MAX_BP/1000)} kb.\n\n` +
         `Continue?`
       );
       if (!proceed) {
@@ -3595,8 +3614,7 @@ function bindUIOnce(){
     
     try {
       const fasta = await fetchNCBIFasta(scf, start, end);
-      console.log("[FASTA] ? Success! Received", fasta.length, "characters");
-      console.log("[FASTA] First 200 chars:", fasta.substring(0, 200));
+      console.log("[FASTA] ✓ Success! Received", fasta.length, "characters");
       statusEl.textContent = `${scf}:${start}-${end} (${end - start + 1} bp)`;
       seqEl.textContent = fasta;
       copyBtn.style.display = "inline-block";
@@ -3607,15 +3625,15 @@ function bindUIOnce(){
         navigator.clipboard.writeText(fasta).then(()=>{
           const orig = copyBtn.textContent;
           copyBtn.textContent = "Copied!";
-          console.log("[FASTA] ? FASTA copied to clipboard");
+          console.log("[FASTA] ✓ FASTA copied to clipboard");
           setTimeout(()=> copyBtn.textContent = orig, 1500);
         }).catch(e => {
-          console.error("[FASTA] ? Copy failed:", e);
+          console.error("[FASTA] ✗ Copy failed:", e);
           alert("Copy failed. Please select and copy manually.");
         });
       };
     } catch (e) {
-      console.error("[FASTA] ? FAILED:", e);
+      console.error("[FASTA] ✗ FAILED:", e);
       console.error("[FASTA] Error details:", e.message, e.stack);
       statusEl.textContent = "Error: " + e.message;
       seqEl.textContent = "Failed to fetch sequence. Make sure the scaffold name is a valid NCBI accession (e.g., NC_123456 or NW_123456).\n\nAlternatively, use the 'Copy BED' button and run:\n  bedtools getfasta -fi genome.fa -bed coords.bed";
@@ -3623,7 +3641,6 @@ function bindUIOnce(){
     } finally {
       btn.disabled = false;
       btn.textContent = "Get FASTA";
-      console.log("[FASTA] === FETCH END ===");
     }
   });
 
@@ -3647,7 +3664,7 @@ function bindUIOnce(){
 
     // Get consensus from assignment
     const assignment = assignments[currentLocus.id];
-    const consensusName = assignment?.seed || "CLsat1";
+    const consensusName = assignment?.seed || FAMILIES[0];
 
     console.log("[MONOMER] === CLIENT-SIDE SW ANALYSIS START ===");
     console.log("[MONOMER] Locus:", currentLocus.id);
@@ -3698,13 +3715,9 @@ function bindUIOnce(){
 
       // Run client-side Smith-Waterman analysis
       // Use setTimeout to allow UI to update before heavy computation
-      const result = await new Promise(resolve => {
-        setTimeout(() => {
-          resolve(analyzeMonomersSW(sequence, consensusName, minIdentity));
-        }, 50);
+      const result = await analyzeMonomersSW(sequence, consensusName, minIdentity, (p) => {
+        mStatusEl.textContent = "Running Smith-Waterman: " + p.progress + " (" + (p.done + 1) + "/" + p.total + ")...";
       });
-
-      console.log("[MONOMER] Result:", result);
 
       if (!result.success) {
         mStatusEl.textContent = "No monomers found";
@@ -3823,46 +3836,21 @@ function bindUIOnce(){
 }
 
 async function fetchNCBIFasta(accession, start, end) {
-  // NCBI E-utilities API
-  // Note: For production use, should use an API key and proper error handling
-  const url = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nucleotide&id=${encodeURIComponent(accession)}&rettype=fasta&retmode=text&seq_start=${start}&seq_stop=${end}`;
-  
-  console.log("[FASTA API] URL:", url);
-  console.log("[FASTA API] Accession:", accession, "(encoded:", encodeURIComponent(accession), ")");
-  console.log("[FASTA API] Range:", start, "-", end);
-  console.log("[FASTA API] Making fetch request...");
-  
-  try {
-    const response = await fetch(url);
-    console.log("[FASTA API] Response status:", response.status, response.statusText);
-    console.log("[FASTA API] Response headers:", Object.fromEntries(response.headers.entries()));
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    
-    const text = await response.text();
-    console.log("[FASTA API] Response length:", text.length, "characters");
-    console.log("[FASTA API] First 500 chars:", text.substring(0, 500));
-    
-    // Check if we got an error message instead of FASTA
-    if (text.includes("Error") || text.includes("error") || text.length < 10) {
-      console.error("[FASTA API] Response appears to be an error:", text);
-      throw new Error("Invalid accession or sequence not found");
-    }
-    
-    // Check if it looks like FASTA format
-    if (!text.startsWith(">")) {
-      console.warn("[FASTA API] Response doesn't start with '>'. Full response:", text);
-      throw new Error("Response is not in FASTA format");
-    }
-    
-    console.log("[FASTA API] ? Valid FASTA format detected");
-    return text.trim();
-  } catch (e) {
-    console.error("[FASTA API] Exception during fetch:", e);
-    throw e;
+  // NCBI E-utilities. seq_start/seq_stop are 1-based inclusive. The tool/email
+  // parameters are what NCBI asks every client to send; an api_key is not needed
+  // at one request per click (limit without a key: 3 requests/s).
+  const sl = scafLen.get(accession);
+  if (isFinite(sl) && sl > 0 && end > sl) end = sl;
+  const url = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nucleotide&id=${encodeURIComponent(accession)}&rettype=fasta&retmode=text&seq_start=${start}&seq_stop=${end}&tool=clsat-viewer&email=toki.sk%40gmail.com`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`NCBI efetch HTTP ${response.status}: ${response.statusText}`);
+  const text = await response.text();
+  if (!text.startsWith(">")) {
+    // E-utilities return an XML/plain error document instead of FASTA
+    const msg = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+    throw new Error("NCBI returned no FASTA for " + accession + ":" + start + "-" + end + (msg ? " (" + msg + ")" : ""));
   }
+  return text.trim();
 }
 
 function jumpToLocusId(id){
@@ -4085,7 +4073,14 @@ function showFlanks(){
           + `<b style="color:${CLSAT_COLORS[sfd.major]||'#9ca3af'};">${sfd.subfamily}</b> `
           + `<span style="color:#64748b;">(${sfd.pid}% id` + (sfd.second ? `, 2nd ${sfd.second} d=${sfd.delta}` : ``) + `)${sfd.confident?'':' - low conf'}</span></div>`;
   }
-  const tmData = (terminalData && terminalData[lid]) ? terminalData[lid] : null;
+  // Show the terminal-monomer record only when it plausibly belongs to this locus: the
+  // record must carry the monomer length of the locus's assigned family.
+  let tmData = (terminalData && terminalData[lid]) ? terminalData[lid] : null;
+  if (tmData){
+    const famLen = CONSENSUS_SEQS[(sfd && sfd.major) || (assignments[lid] && assignments[lid].seed) || '']?.length;
+    const monos = ['start','end'].map(k => tmData[k] && tmData[k].mono).filter(Boolean);
+    if (famLen && monos.length && !monos.includes(famLen)) tmData = null;
+  }
   if (tmData){
     const tmDesc = (r, label) => {
       if (!r || r.covered==null) return `<span style="color:#475569;">${label}: n/a</span>`;
@@ -4332,8 +4327,7 @@ function bindEndsFlanksUI(){
   <div id="helpBody">
 
   <h3>What this is</h3>
-  <p>A locus-resolved browser for the CLsat satellite arrays catalogued across six <i>Darevskia</i>
-  genome assemblies (<span class="k">mix, arm, val, unp, unm, nai</span>). Every array in the catalogue is a
+  <p id="manualIntro">A locus-resolved browser for the satellite arrays catalogued across the assemblies of this run. Every array in the catalogue is a
   <b>segmented MASTER locus</b> &mdash; a contiguous CLsat-similar domain, split where the dominant
   subfamily changes along the array. The viewer shows the raw evidence behind each call, so any
   statement in the paper can be checked at the level of a single locus.</p>
@@ -4344,7 +4338,7 @@ function bindEndsFlanksUI(){
       <b>Scaffold Overview</b>. You can also type an ID (e.g. <code>L152</code>) into <b>Find locus</b> and press <b>Go</b>.</li>
     <li><span class="k">2. Zoom in.</span> Mouse-wheel to zoom, drag to pan. Zoom until individual monomers resolve &mdash;
       monomer-level tools need the array to be readable, not the whole scaffold.</li>
-    <li><span class="k">3. Get FASTA.</span> Fetches the locus sequence (via NCBI or the local server).</li>
+    <li><span class="k">3. Get FASTA.</span> Fetches the locus sequence from NCBI E-utilities (nothing runs locally).</li>
     <li><span class="k">4. Analyze Monomers.</span> Splits the fetched sequence into individual monomers.</li>
     <li><span class="k">5. Inspect below.</span> Monomer list &rarr; monomer map &rarr; MSA &rarr; terminal-monomer trim.</li>
   </ul>
@@ -4368,10 +4362,6 @@ function bindEndsFlanksUI(){
   inspection, <b>not</b> the pipeline's own published monomer table, so identities and boundaries can differ by a base or
   two from the catalogue. Use it to <i>see</i> structure, not as the source of record.</p>
   <ul>
-    <li><b>Strand strip</b> &mdash; the compact top row. One cell per monomer in genomic order; <b>top lane = +
-      strand, bottom lane = &minus; strand</b>, so a change of direction (inversion) shows as the cells jumping lanes,
-      with a yellow tick at each flip. Cell colour is the CLsat family. This is the quick answer to &ldquo;which way do
-      the monomers point, and where does it change?&rdquo;</li>
     <li><b>Monomer list</b> &mdash; every monomer with its coordinates, length and % identity to the consensus.</li>
     <li><b>Monomer map</b> &mdash; the array drawn to genomic scale as arrows; arrow direction is monomer strand. Hover to highlight.</li>
     <li><b>MSA</b> &mdash; monomers stacked and aligned, with the genomic flanks attached, so substitutions that recur
@@ -4423,12 +4413,12 @@ function bindEndsFlanksUI(){
       (2 loci). The &ldquo;Orthologous to&rdquo; column reads <i>distinct assemblies, then total partner loci</i>,
       because one locus can have several partner loci inside the same assembly. Positional conservation does not imply
       conserved content &mdash; many orthologous positions carry a <i>different</i> CLsat family in the two lineages.</li>
-    <li><b>Flank orthology table</b> &mdash; the full per-locus table for <b>all 627</b> loci (every assembly), with the
+    <li><b>Flank orthology table</b> &mdash; the full per-locus table for <b>all 627</b> catalogue loci (plus L541, which has no anchorable flank) (every assembly), with the
       sub-subfamily call and both flanks' cross-assembly orthology status. Filter by anchorable / has-ortholog /
       both-sided / same- vs different-family partner. L and R badges give each flank's class (blue = unique/anchorable,
       amber = low-complexity, grey = truncated, pink = satellite-adjacent, purple = telomeric); a red-bordered partner
       chip flags a different-family ortholog.</li>
-    <li><b>Flagged loci</b> &mdash; 28 loci annotated by arbitration for one of three different reasons, not all equally noteworthy:
+    <li><b>Flagged loci</b> &mdash; 28 catalogue loci annotated by arbitration (plus the 7 uncatalogued candidates C1&ndash;C7, listed for inspection) for one of three different reasons, not all equally noteworthy:
       <b>L186</b> is the only genuine <b>seed/rescan contradiction</b> (rescan favours a different family by &ge;20 bits) and
       is the one case worth treating as an open question. The other 27 are not errors: 24 segment-boundary calls and 2
       seed-conflict calls sit within a flat 15-bit margin of their runner-up family (expected near real subfamily
@@ -4477,11 +4467,7 @@ function bindEndsFlanksUI(){
 </div></div>
 
 <script>
-const ORTHO_LOCI = [{"id":"L15","sp":"arm","fam":"CLsat1","nuf":2,"n":1,"partners":{"val":["L513.1"]}},{"id":"L16.1","sp":"arm","fam":"CLsat1","nuf":1,"n":0,"partners":{}},{"id":"L17","sp":"arm","fam":"CLsat1","nuf":1,"n":0,"partners":{}},{"id":"L23","sp":"arm","fam":"CLsat1","nuf":1,"n":1,"partners":{"val":["L514.2"]}},{"id":"L35","sp":"arm","fam":"CLsat1","nuf":1,"n":1,"partners":{"val":["L495.2"]}},{"id":"L69","sp":"mix","fam":"CLsat1","nuf":1,"n":0,"partners":{}},{"id":"L73","sp":"mix","fam":"CLsat2","nuf":1,"n":4,"partners":{"nai":["L222"],"unp":["L444","L476","L478"]}},{"id":"L77","sp":"mix","fam":"CLsat1","nuf":1,"n":0,"partners":{}},{"id":"L78","sp":"mix","fam":"CLsat1","nuf":1,"n":0,"partners":{}},{"id":"L80","sp":"mix","fam":"CLsat1","nuf":1,"n":0,"partners":{}},{"id":"L86","sp":"mix","fam":"CLsat2","nuf":1,"n":0,"partners":{}},{"id":"L93","sp":"mix","fam":"CLsat1","nuf":1,"n":0,"partners":{}},{"id":"L95","sp":"mix","fam":"CLsat2","nuf":1,"n":0,"partners":{}},{"id":"L96.1","sp":"mix","fam":"CLsat2","nuf":1,"n":0,"partners":{}},{"id":"L101","sp":"mix","fam":"CLsat1","nuf":1,"n":0,"partners":{}},{"id":"L105","sp":"mix","fam":"CLsat2","nuf":1,"n":0,"partners":{}},{"id":"L107","sp":"mix","fam":"CLsat2","nuf":1,"n":0,"partners":{}},{"id":"L109","sp":"mix","fam":"CLsat2","nuf":1,"n":0,"partners":{}},{"id":"L113","sp":"mix","fam":"CLsat1","nuf":1,"n":0,"partners":{}},{"id":"L114","sp":"mix","fam":"CLsat2","nuf":1,"n":0,"partners":{}},{"id":"L126","sp":"mix","fam":"CLsat2","nuf":1,"n":2,"partners":{"nai":["L222"],"unp":["L447"]}},{"id":"L127","sp":"mix","fam":"CLsat2","nuf":1,"n":2,"partners":{"nai":["L222"],"unp":["L447"]}},{"id":"L128","sp":"mix","fam":"CLsat2","nuf":1,"n":2,"partners":{"nai":["L222"],"unp":["L447"]}},{"id":"L129","sp":"mix","fam":"CLsat2","nuf":1,"n":0,"partners":{}},{"id":"L130.1","sp":"mix","fam":"CLsat2","nuf":1,"n":0,"partners":{}},{"id":"L136","sp":"mix","fam":"CLsat2","nuf":1,"n":2,"partners":{"nai":["L222"],"unp":["L476"]}},{"id":"L139","sp":"mix","fam":"CLsat2","nuf":1,"n":3,"partners":{"nai":["L192","L222"],"unp":["L447"]}},{"id":"L141","sp":"mix","fam":"CLsat2","nuf":1,"n":2,"partners":{"unp":["L407","L416"]}},{"id":"L148","sp":"mix","fam":"CLsat2","nuf":1,"n":0,"partners":{}},{"id":"L149","sp":"mix","fam":"CLsat2","nuf":2,"n":0,"partners":{}},{"id":"L150","sp":"mix","fam":"CLsat2","nuf":1,"n":0,"partners":{}},{"id":"L163","sp":"mix","fam":"CLsat1","nuf":1,"n":0,"partners":{}},{"id":"L167","sp":"mix","fam":"CLsat2","nuf":1,"n":0,"partners":{}},{"id":"L168","sp":"mix","fam":"CLsat2","nuf":1,"n":0,"partners":{}},{"id":"L181","sp":"mix","fam":"CLsat1","nuf":1,"n":0,"partners":{}},{"id":"L183.2","sp":"nai","fam":"CLsat4","nuf":1,"n":2,"partners":{"unp":["L441","L472"]}},{"id":"L192","sp":"nai","fam":"CLsat1","nuf":2,"n":3,"partners":{"mix":["L139"],"unp":["L420.2","L447"]}},{"id":"L196","sp":"nai","fam":"CLsat3","nuf":1,"n":1,"partners":{"unm":["L369"]}},{"id":"L200","sp":"nai","fam":"CLsat3","nuf":1,"n":1,"partners":{"unm":["L377"]}},{"id":"L201","sp":"nai","fam":"CLsat3","nuf":1,"n":3,"partners":{"unm":["L378"],"val":["L502.2","L503.1"]}},{"id":"L208","sp":"nai","fam":"CLsat1","nuf":1,"n":8,"partners":{"unp":["L422","L428","L429","L430","L431","L432","L433","L434"]}},{"id":"L211","sp":"nai","fam":"CLsat1","nuf":1,"n":1,"partners":{"unm":["L365"]}},{"id":"L212","sp":"nai","fam":"CLsat1","nuf":1,"n":1,"partners":{"unm":["L366"]}},{"id":"L222","sp":"nai","fam":"CLsat1","nuf":1,"n":10,"partners":{"mix":["L126","L127","L128","L136","L139","L73"],"unp":["L444","L447","L476","L478"]}},{"id":"L251","sp":"nai","fam":"CLsat1","nuf":1,"n":1,"partners":{"unp":["L434"]}},{"id":"L252","sp":"nai","fam":"CLsat1","nuf":1,"n":1,"partners":{"unp":["L431"]}},{"id":"L270","sp":"nai","fam":"CLsat1","nuf":1,"n":1,"partners":{"unm":["L396"]}},{"id":"L276","sp":"nai","fam":"CLsat1","nuf":1,"n":0,"partners":{}},{"id":"L277","sp":"nai","fam":"CLsat1","nuf":2,"n":0,"partners":{}},{"id":"L278.1","sp":"nai","fam":"CLsat1","nuf":1,"n":0,"partners":{}},{"id":"L287","sp":"nai","fam":"CLsat1","nuf":1,"n":1,"partners":{"unp":["L409"]}},{"id":"L299","sp":"nai","fam":"CLsat1","nuf":1,"n":1,"partners":{"unp":["L477"]}},{"id":"L300","sp":"nai","fam":"CLsat1","nuf":1,"n":1,"partners":{"unp":["L478"]}},{"id":"L356","sp":"nai","fam":"CLsat1","nuf":1,"n":2,"partners":{"unp":["L470","L471"]}},{"id":"L365","sp":"unm","fam":"CLsat1","nuf":1,"n":1,"partners":{"nai":["L211"]}},{"id":"L366","sp":"unm","fam":"CLsat1","nuf":1,"n":1,"partners":{"nai":["L212"]}},{"id":"L369","sp":"unm","fam":"CLsat3","nuf":1,"n":1,"partners":{"nai":["L196"]}},{"id":"L372.2","sp":"unm","fam":"CLsat1","nuf":1,"n":0,"partners":{}},{"id":"L373","sp":"unm","fam":"CLsat1","nuf":1,"n":0,"partners":{}},{"id":"L377","sp":"unm","fam":"CLsat3","nuf":1,"n":1,"partners":{"nai":["L200"]}},{"id":"L378","sp":"unm","fam":"CLsat3","nuf":1,"n":3,"partners":{"nai":["L201"],"val":["L502.2","L503.1"]}},{"id":"L396","sp":"unm","fam":"CLsat1","nuf":1,"n":1,"partners":{"nai":["L270"]}},{"id":"L407","sp":"unp","fam":"CLsat1","nuf":1,"n":1,"partners":{"mix":["L141"]}},{"id":"L409","sp":"unp","fam":"CLsat1","nuf":1,"n":1,"partners":{"nai":["L287"]}},{"id":"L416","sp":"unp","fam":"CLsat1","nuf":1,"n":1,"partners":{"mix":["L141"]}},{"id":"L420.2","sp":"unp","fam":"CLsat1","nuf":1,"n":1,"partners":{"nai":["L192"]}},{"id":"L422","sp":"unp","fam":"CLsat1","nuf":1,"n":1,"partners":{"nai":["L208"]}},{"id":"L428","sp":"unp","fam":"CLsat1","nuf":1,"n":1,"partners":{"nai":["L208"]}},{"id":"L429","sp":"unp","fam":"CLsat1","nuf":1,"n":1,"partners":{"nai":["L208"]}},{"id":"L430","sp":"unp","fam":"CLsat1","nuf":1,"n":1,"partners":{"nai":["L208"]}},{"id":"L431","sp":"unp","fam":"CLsat1","nuf":1,"n":2,"partners":{"nai":["L208","L252"]}},{"id":"L432","sp":"unp","fam":"CLsat1","nuf":1,"n":1,"partners":{"nai":["L208"]}},{"id":"L433","sp":"unp","fam":"CLsat1","nuf":1,"n":1,"partners":{"nai":["L208"]}},{"id":"L434","sp":"unp","fam":"CLsat1","nuf":1,"n":2,"partners":{"nai":["L208","L251"]}},{"id":"L437","sp":"unp","fam":"CLsat1","nuf":1,"n":0,"partners":{}},{"id":"L441","sp":"unp","fam":"CLsat4","nuf":1,"n":1,"partners":{"nai":["L183.2"]}},{"id":"L444","sp":"unp","fam":"CLsat1","nuf":1,"n":2,"partners":{"nai":["L222"],"mix":["L73"]}},{"id":"L447","sp":"unp","fam":"CLsat1","nuf":1,"n":6,"partners":{"mix":["L126","L127","L128","L139"],"nai":["L192","L222"]}},{"id":"L470","sp":"unp","fam":"CLsat1","nuf":1,"n":1,"partners":{"nai":["L356"]}},{"id":"L471","sp":"unp","fam":"CLsat1","nuf":1,"n":1,"partners":{"nai":["L356"]}},{"id":"L472","sp":"unp","fam":"CLsat1","nuf":1,"n":1,"partners":{"nai":["L183.2"]}},{"id":"L476","sp":"unp","fam":"CLsat1","nuf":1,"n":3,"partners":{"mix":["L136","L73"],"nai":["L222"]}},{"id":"L477","sp":"unp","fam":"CLsat1","nuf":1,"n":1,"partners":{"nai":["L299"]}},{"id":"L478","sp":"unp","fam":"CLsat1","nuf":2,"n":3,"partners":{"nai":["L222","L300"],"mix":["L73"]}},{"id":"L495.2","sp":"val","fam":"CLsat1","nuf":1,"n":1,"partners":{"arm":["L35"]}},{"id":"L502.2","sp":"val","fam":"CLsat1","nuf":1,"n":2,"partners":{"nai":["L201"],"unm":["L378"]}},{"id":"L503.1","sp":"val","fam":"CLsat1","nuf":1,"n":2,"partners":{"nai":["L201"],"unm":["L378"]}},{"id":"L504","sp":"val","fam":"CLsat3","nuf":1,"n":0,"partners":{}},{"id":"L513.1","sp":"val","fam":"CLsat1","nuf":1,"n":1,"partners":{"arm":["L15"]}},{"id":"L514.2","sp":"val","fam":"CLsat3","nuf":1,"n":1,"partners":{"arm":["L23"]}},{"id":"L522","sp":"val","fam":"CLsat1","nuf":1,"n":0,"partners":{}}];
-const FLAGGED_LOCI = [{"id":"C1","sp":"unp","cat":"CANDIDATE_UNCATALOGUED","f1":"CLsat1","s1":"237.9","f2":"CLsat3","s2":"186.1","d":"51.8","fin":"CLsat1"},{"id":"C2","sp":"val","cat":"CANDIDATE_UNCATALOGUED","f1":"CLsat3","s1":"126.1","f2":"CLsat1","s2":"120.9","d":"5.2","fin":"CLsat3"},{"id":"C3","sp":"nai","cat":"CANDIDATE_UNCATALOGUED","f1":"CLsat1","s1":"112.5","f2":"CLsat3","s2":"110.2","d":"2.3","fin":"CLsat1"},{"id":"C4","sp":"unm","cat":"CANDIDATE_UNCATALOGUED","f1":"CLsat3","s1":"110.8","f2":"CLsat1","s2":"109.8","d":"1.0","fin":"CLsat3"},{"id":"C5","sp":"val","cat":"CANDIDATE_UNCATALOGUED","f1":"CLsat3","s1":"137.2","f2":"CLsat1","s2":"130.4","d":"6.8","fin":"CLsat3"},{"id":"C6","sp":"val","cat":"CANDIDATE_UNCATALOGUED","f1":"CLsat3","s1":"111.9","f2":"CLsat1","s2":"110.5","d":"1.4","fin":"CLsat3"},{"id":"C7","sp":"arm","cat":"CANDIDATE_UNCATALOGUED","f1":"CLsat1","s1":"117.8","f2":"CLsat3","s2":"112.2","d":"5.6","fin":"CLsat1"},{"id":"L10.2","sp":"arm","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat1","s1":"158.7","f2":"CLsat3","s2":"144","d":"14.7","fin":"CLsat1"},{"id":"L11.2","sp":"arm","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat3","s1":"160.4","f2":"CLsat1","s2":"153","d":"7.4","fin":"CLsat3"},{"id":"L24.2","sp":"arm","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat3","s1":"153.5","f2":"CLsat1","s2":"149.8","d":"3.7","fin":"CLsat3"},{"id":"L33.1","sp":"arm","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat3","s1":"160.2","f2":"CLsat1","s2":"147.2","d":"13","fin":"CLsat3"},{"id":"L34.2","sp":"arm","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat1","s1":"154.3","f2":"CLsat3","s2":"149.2","d":"5.1","fin":"CLsat1"},{"id":"L37.2","sp":"arm","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat1","s1":"163.8","f2":"CLsat3","s2":"154.5","d":"9.3","fin":"CLsat1"},{"id":"L51.2","sp":"arm","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat1","s1":"155","f2":"CLsat3","s2":"144.9","d":"10.1","fin":"CLsat1"},{"id":"L82.2","sp":"mix","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat1","s1":"140.7","f2":"CLsat2","s2":"126.4","d":"14.3","fin":"CLsat1"},{"id":"L96.2","sp":"mix","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat1","s1":"145.7","f2":"CLsat2","s2":"134.6","d":"11.1","fin":"CLsat1"},{"id":"L98.1","sp":"mix","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat2","s1":"137","f2":"CLsat1","s2":"133.5","d":"3.5","fin":"CLsat2"},{"id":"L104.2","sp":"mix","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat2","s1":"142.7","f2":"CLsat1","s2":"134.5","d":"8.2","fin":"CLsat2"},{"id":"L112","sp":"mix","cat":"SEED_CONFLICT_RESOLVED_AMBIGUOUS","f1":"CLsat1","s1":"144.2","f2":"CLsat2","s2":"138","d":"6.2","fin":"CLsat1"},{"id":"L130.1","sp":"mix","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat2","s1":"137.2","f2":"CLsat1","s2":"132.5","d":"4.7","fin":"CLsat2"},{"id":"L151.2","sp":"mix","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat2","s1":"152.9","f2":"CLsat1","s2":"140","d":"12.9","fin":"CLsat2"},{"id":"L152.2","sp":"mix","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat1","s1":"145.2","f2":"CLsat2","s2":"131.9","d":"13.3","fin":"CLsat1"},{"id":"L158.2","sp":"mix","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat2","s1":"148.7","f2":"CLsat1","s2":"134.7","d":"14","fin":"CLsat2"},{"id":"L176.2","sp":"mix","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat2","s1":"156","f2":"CLsat1","s2":"147","d":"9","fin":"CLsat2"},{"id":"L183.2","sp":"nai","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat4","s1":"118.1","f2":"CLsat1","s2":"107.5","d":"10.6","fin":"CLsat4"},{"id":"L185.2","sp":"nai","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat1","s1":"154.9","f2":"CLsat3","s2":"147.4","d":"7.5","fin":"CLsat1"},{"id":"L186","sp":"nai","cat":"UNIQUE_SEED_CONTRADICTION","f1":"CLsat3","s1":"102.4","f2":"CLsat1","s2":"133.4","d":"31","fin":"CLsat3"},{"id":"L376.1","sp":"unm","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat3","s1":"84.3","f2":"CLsat1","s2":"82.3","d":"2","fin":"CLsat3"},{"id":"L382.1","sp":"unm","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat4","s1":"127.4","f2":"CLsat1","s2":"118.3","d":"9.1","fin":"CLsat4"},{"id":"L389","sp":"unm","cat":"SEED_CONFLICT_RESOLVED_AMBIGUOUS","f1":"CLsat3","s1":"160.2","f2":"CLsat1","s2":"147.9","d":"12.3","fin":"CLsat3"},{"id":"L500.1","sp":"val","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat1","s1":"163.5","f2":"CLsat3","s2":"160.8","d":"2.7","fin":"CLsat1"},{"id":"L514.2","sp":"val","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat3","s1":"156.8","f2":"CLsat1","s2":"156.4","d":"0.4","fin":"CLsat3"},{"id":"L526.2","sp":"val","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat3","s1":"156.5","f2":"CLsat1","s2":"144.8","d":"11.7","fin":"CLsat3"},{"id":"L530.2","sp":"val","cat":"SEGMENT_RESOLVED_AMBIGUOUS","f1":"CLsat1","s1":"159.4","f2":"CLsat3","s2":"151.3","d":"8.1","fin":"CLsat1"},{"id":"L540","sp":"unp","cat":"NO_SEED_RESOLVED","f1":"CLsat1","s1":"144.9","f2":"CLsat2","s2":"95.5","d":"49.4","fin":"CLsat1"}];
-FLAGGED_LOCI.sort((a,b)=>(a.cat==="UNIQUE_SEED_CONTRADICTION")===(b.cat==="UNIQUE_SEED_CONTRADICTION")?0:(a.cat==="UNIQUE_SEED_CONTRADICTION"?-1:1));
-const FULL_TABLE = [{"id":"L1","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","lfc":"lowcomplex","rfc":"truncated"},{"id":"L2.1","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L2.2","sp":"arm","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L3","sp":"arm","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L4","sp":"arm","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L5.1","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L5.2","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L6","sp":"arm","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L7.1","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L7.2","sp":"arm","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L8.1","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","lfc":"telomeric","rfc":"satellite"},{"id":"L8.2","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","lfc":"satellite","rfc":"truncated"},{"id":"L9","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"truncated"},{"id":"L10.1","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L10.2","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L11.1","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L11.2","sp":"arm","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L12","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L13.1","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L13.2","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L14.1","sp":"arm","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L14.2","sp":"arm","fam":"CLsat3","sub":"CLsat3.2","lfc":"satellite","rfc":"lowcomplex"},{"id":"L15","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","lfc":"unique","lfp":"L513.1","lfsp":"val","lffam":"CLsat1","lfpid":"100.0","lfaln":"530","rfc":"unique","ortho":true,"pfam":"SAME"},{"id":"L16.1","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"unique","rfc":"satellite"},{"id":"L16.2","sp":"arm","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"telomeric"},{"id":"L17","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"unique"},{"id":"L18","sp":"arm","fam":"CLsat1","sub":"CLsat1.3","lfc":"truncated","rfc":"lowcomplex"},{"id":"L19.2","sp":"arm","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L20","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L21","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"truncated"},{"id":"L22","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L23","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"unique","rfp":"L514.2","rfsp":"val","rffam":"CLsat3","rfpid":"100.0","rfaln":"349","ortho":true,"pfam":"DIFFERENT"},{"id":"L24.1","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L24.2","sp":"arm","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L25","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L26","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L27.1","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L27.2","sp":"arm","fam":"CLsat1","sub":"CLsat1.3","lfc":"satellite","rfc":"lowcomplex"},{"id":"L28.1","sp":"arm","fam":"CLsat1","sub":"CLsat1.2","lfc":"truncated","rfc":"satellite"},{"id":"L28.2","sp":"arm","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L29","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"telomeric"},{"id":"L30","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L31","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L32","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"lowcomplex"},{"id":"L33.1","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","lfc":"lowcomplex","rfc":"satellite"},{"id":"L33.2","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","lfc":"satellite","rfc":"truncated"},{"id":"L34.1","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L34.2","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","lfc":"satellite","rfc":"truncated"},{"id":"L35","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"unique","rfp":"L495.2","rfsp":"val","rffam":"CLsat1","rfpid":"100.0","rfaln":"600","ortho":true,"pfam":"SAME"},{"id":"L36","sp":"arm","fam":"CLsat1","sub":"CLsat1.2","lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L37.2","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","lfc":"lowcomplex","rfc":"truncated"},{"id":"L38.1","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L38.2","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","lfc":"satellite","rfc":"truncated"},{"id":"L39","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"telomeric"},{"id":"L40","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L41.1","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L41.2","sp":"arm","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L42","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"telomeric"},{"id":"L43","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L44","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L45.1","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L45.2","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L46.1","sp":"arm","fam":"CLsat1","sub":"CLsat1.3","lfc":"truncated","rfc":"satellite"},{"id":"L46.2","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"satellite","rfc":"telomeric"},{"id":"L47","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L48","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L49.1","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"satellite"},{"id":"L49.2","sp":"arm","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L50.1","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L50.2","sp":"arm","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L51.1","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L51.2","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","lfc":"satellite","rfc":"truncated"},{"id":"L52","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L53","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"truncated"},{"id":"L54.1","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L54.2","sp":"arm","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L55","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L56","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L57","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L58","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"truncated"},{"id":"L59","sp":"arm","fam":"CLsat1","sub":"CLsat1.3","lfc":"truncated","rfc":"truncated"},{"id":"L60","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L61","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L62","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"truncated"},{"id":"L63","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L64","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L65","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"telomeric"},{"id":"L66","sp":"arm","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"truncated"},{"id":"L67","sp":"arm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L68","sp":"mix","fam":"CLsat1","sub":"CLsat1.2","lfc":"truncated","rfc":"lowcomplex"},{"id":"L69","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"unique","rfc":"telomeric"},{"id":"L70","sp":"mix","fam":"CLsat1","sub":"CLsat1.2","lfc":"telomeric","rfc":"lowcomplex"},{"id":"L71","sp":"mix","fam":"CLsat1","sub":"CLsat1.4","lfc":"lowcomplex","rfc":"truncated"},{"id":"L72","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L73","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"unique","lfp":"L478","lfsp":"unp","lffam":"CLsat1","lfpid":"98.8","lfaln":"600","rfc":"lowcomplex","ortho":true,"both":true,"pfam":"DIFFERENT"},{"id":"L74","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L75","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"truncated","rfc":"telomeric"},{"id":"L76","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L77","sp":"mix","fam":"CLsat1","sub":"CLsat1.1","lfc":"lowcomplex","rfc":"unique"},{"id":"L78","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","lfc":"unique","rfc":"truncated"},{"id":"L79","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L80","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","lfc":"unique","rfc":"lowcomplex"},{"id":"L81.1","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L81.2","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L82.1","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L82.2","sp":"mix","fam":"CLsat1","sub":"CLsat1.1","lfc":"satellite","rfc":"lowcomplex"},{"id":"L83","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L84","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L85.1","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","lfc":"lowcomplex","rfc":"satellite"},{"id":"L85.2","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L86","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"unique","rfc":"truncated"},{"id":"L87","sp":"mix","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L88","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L89","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L90","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L91","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L92","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L93","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"unique","rfc":"lowcomplex"},{"id":"L94","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L95","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"unique"},{"id":"L96.1","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"unique","rfc":"satellite"},{"id":"L96.2","sp":"mix","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L97","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L98.1","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L98.2","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L99.1","sp":"mix","fam":"CLsat1","sub":"CLsat1.5","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L99.2","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L100","sp":"mix","fam":"CLsat1","sub":"CLsat1.2","lfc":"lowcomplex","rfc":"truncated"},{"id":"L101","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","lfc":"unique","rfc":"truncated"},{"id":"L102","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L103","sp":"mix","fam":"CLsat3","sub":"CLsat3.1","lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L104.1","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"telomeric","rfc":"satellite"},{"id":"L104.2","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L105","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"unique","rfc":"truncated"},{"id":"L106","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L107","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"unique"},{"id":"L108","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L109","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"unique"},{"id":"L110","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L111.1","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L111.2","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L112","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","lfc":"truncated","rfc":"lowcomplex"},{"id":"L113","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"truncated","rfc":"unique"},{"id":"L114","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"unique"},{"id":"L115","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L116","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L117","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L118","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L119","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L120","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L121","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L122","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L123","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L124","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L125","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L126","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"unique","rfp":"L222","rfsp":"nai","rffam":"CLsat1","rfpid":"95.8","rfaln":"387","ortho":true,"pfam":"DIFFERENT"},{"id":"L127","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"unique","rfp":"L222","rfsp":"nai","rffam":"CLsat1","rfpid":"96.0","rfaln":"397","ortho":true,"pfam":"DIFFERENT"},{"id":"L128","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"unique","rfp":"L222","rfsp":"nai","rffam":"CLsat1","rfpid":"95.7","rfaln":"397","ortho":true,"pfam":"DIFFERENT"},{"id":"L129","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"unique"},{"id":"L130.1","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"unique","rfc":"satellite"},{"id":"L130.2","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L131","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L132","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L133","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L134.2","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L135","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L136","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"unique","rfp":"L476","rfsp":"unp","rffam":"CLsat1","rfpid":"98.7","rfaln":"301","ortho":true,"pfam":"DIFFERENT"},{"id":"L137","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L138","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L139","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"unique","rfp":"L222","rfsp":"nai","rffam":"CLsat1","rfpid":"91.5","rfaln":"600","ortho":true,"pfam":"DIFFERENT"},{"id":"L140","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L141","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"unique","rfp":"L416","rfsp":"unp","rffam":"CLsat1","rfpid":"85.7","rfaln":"218","ortho":true,"pfam":"DIFFERENT"},{"id":"L142","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L143","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L144","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L145","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L146","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L147","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L148","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"unique"},{"id":"L149","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"unique","rfc":"unique"},{"id":"L150","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"unique"},{"id":"L151.1","sp":"mix","fam":"CLsat1","sub":"CLsat1.5","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L151.2","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L152.1","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L152.2","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","lfc":"satellite","rfc":"lowcomplex"},{"id":"L153","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L154","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L155","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L156","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L157","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L158.1","sp":"mix","fam":"CLsat1","sub":"CLsat1.5","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L158.2","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L159.1","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L159.2","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L160","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L161","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L162","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L163","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","lfc":"unique","rfc":"truncated"},{"id":"L164","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L165","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L166","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L167","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"unique"},{"id":"L168","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"unique","rfc":"truncated"},{"id":"L169.2","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L170","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L171","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L172","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L173","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L174","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L175","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L176.1","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L176.2","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L177","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L178","sp":"mix","fam":"CLsat2","sub":"CLsat2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L179","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L180","sp":"mix","fam":"CLsat1","sub":"CLsat1.3","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L181","sp":"mix","fam":"CLsat1","sub":"CLsat1.4","lfc":"telomeric","rfc":"unique"},{"id":"L182","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L183.2","sp":"nai","fam":"CLsat4","sub":"CLsat4","subc":true,"lfc":"lowcomplex","rfc":"unique","rfp":"L441","rfsp":"unp","rffam":"CLsat4","rfpid":"100.0","rfaln":"600","ortho":true,"both":true,"pfam":"SAME"},{"id":"L184.1","sp":"nai","fam":"CLsat4","sub":"CLsat4","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L184.2","sp":"nai","fam":"CLsat1","sub":"CLsat1.5","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L185.2","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"lowcomplex","rfc":"truncated"},{"id":"L186","sp":"nai","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L187","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","lfc":"satellite","rfc":"lowcomplex"},{"id":"L188","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L189","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L190","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L191","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L192","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"unique","lfp":"L420.2","lfsp":"unp","lffam":"CLsat1","lfpid":"100.0","lfaln":"597","rfc":"unique","rfp":"L447","rfsp":"unp","rffam":"CLsat1","rfpid":"100.0","rfaln":"600","ortho":true,"pfam":"SAME"},{"id":"L193","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L194","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L195","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L196","sp":"nai","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"lowcomplex","rfc":"unique","rfp":"L369","rfsp":"unm","rffam":"CLsat3","rfpid":"100.0","rfaln":"600","ortho":true,"pfam":"SAME"},{"id":"L197.2","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L198","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L199","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"telomeric","rfc":"truncated"},{"id":"L200","sp":"nai","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"unique","lfp":"L377","lfsp":"unm","lffam":"CLsat3","lfpid":"100.0","lfaln":"600","rfc":"lowcomplex","ortho":true,"pfam":"SAME"},{"id":"L201","sp":"nai","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"unique","lfp":"L378","lfsp":"unm","lffam":"CLsat3","lfpid":"100.0","lfaln":"600","rfc":"lowcomplex","ortho":true,"pfam":"SAME"},{"id":"L202","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"lowcomplex","rfc":"truncated"},{"id":"L203","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"lowcomplex"},{"id":"L204","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"lowcomplex","rfc":"truncated"},{"id":"L205","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L206","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","lfc":"truncated","rfc":"truncated"},{"id":"L207","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L208","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"unique","lfp":"L434","lfsp":"unp","lffam":"CLsat1","lfpid":"100.0","lfaln":"600","rfc":"truncated","ortho":true,"both":true,"pfam":"SAME"},{"id":"L209","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"telomeric","rfc":"truncated"},{"id":"L210","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L211","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"truncated","rfc":"unique","rfp":"L365","rfsp":"unm","rffam":"CLsat1","rfpid":"100.0","rfaln":"600","ortho":true,"pfam":"SAME"},{"id":"L212","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"unique","lfp":"L366","lfsp":"unm","lffam":"CLsat1","lfpid":"100.0","lfaln":"600","rfc":"truncated","ortho":true,"pfam":"SAME"},{"id":"L213","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"lowcomplex","rfc":"truncated"},{"id":"L214.1","sp":"nai","fam":"CLsat4","sub":"CLsat4","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L214.2","sp":"nai","fam":"CLsat1","sub":"CLsat1.5","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L215","sp":"nai","fam":"CLsat1","sub":"CLsat1.3","lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L216","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L217","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L218","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"telomeric"},{"id":"L219","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L220","sp":"nai","fam":"CLsat1","sub":"CLsat1.3","lfc":"lowcomplex","rfc":"truncated"},{"id":"L221","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"lowcomplex","rfc":"telomeric"},{"id":"L222","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"unique","rfp":"L447","rfsp":"unp","rffam":"CLsat1","rfpid":"99.8","rfaln":"600","ortho":true,"pfam":"SAME"},{"id":"L223","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L224","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","lfc":"truncated","rfc":"truncated"},{"id":"L225","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"telomeric"},{"id":"L226","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"telomeric","rfc":"lowcomplex"},{"id":"L227","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L228.1","sp":"nai","fam":"CLsat1","sub":"CLsat1.5","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L228.2","sp":"nai","fam":"CLsat1","sub":"CLsat1.5","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L229","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L230","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L231","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L232","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"telomeric","rfc":"truncated"},{"id":"L233","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L234","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"truncated","rfc":"truncated"},{"id":"L235","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"telomeric"},{"id":"L236","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L237","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"truncated"},{"id":"L238","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","lfc":"truncated","rfc":"truncated"},{"id":"L239","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"telomeric"},{"id":"L240.1","sp":"nai","fam":"CLsat4","sub":"CLsat4","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L240.2","sp":"nai","fam":"CLsat1","sub":"CLsat1.5","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L241","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L242","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L243","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L244","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"satellite","rfc":"telomeric"},{"id":"L245","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L246","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"truncated","rfc":"truncated"},{"id":"L247","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"truncated"},{"id":"L248","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L249","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"telomeric"},{"id":"L250","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L251","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"unique","rfp":"L434","rfsp":"unp","rffam":"CLsat1","rfpid":"99.8","rfaln":"600","ortho":true,"pfam":"SAME"},{"id":"L252","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"unique","rfp":"L431","rfsp":"unp","rffam":"CLsat1","rfpid":"99.8","rfaln":"600","ortho":true,"pfam":"SAME"},{"id":"L253","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L254","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L255","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"lowcomplex"},{"id":"L256","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"lowcomplex","rfc":"truncated"},{"id":"L257","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"truncated","rfc":"truncated"},{"id":"L258","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"truncated","rfc":"truncated"},{"id":"L259","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"truncated"},{"id":"L260","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L261","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L262","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"truncated","rfc":"truncated"},{"id":"L263","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L264","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L265","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L266","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"truncated","rfc":"lowcomplex"},{"id":"L267","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L268","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L269","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"lowcomplex"},{"id":"L270","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"unique","lfp":"L396","lfsp":"unm","lffam":"CLsat1","lfpid":"100.0","lfaln":"600","rfc":"truncated","ortho":true,"pfam":"SAME"},{"id":"L271","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L272","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"telomeric","rfc":"lowcomplex"},{"id":"L273","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L274","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L275","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L276","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"unique"},{"id":"L277","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"unique","rfc":"unique"},{"id":"L278.1","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"unique","rfc":"satellite"},{"id":"L278.2","sp":"nai","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"telomeric"},{"id":"L279","sp":"nai","fam":"CLsat4","sub":"CLsat4","subc":true,"lfc":"lowcomplex","rfc":"telomeric"},{"id":"L280","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"telomeric","rfc":"truncated"},{"id":"L281","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L282","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L283","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L284","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L285","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L286","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"lowcomplex","rfc":"telomeric"},{"id":"L287","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"lowcomplex","rfc":"unique","rfp":"L409","rfsp":"unp","rffam":"CLsat1","rfpid":"100.0","rfaln":"600","ortho":true,"pfam":"SAME"},{"id":"L288","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L289","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L290","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L291","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L292","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L293","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L294","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L295","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"truncated"},{"id":"L296","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"telomeric"},{"id":"L297","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L298","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","lfc":"telomeric","rfc":"truncated"},{"id":"L299","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"truncated","rfc":"unique","rfp":"L477","rfsp":"unp","rffam":"CLsat1","rfpid":"100.0","rfaln":"600","ortho":true,"pfam":"SAME"},{"id":"L300","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"unique","lfp":"L478","lfsp":"unp","lffam":"CLsat1","lfpid":"100.0","lfaln":"600","rfc":"truncated","ortho":true,"pfam":"SAME"},{"id":"L301","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L302","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L303","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L304","sp":"nai","fam":"CLsat1","sub":"CLsat1.3","lfc":"truncated","rfc":"truncated"},{"id":"L305","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L306","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","lfc":"truncated","rfc":"lowcomplex"},{"id":"L307.1","sp":"nai","fam":"CLsat4","sub":"CLsat4","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L307.2","sp":"nai","fam":"CLsat1","sub":"CLsat1.5","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L308","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L309","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","lfc":"truncated","rfc":"truncated"},{"id":"L310","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L311","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"telomeric"},{"id":"L312","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L313.1","sp":"nai","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L313.2","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"satellite","rfc":"truncated"},{"id":"L314","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L315","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"lowcomplex"},{"id":"L316","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L317","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L318","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L319","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"truncated","rfc":"truncated"},{"id":"L320","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"truncated"},{"id":"L321","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L322","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L323","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L324","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"lowcomplex","rfc":"truncated"},{"id":"L325","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L326","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L327","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"truncated"},{"id":"L328","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L329","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L330","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"telomeric"},{"id":"L331","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L332","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","lfc":"truncated","rfc":"telomeric"},{"id":"L333","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"telomeric"},{"id":"L334","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L335","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L336","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"truncated"},{"id":"L337","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L338","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L339","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L340","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","lfc":"truncated","rfc":"truncated"},{"id":"L341","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L342","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L343","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L344","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L345","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"truncated"},{"id":"L346","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"truncated","rfc":"truncated"},{"id":"L347","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L348","sp":"nai","fam":"CLsat1","sub":"CLsat1.4","lfc":"truncated","rfc":"truncated"},{"id":"L349","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L350","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L351","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L352","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L353","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"truncated","rfc":"truncated"},{"id":"L354","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L355","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L356","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"truncated","rfc":"unique","rfp":"L470","rfsp":"unp","rffam":"CLsat1","rfpid":"100.0","rfaln":"600","ortho":true,"both":true,"pfam":"SAME"},{"id":"L357","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"lowcomplex","rfc":"truncated"},{"id":"L358","sp":"nai","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L359","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"telomeric"},{"id":"L360","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L361","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","lfc":"truncated","rfc":"truncated"},{"id":"L362","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L363","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L364","sp":"nai","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L365","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"unique","rfp":"L211","rfsp":"nai","rffam":"CLsat1","rfpid":"100.0","rfaln":"600","ortho":true,"pfam":"SAME"},{"id":"L366","sp":"unm","fam":"CLsat1","sub":"CLsat1.3","lfc":"unique","lfp":"L212","lfsp":"nai","lffam":"CLsat1","lfpid":"100.0","lfaln":"600","rfc":"lowcomplex","ortho":true,"pfam":"SAME"},{"id":"L367","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L368","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L369","sp":"unm","fam":"CLsat3","sub":"CLsat3.1","lfc":"lowcomplex","rfc":"unique","rfp":"L196","rfsp":"nai","rffam":"CLsat3","rfpid":"100.0","rfaln":"600","ortho":true,"pfam":"SAME"},{"id":"L370.2","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L371","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"lowcomplex","rfc":"telomeric"},{"id":"L372.1","sp":"unm","fam":"CLsat4","sub":"CLsat4","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L372.2","sp":"unm","fam":"CLsat1","sub":"CLsat1.5","subc":true,"lfc":"satellite","rfc":"unique"},{"id":"L373","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"unique","rfc":"lowcomplex"},{"id":"L374","sp":"unm","fam":"CLsat1","sub":"CLsat1.3","lfc":"truncated","rfc":"lowcomplex"},{"id":"L375.1","sp":"unm","fam":"CLsat4","sub":"CLsat4","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L375.2","sp":"unm","fam":"CLsat1","sub":"CLsat1.5","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L376.1","sp":"unm","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L376.2","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","lfc":"satellite","rfc":"lowcomplex"},{"id":"L377","sp":"unm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"unique","lfp":"L200","lfsp":"nai","lffam":"CLsat3","lfpid":"100.0","lfaln":"600","rfc":"lowcomplex","ortho":true,"pfam":"SAME"},{"id":"L378","sp":"unm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"unique","lfp":"L201","lfsp":"nai","lffam":"CLsat3","lfpid":"100.0","lfaln":"600","rfc":"lowcomplex","ortho":true,"pfam":"SAME"},{"id":"L379","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L380","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","lfc":"telomeric","rfc":"lowcomplex"},{"id":"L381.1","sp":"unm","fam":"CLsat4","sub":"CLsat4","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L381.2","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","lfc":"satellite","rfc":"lowcomplex"},{"id":"L382.1","sp":"unm","fam":"CLsat4","sub":"CLsat4","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L382.2","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","lfc":"satellite","rfc":"lowcomplex"},{"id":"L383.1","sp":"unm","fam":"CLsat4","sub":"CLsat4","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L383.2","sp":"unm","fam":"CLsat1","sub":"CLsat1.5","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L384","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"telomeric","rfc":"lowcomplex"},{"id":"L385.2","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L386","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L387","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L388","sp":"unm","fam":"CLsat1","sub":"CLsat1.2","lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L389","sp":"unm","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L390.1","sp":"unm","fam":"CLsat3","sub":"CLsat3.1","lfc":"telomeric","rfc":"satellite"},{"id":"L390.2","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L391.1","sp":"unm","fam":"CLsat4","sub":"CLsat4","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L391.2","sp":"unm","fam":"CLsat1","sub":"CLsat1.5","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L392.1","sp":"unm","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L392.2","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L393","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","lfc":"satellite","rfc":"truncated"},{"id":"L394","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","lfc":"telomeric","rfc":"truncated"},{"id":"L395","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L396","sp":"unm","fam":"CLsat1","sub":"CLsat1.1","lfc":"unique","lfp":"L270","lfsp":"nai","lffam":"CLsat1","lfpid":"100.0","lfaln":"600","rfc":"truncated","ortho":true,"pfam":"SAME"},{"id":"L397","sp":"unm","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L398","sp":"unm","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L399","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"lowcomplex"},{"id":"L540","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"lowcomplex"},{"id":"L400","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"telomeric"},{"id":"L401","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"telomeric"},{"id":"L402","sp":"unp","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"telomeric","rfc":"lowcomplex"},{"id":"L403","sp":"unp","fam":"CLsat1","sub":"CLsat1.3","lfc":"telomeric","rfc":"lowcomplex"},{"id":"L404","sp":"unp","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"lowcomplex","rfc":"telomeric"},{"id":"L405","sp":"unp","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L406","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L407","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","lfc":"unique","lfp":"L141","lfsp":"mix","lffam":"CLsat2","lfpid":"83.7","lfaln":"227","rfc":"lowcomplex","ortho":true,"both":true,"pfam":"DIFFERENT"},{"id":"L408","sp":"unp","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"lowcomplex","rfc":"telomeric"},{"id":"L409","sp":"unp","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"lowcomplex","rfc":"unique","rfp":"L287","rfsp":"nai","rffam":"CLsat1","rfpid":"100.0","rfaln":"600","ortho":true,"pfam":"SAME"},{"id":"L410","sp":"unp","fam":"CLsat4","sub":"CLsat4","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L411","sp":"unp","fam":"CLsat4","sub":"CLsat4","subc":true,"lfc":"lowcomplex","rfc":"telomeric"},{"id":"L412","sp":"unp","fam":"CLsat1","sub":"CLsat1.4","lfc":"telomeric","rfc":"truncated"},{"id":"L413","sp":"unp","fam":"CLsat1","sub":"CLsat1.1","lfc":"lowcomplex","rfc":"truncated"},{"id":"L414","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","lfc":"telomeric","rfc":"telomeric"},{"id":"L415","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"telomeric"},{"id":"L416","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"unique","rfp":"L141","rfsp":"mix","rffam":"CLsat2","rfpid":"85.7","rfaln":"218","ortho":true,"pfam":"DIFFERENT"},{"id":"L417","sp":"unp","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"lowcomplex","rfc":"telomeric"},{"id":"L418","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L419","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"telomeric"},{"id":"L420.2","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"unique","lfp":"L192","lfsp":"nai","lffam":"CLsat1","lfpid":"100.0","lfaln":"597","rfc":"truncated","ortho":true,"pfam":"SAME"},{"id":"L421","sp":"unp","fam":"CLsat1","sub":"CLsat1.1","lfc":"satellite","rfc":"lowcomplex"},{"id":"L422","sp":"unp","fam":"CLsat1","sub":"CLsat1.4","lfc":"lowcomplex","rfc":"unique","rfp":"L208","rfsp":"nai","rffam":"CLsat1","rfpid":"100.0","rfaln":"600","ortho":true,"both":true,"pfam":"SAME"},{"id":"L423","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L424.1","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L424.2","sp":"unp","fam":"CLsat1","sub":"CLsat1.4","lfc":"satellite","rfc":"satellite"},{"id":"L424.3","sp":"unp","fam":"CLsat1","sub":"CLsat1.4","lfc":"satellite","rfc":"lowcomplex"},{"id":"L425","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L426","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L427","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L428","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"unique","rfp":"L208","rfsp":"nai","rffam":"CLsat1","rfpid":"100.0","rfaln":"600","ortho":true,"both":true,"pfam":"SAME"},{"id":"L429","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"unique","rfp":"L208","rfsp":"nai","rffam":"CLsat1","rfpid":"100.0","rfaln":"600","ortho":true,"both":true,"pfam":"SAME"},{"id":"L430","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"unique","rfp":"L208","rfsp":"nai","rffam":"CLsat1","rfpid":"100.0","rfaln":"600","ortho":true,"both":true,"pfam":"SAME"},{"id":"L431","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"unique","rfp":"L208","rfsp":"nai","rffam":"CLsat1","rfpid":"100.0","rfaln":"600","ortho":true,"both":true,"pfam":"SAME"},{"id":"L432","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"unique","rfp":"L208","rfsp":"nai","rffam":"CLsat1","rfpid":"99.8","rfaln":"600","ortho":true,"both":true,"pfam":"SAME"},{"id":"L433","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"unique","rfp":"L208","rfsp":"nai","rffam":"CLsat1","rfpid":"100.0","rfaln":"600","ortho":true,"both":true,"pfam":"SAME"},{"id":"L434","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"unique","rfp":"L208","rfsp":"nai","rffam":"CLsat1","rfpid":"100.0","rfaln":"600","ortho":true,"both":true,"pfam":"SAME"},{"id":"L435","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L436","sp":"unp","fam":"CLsat1","sub":"CLsat1.4","lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L437","sp":"unp","fam":"CLsat1","sub":"CLsat1.3","lfc":"unique","rfc":"lowcomplex"},{"id":"L438","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","lfc":"lowcomplex","rfc":"satellite"},{"id":"L439","sp":"unp","fam":"CLsat1","sub":"CLsat1.3","lfc":"satellite","rfc":"telomeric"},{"id":"L440","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L441","sp":"unp","fam":"CLsat4","sub":"CLsat4","subc":true,"lfc":"unique","lfp":"L183.2","lfsp":"nai","lffam":"CLsat4","lfpid":"100.0","lfaln":"600","rfc":"telomeric","ortho":true,"both":true,"pfam":"SAME"},{"id":"L442","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L443","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L444","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"unique","rfp":"L73","rfsp":"mix","rffam":"CLsat2","rfpid":"98.3","rfaln":"600","ortho":true,"both":true,"pfam":"DIFFERENT"},{"id":"L445","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"telomeric"},{"id":"L446","sp":"unp","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L447","sp":"unp","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"telomeric","rfc":"unique","rfp":"L192","rfsp":"nai","rffam":"CLsat1","rfpid":"100.0","rfaln":"600","ortho":true,"pfam":"SAME"},{"id":"L448","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L449","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"telomeric"},{"id":"L450","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L451","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L452","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L453","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L454","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L455","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"telomeric"},{"id":"L456","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L457","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L458","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L459","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L460","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L461","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L462","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","lfc":"lowcomplex","rfc":"truncated"},{"id":"L463","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L464","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L465","sp":"unp","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"lowcomplex","rfc":"telomeric"},{"id":"L466","sp":"unp","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L467","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L468","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L469","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L470","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","lfc":"unique","lfp":"L356","lfsp":"nai","lffam":"CLsat1","lfpid":"100.0","lfaln":"600","rfc":"truncated","ortho":true,"both":true,"pfam":"SAME"},{"id":"L471","sp":"unp","fam":"CLsat1","sub":"CLsat1.4","subc":true,"lfc":"truncated","rfc":"unique","rfp":"L356","rfsp":"nai","rffam":"CLsat1","rfpid":"99.0","rfaln":"600","ortho":true,"pfam":"SAME"},{"id":"L472","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","lfc":"unique","lfp":"L183.2","lfsp":"nai","lffam":"CLsat4","lfpid":"97.4","lfaln":"585","rfc":"truncated","ortho":true,"both":true,"pfam":"DIFFERENT"},{"id":"L473","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","lfc":"truncated","rfc":"truncated"},{"id":"L474","sp":"unp","fam":"CLsat1","sub":"CLsat1.4","lfc":"truncated","rfc":"telomeric"},{"id":"L475","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L476","sp":"unp","fam":"CLsat1","sub":"CLsat1.4","lfc":"truncated","rfc":"unique","rfp":"L73","rfsp":"mix","rffam":"CLsat2","rfpid":"98.8","rfaln":"600","ortho":true,"both":true,"pfam":"DIFFERENT"},{"id":"L477","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"unique","rfp":"L299","rfsp":"nai","rffam":"CLsat1","rfpid":"100.0","rfaln":"600","ortho":true,"pfam":"SAME"},{"id":"L478","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","lfc":"unique","lfp":"L300","lfsp":"nai","lffam":"CLsat1","lfpid":"100.0","lfaln":"600","rfc":"unique","rfp":"L73","rfsp":"mix","rffam":"CLsat2","rfpid":"98.8","rfaln":"600","ortho":true,"both":true,"pfam":"SAME"},{"id":"L479","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L480","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L481","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L482","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L483","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L484","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L485","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","lfc":"truncated","rfc":"truncated"},{"id":"L486","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L487","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L488","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L489","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L490","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L491","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L492","sp":"unp","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L493.1","sp":"val","fam":"CLsat3","sub":"CLsat3.2","lfc":"telomeric","rfc":"satellite"},{"id":"L493.2","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L494","sp":"val","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L495.1","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"telomeric","rfc":"satellite"},{"id":"L495.2","sp":"val","fam":"CLsat1","sub":"CLsat1.3","lfc":"satellite","rfc":"unique","rfp":"L35","rfsp":"arm","rffam":"CLsat1","rfpid":"100.0","rfaln":"600","ortho":true,"pfam":"SAME"},{"id":"L496","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L497.1","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"telomeric","rfc":"satellite"},{"id":"L497.2","sp":"val","fam":"CLsat1","sub":"CLsat1.3","lfc":"satellite","rfc":"lowcomplex"},{"id":"L498.1","sp":"val","fam":"CLsat3","sub":"CLsat3.2","lfc":"telomeric","rfc":"satellite"},{"id":"L498.2","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L499","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"telomeric","rfc":"lowcomplex"},{"id":"L500.1","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L500.2","sp":"val","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"telomeric"},{"id":"L501.2","sp":"val","fam":"CLsat3","sub":"CLsat3.2","lfc":"satellite","rfc":"satellite"},{"id":"L501.3","sp":"val","fam":"CLsat1","sub":"CLsat1.2","lfc":"satellite","rfc":"satellite"},{"id":"L501.4","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L502.2","sp":"val","fam":"CLsat1","sub":"CLsat1.1","lfc":"lowcomplex","rfc":"unique","rfp":"L201","rfsp":"nai","rffam":"CLsat3","rfpid":"97.2","rfaln":"599","ortho":true,"both":true,"pfam":"DIFFERENT"},{"id":"L503.1","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"unique","lfp":"L201","lfsp":"nai","lffam":"CLsat3","lfpid":"96.8","lfaln":"527","rfc":"satellite","ortho":true,"pfam":"DIFFERENT"},{"id":"L503.2","sp":"val","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"telomeric"},{"id":"L504","sp":"val","fam":"CLsat3","sub":"CLsat3.1","lfc":"lowcomplex","rfc":"unique"},{"id":"L505","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"satellite","rfc":"satellite"},{"id":"L506.1","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"satellite","rfc":"satellite"},{"id":"L506.2","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"satellite","rfc":"satellite"},{"id":"L506.3","sp":"val","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"telomeric"},{"id":"L507.1","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L507.2","sp":"val","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"telomeric"},{"id":"L508","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"lowcomplex"},{"id":"L509.1","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L509.2","sp":"val","fam":"CLsat1","sub":"CLsat1.3","lfc":"satellite","rfc":"satellite"},{"id":"L509.3","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"satellite","rfc":"satellite"},{"id":"L510","sp":"val","fam":"CLsat3","sub":"CLsat3.1","lfc":"satellite","rfc":"satellite"},{"id":"L511","sp":"val","fam":"CLsat3","sub":"CLsat3.1","lfc":"satellite","rfc":"lowcomplex"},{"id":"L512","sp":"val","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"lowcomplex","rfc":"lowcomplex"},{"id":"L513.1","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"unique","lfp":"L15","lfsp":"arm","lffam":"CLsat1","lfpid":"100.0","lfaln":"530","rfc":"satellite","ortho":true,"pfam":"SAME"},{"id":"L513.2","sp":"val","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"telomeric"},{"id":"L514.1","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L514.2","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"satellite","rfc":"unique","rfp":"L23","rfsp":"arm","rffam":"CLsat1","rfpid":"100.0","rfaln":"349","ortho":true,"pfam":"DIFFERENT"},{"id":"L515.1","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"telomeric","rfc":"satellite"},{"id":"L515.2","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L516.1","sp":"val","fam":"CLsat1","sub":"CLsat1.2","lfc":"lowcomplex","rfc":"satellite"},{"id":"L516.2","sp":"val","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"telomeric"},{"id":"L517.1","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"telomeric","rfc":"satellite"},{"id":"L517.2","sp":"val","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L518.1","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L518.2","sp":"val","fam":"CLsat1","sub":"CLsat1.1","lfc":"satellite","rfc":"lowcomplex"},{"id":"L519.1","sp":"val","fam":"CLsat1","sub":"CLsat1.1","lfc":"lowcomplex","rfc":"satellite"},{"id":"L519.2","sp":"val","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L520.1","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L520.2","sp":"val","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L521.1","sp":"val","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"satellite"},{"id":"L521.2","sp":"val","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L522","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"unique","rfc":"truncated"},{"id":"L523.1","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"telomeric","rfc":"satellite"},{"id":"L523.2","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L524","sp":"val","fam":"CLsat1","sub":"CLsat1.1","lfc":"truncated","rfc":"truncated"},{"id":"L525","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"},{"id":"L526.2","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"telomeric","rfc":"satellite"},{"id":"L526.3","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"satellite","rfc":"satellite"},{"id":"L526.4","sp":"val","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L527.1","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"telomeric","rfc":"satellite"},{"id":"L527.2","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"satellite","rfc":"lowcomplex"},{"id":"L528","sp":"val","fam":"CLsat1","sub":"CLsat1.2","subc":true,"lfc":"lowcomplex","rfc":"truncated"},{"id":"L529.1","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L529.2","sp":"val","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"telomeric"},{"id":"L530.1","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"lowcomplex","rfc":"satellite"},{"id":"L530.2","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"satellite","rfc":"truncated"},{"id":"L531","sp":"val","fam":"CLsat1","sub":"CLsat1.2","lfc":"truncated","rfc":"lowcomplex"},{"id":"L532.1","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L532.2","sp":"val","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"telomeric"},{"id":"L533.1","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L533.2","sp":"val","fam":"CLsat3","sub":"CLsat3.2","subc":true,"lfc":"satellite","rfc":"telomeric"},{"id":"L534","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L535","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L536.1","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"telomeric","rfc":"satellite"},{"id":"L536.2","sp":"val","fam":"CLsat1","sub":"CLsat1.1","lfc":"satellite","rfc":"truncated"},{"id":"L537.1","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"truncated","rfc":"satellite"},{"id":"L537.2","sp":"val","fam":"CLsat1","sub":"CLsat1.1","lfc":"satellite","rfc":"lowcomplex"},{"id":"L538","sp":"val","fam":"CLsat3","sub":"CLsat3.1","subc":true,"lfc":"telomeric","rfc":"truncated"},{"id":"L539","sp":"val","fam":"CLsat1","sub":"CLsat1.1","subc":true,"lfc":"truncated","rfc":"truncated"}];
-const ASM_ORDER = ["mix","arm","val","unp","unm","nai"];
+// ORTHO_LOCI, FLAGGED_LOCI, FULL_TABLE, ASM_ORDER: filled from viewer_config.json by applyViewerConfig()
 (function(){
   const modal=document.getElementById("listModal");
   const title=document.getElementById("listTitle"), body=document.getElementById("listBody");
@@ -4503,11 +4489,12 @@ const ASM_ORDER = ["mix","arm","val","unp","unm","nai"];
     flag:[
       ["all","All flagged", d=>true],
       ["con","Contradiction", d=>d.cat==="UNIQUE_SEED_CONTRADICTION"],
+      ["cand","Uncatalogued candidates", d=>d.cat==="CANDIDATE_UNCATALOGUED"],
       ["seg","Segment-ambiguous", d=>d.cat==="SEGMENT_RESOLVED_AMBIGUOUS"],
       ["sc","Seed-conflict", d=>d.cat==="SEED_CONFLICT_RESOLVED_AMBIGUOUS"]
     ],
     full:[
-      ["all","All loci (627)", d=>true],
+      ["all","All loci", d=>!String(d.id).startsWith("C")],
       ["anchor","Anchorable (≥1 unique flank)", d=>d.lfc==="unique"||d.rfc==="unique"],
       ["ortho","Has ortholog", d=>d.ortho],
       ["both","Both-sided (full homology)", d=>d.both],
@@ -4515,22 +4502,19 @@ const ASM_ORDER = ["mix","arm","val","unp","unm","nai"];
       ["same","Same-family partner", d=>d.pfam==="SAME"]
     ]
   };
-  const NOTES={
-    ortho:"Positional orthology from unique flanking sequence (≥80% identity, ≥200 bp), single best hit per target assembly. \"Orthologous to\" lists distinct partner assemblies then the total partner-locus count (one locus can have several partner loci in the same assembly). Click a row to open the locus; click a partner chip to jump to that partner in another assembly.",
-    flag:"28 loci annotated by arbitration. Only L186 is a genuine seed/rescan contradiction — treat it as the one open question here. The rest are not errors: 26 are close-margin family calls under a flat 15-bit cutoff (Δ varies widely beneath that line — sort by Δ to see it), and L540 is confidently resolved (Δ 49.4) but flagged only for lacking an initial seed. Δ = bitscore margin between the seed call and its strongest competitor.",
-    full:"Every locus (627, all six assemblies) with its sub-subfamily call and both flanks' cross-assembly orthology status (ssearch36, ≥80% identity, ≥200 bp, single best hit per target assembly). L/R badges show each flank's class (blue=unique/anchorable, amber=lowcomplex, grey=truncated, pink=satellite-adjacent, purple=telomeric). \"Both-sided\" = the pair is corroborated by evidence sourced from both an L- and an R-flank hit (matches Fig. 3's 18 both-sided pairs). Red-bordered partner chips mark loci independently confirmed orthologous by flank sequence where the two assemblies carry a different CLsat family at that position — see Discussion. Click a locus or a partner chip to jump to it."
-  };
+  // list notes come from viewer_config.json (LIST_NOTES), generated from the run's own numbers
   function jump(id){ try{ jumpToLocusId(id); }catch(e){ console.warn(e); } modal.classList.remove("open"); }
   function openList(m){
     mode=m; preset="all"; search.value="";
     title.textContent = m==="ortho" ? "Orthologous loci — positional conservation spectrum"
                        : m==="flag" ? "Flagged loci — arbitration margins"
-                                    : "Flank orthology table — every locus, all six assemblies";
-    noteEl.textContent=NOTES[m];
+                                    : "Flank orthology table — every locus, all assemblies";
+    noteEl.textContent=LIST_NOTES[m]||"";
     presetsEl.innerHTML="";
     PRESETS[m].forEach(([k,lab])=>{
       const b=document.createElement("button");
-      b.className="preset"+(k===preset?" active":""); b.textContent=lab;
+      const nAll = (m==="ortho" ? ORTHO_LOCI : m==="flag" ? FLAGGED_LOCI : FULL_TABLE.filter(d=>!String(d.id).startsWith("C"))).length;
+      b.className="preset"+(k===preset?" active":""); b.textContent = (k==="all") ? lab+" ("+nAll+")" : lab;
       b.onclick=()=>{ preset=k; [...presetsEl.children].forEach(c=>c.classList.remove("active"));
                       b.classList.add("active"); render(); };
       presetsEl.appendChild(b);
