@@ -1,13 +1,13 @@
 # cluster -> family, re-derived from the published catalogue (majority family of the catalogue loci the
 # cluster members lie in, confirmed by the centroid's best consensus hit); see tests/darevskia/recurate_from_catalogue.py
 # cluster	family	note
-7	CLsat4	size=54 votes={'CLsat4': 8, 'CLsat1': 43, 'CLsat2': 2} centroid_best=CLsat4 203.0 bits 98.58%
-8	CLsat1	size=613 votes={'CLsat1': 560, 'CLsat3': 19, 'CLsat2': 33} centroid_best=CLsat1 152.1 bits 93.79%
-28	CLsat2	size=1136 votes={'CLsat2': 1100, 'CLsat1': 35} centroid_best=CLsat2 156.4 bits 100.00%
-40	CLsat3	size=118 votes={'CLsat1': 50, 'CLsat3': 67} centroid_best=CLsat3 158.8 bits 97.95%
-42	CLsat3	size=28 votes={'CLsat3': 15, 'CLsat1': 4} centroid_best=CLsat3 141.9 bits 89.73%
-44	CLsat3	size=3 votes={'CLsat3': 3} centroid_best=CLsat1 113.1 bits 84.14%
-45	CLsat1	size=150 votes={'CLsat1': 150} centroid_best=CLsat1 135.5 bits 91.03%
-46	CLsat1	size=13 votes={'CLsat1': 13} centroid_best=CLsat1 137.2 bits 88.97%
-47	CLsat1	size=23 votes={'CLsat3': 6, 'CLsat1': 17} centroid_best=CLsat1 142.9 bits 95.14%
-69	CLsat1	size=10 votes={'CLsat1': 10} centroid_best=CLsat1 124.8 bits 98.43%
+6	CLsat1	size=492 votes={'CLsat1': 451, 'CLsat3': 18, 'CLsat2': 22} centroid_best=CLsat1 153.3 bits 93.79%
+20	CLsat2	size=980 votes={'CLsat2': 948, 'CLsat1': 31} centroid_best=CLsat2 176.7 bits 100.00%
+31	CLsat3	size=83 votes={'CLsat1': 37, 'CLsat3': 45} centroid_best=CLsat3 164.2 bits 97.95%
+33	CLsat3	size=24 votes={'CLsat3': 13, 'CLsat1': 3} centroid_best=CLsat3 132.8 bits 89.73%
+35	CLsat3	size=3 votes={'CLsat3': 3} centroid_best=CLsat1 115.8 bits 84.14%
+36	CLsat1	size=113 votes={'CLsat1': 113} centroid_best=CLsat1 142.6 bits 91.03%
+37	CLsat1	size=8 votes={'CLsat1': 8} centroid_best=CLsat1 137.6 bits 88.97%
+38	CLsat1	size=12 votes={'CLsat3': 4, 'CLsat1': 8} centroid_best=CLsat1 145.1 bits 95.14%
+59	CLsat1	size=5 votes={'CLsat1': 5} centroid_best=CLsat1 124.2 bits 98.43%
+76	CLsat4	size=35 votes={'CLsat1': 27, 'CLsat2': 2, 'CLsat4': 5} centroid_best=CLsat4 132.4 bits 100.00%
