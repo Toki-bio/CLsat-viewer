@@ -11,6 +11,8 @@ else the majority family of the read-checked loci its members lie in (>= 60 % of
 Each alignment: family consensus first, then the cluster's units, each turned to the consensus strand and rotated to start at
 consensus position 1, then MAFFT --auto. Weakest call: cluster 40 (3 units).
 
+All consensuses in one alignment: the 4 family consensuses plus the majority consensus of each of the 8 clusters (units as in the cluster files, column majority, gap columns dropped), MAFFT --globalpair --maxiterate 1000: [ViewAlign](https://toki-bio.github.io/MSA-viewer/?url=https%3A%2F%2Fraw.githubusercontent.com%2FToki-bio%2FCLsat-viewer%2Fmain%2Frevision_panel%2Fall_consensuses.aln.fa&title=All%20consensuses%3A%204%20families%20%2B%208%20clusters). In the cluster files the first row "consensus" is the FAMILY consensus, not the cluster's own.
+
 | cluster | units | call | evidence | measured in the alignment | alignment |
 |---|---|---|---|---|---|
 | 19 | 980 | draft: CLsat2 | size=980 votes={'CLsat2': 948, 'CLsat1': 31} centroid_best=CLsat2 174.1 bits 100.00% | identity to consensus median 1.00 (min 0.97), consensus covered 1.00, longest unit 163 | [ViewAlign](https://toki-bio.github.io/MSA-viewer/?url=https%3A%2F%2Fraw.githubusercontent.com%2FToki-bio%2FCLsat-viewer%2Fmain%2Frevision_panel%2Fclusters%2Fcluster19_CLsat2_n980.aln.fa&title=Cluster%2019%20-%3E%20CLsat2%20%28980%20units%29) |
