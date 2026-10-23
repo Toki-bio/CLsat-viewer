@@ -37,7 +37,10 @@ for k in order:
         s = rc(s); hit = best_hit(s, ['-3'])
     qs, ss = int(hit[6]), int(hit[8])
     start = start_at_cons1(qs, ss, hit[12])
-    if start is None:                 # the hit never reaches consensus position 1: count back from the hit start (no gaps assumed)
+    if start is None:                 # the hit stops short of consensus position 1: align the unit written twice, so the hit can wrap past it
+        h2 = best_hit(s + s, ['-3'])
+        if h2: start = start_at_cons1(int(h2[6]), int(h2[8]), h2[12])
+    if start is None:                 # still no consensus position 1 in the hit: count back from the hit start (no gaps assumed)
         start = (qs - 1 - (ss - 1) % L) % len(s)
     else: walked += 1
     o.append((k, s[start % len(s):] + s[:start % len(s)]))
