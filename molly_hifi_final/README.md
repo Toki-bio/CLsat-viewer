@@ -37,6 +37,8 @@ Files: `all_families_aligned.fa`, `family_consensus.fa`, `groups/*.fa`.
 
 ## MG02 vs MG15: one family or two? (2026-10-28)
 
+**Author decision 2026-10-29: one family, two subfamilies. Labels in the [loci viewer](https://toki-bio.github.io/CLsat-viewer/molly_loci_viewer/index.html): MG02a = old MG02 (305 loci), MG02b = old MG15 (9 loci).** The run already arbitrated the two against each other at every locus, so the locus calls are unchanged; only labels were renamed. The alignment below keeps the old names (MG02 = MG02a, MG15 = MG02b).
+
 [Open the alignment in ViewAlign](https://toki-bio.github.io/MSA-viewer/?url=https%3A%2F%2Fraw.githubusercontent.com%2FToki-bio%2FCLsat-viewer%2Fmain%2Fmolly_hifi_final%2Fmg02_mg15.aln.fa&title=Molly%20MG02%20vs%20MG15) (129 rows, 87 columns, COMMON FRAME: cyclic consensuses rotated into the MG02 consensus frame, `rc_` = reverse complemented; locus monomers re-cut from each locus with its own family's framed consensus, so every row starts at the same monomer position; plain `mafft`). Per-row strand, rotation offset / cut coordinates: [mg02_mg15_framing.tsv](mg02_mg15_framing.tsv).
 Rows, top to bottom by name prefix: `MG02_consensus_84bp`, `MG15_consensus_82bp`; `MG02_clus_*` / `MG15_clus_*` = the run's cluster consensuses behind each family (MG15 = c055 only, old fam107); then 3 monomers per locus:
 `BOTH_*` = 12 MG02 loci where MG15 also scores >= 50 bits; `MG15_*` = all 9 MG15 loci; `MG02_*` = 12 random MG02 loci where MG15 scores below half of MG02.
