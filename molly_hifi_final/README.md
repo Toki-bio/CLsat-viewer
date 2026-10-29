@@ -37,7 +37,7 @@ Files: `all_families_aligned.fa`, `family_consensus.fa`, `groups/*.fa`.
 
 ## MG02 vs MG15: one family or two? (2026-10-28)
 
-[Open the alignment in ViewAlign](https://toki-bio.github.io/MSA-viewer/?url=https%3A%2F%2Fraw.githubusercontent.com%2FToki-bio%2FCLsat-viewer%2Fmain%2Fmolly_hifi_final%2Fmg02_mg15.aln.fa&title=Molly%20MG02%20vs%20MG15) (129 rows, `mafft --adjustdirection`; `_R_` = reverse complemented).
+[Open the alignment in ViewAlign](https://toki-bio.github.io/MSA-viewer/?url=https%3A%2F%2Fraw.githubusercontent.com%2FToki-bio%2FCLsat-viewer%2Fmain%2Fmolly_hifi_final%2Fmg02_mg15.aln.fa&title=Molly%20MG02%20vs%20MG15) (129 rows, 87 columns, COMMON FRAME: cyclic consensuses rotated into the MG02 consensus frame, `rc_` = reverse complemented; locus monomers re-cut from each locus with its own family's framed consensus, so every row starts at the same monomer position; plain `mafft`). Per-row strand, rotation offset / cut coordinates: [mg02_mg15_framing.tsv](mg02_mg15_framing.tsv).
 Rows, top to bottom by name prefix: `MG02_consensus_84bp`, `MG15_consensus_82bp`; `MG02_clus_*` / `MG15_clus_*` = the run's cluster consensuses behind each family (MG15 = c055 only, old fam107); then 3 monomers per locus:
 `BOTH_*` = 12 MG02 loci where MG15 also scores >= 50 bits; `MG15_*` = all 9 MG15 loci; `MG02_*` = 12 random MG02 loci where MG15 scores below half of MG02.
 Row name = class_locus_genome_bestFamBits_secondFamBits_monomer. Locus list: [selected.tsv](selected.tsv).
