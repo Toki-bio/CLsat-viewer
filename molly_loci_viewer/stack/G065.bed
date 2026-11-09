@@ -1,0 +1,10 @@
+track name="G065"
+alignment	0	7110	left flank	0	.	0	0	148,163,184
+alignment	7110	12467	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	12467	12619	m25	0	.	0	0	244,114,182
+alignment	12619	12923	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	12923	13075	m28	0	.	0	0	244,114,182
+alignment	13075	13379	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	13379	13531	m31	0	.	0	0	244,114,182
+alignment	13531	13754	m32	0	.	0	0	244,114,182
+alignment	13754	19192	right flank	0	.	0	0	148,163,184

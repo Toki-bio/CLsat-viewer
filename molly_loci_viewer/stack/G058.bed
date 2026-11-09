@@ -1,0 +1,27 @@
+track name="G058"
+alignment	0	5821	left flank	0	.	0	0	148,163,184
+alignment	5821	5859	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	5859	5999	m2	0	.	0	0	52,211,153
+alignment	5999	6083	m3	0	.	0	0	52,211,153
+alignment	6083	6335	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	6335	6421	m7	0	.	0	0	52,211,153
+alignment	6421	6504	m8	0	.	0	0	52,211,153
+alignment	6504	6589	m9	0	.	0	0	52,211,153
+alignment	6589	6673	m10	0	.	0	0	52,211,153
+alignment	6673	6756	m11	0	.	0	0	52,211,153
+alignment	6756	6840	m12	0	.	0	0	52,211,153
+alignment	6840	6924	m13	0	.	0	0	52,211,153
+alignment	6924	7008	m14	0	.	0	0	52,211,153
+alignment	7008	7093	m15	0	.	0	0	52,211,153
+alignment	7093	7176	m16	0	.	0	0	52,211,153
+alignment	7176	7261	m17	0	.	0	0	52,211,153
+alignment	7261	7344	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	7344	7428	m18	0	.	0	0	52,211,153
+alignment	7428	7512	m19	0	.	0	0	52,211,153
+alignment	7512	7597	m20	0	.	0	0	52,211,153
+alignment	7597	7681	m21	0	.	0	0	52,211,153
+alignment	7681	7764	m22	0	.	0	0	52,211,153
+alignment	7764	7933	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	7933	8018	m24	0	.	0	0	52,211,153
+alignment	8018	8112	m25	0	.	0	0	52,211,153
+alignment	8112	13459	right flank	0	.	0	0	148,163,184

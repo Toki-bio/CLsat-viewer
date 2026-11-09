@@ -1,0 +1,8 @@
+track name="G068"
+alignment	0	5010	left flank	0	.	0	0	148,163,184
+alignment	5010	5169	m1	0	.	0	0	96,165,250
+alignment	5169	5356	m2	0	.	0	0	96,165,250
+alignment	5356	5685	m3	0	.	0	0	96,165,250
+alignment	5685	5846	m4	0	.	0	0	96,165,250
+alignment	5846	21902	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	21902	21902	right flank	0	.	0	0	148,163,184

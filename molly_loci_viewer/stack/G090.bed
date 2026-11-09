@@ -1,0 +1,11 @@
+track name="G090"
+alignment	0	0	left flank	0	.	0	0	148,163,184
+alignment	0	46020	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	46020	46206	m110	0	.	0	0	96,165,250
+alignment	46206	55336	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	55336	55522	m153	0	.	0	0	96,165,250
+alignment	55522	56617	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	56617	56794	m160	0	.	0	0	96,165,250
+alignment	56794	56977	m161	0	.	0	0	96,165,250
+alignment	56977	57090	m162	0	.	0	0	96,165,250
+alignment	57090	62090	right flank	0	.	0	0	148,163,184

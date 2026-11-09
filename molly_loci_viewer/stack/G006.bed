@@ -1,0 +1,5 @@
+track name="G006"
+alignment	0	5039	left flank	0	.	0	0	148,163,184
+alignment	5039	5180	m1	0	.	0	0	251,146,60
+alignment	5180	7209	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	7209	13078	right flank	0	.	0	0	148,163,184

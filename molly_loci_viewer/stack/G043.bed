@@ -1,0 +1,10 @@
+track name="G043"
+alignment	0	5025	left flank	0	.	0	0	148,163,184
+alignment	5025	5211	m1	0	.	0	0	45,212,191
+alignment	5211	5397	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	5397	5583	m3	0	.	0	0	45,212,191
+alignment	5583	6141	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	6141	6327	m7	0	.	0	0	45,212,191
+alignment	6327	7071	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	7071	7272	m12	0	.	0	0	45,212,191
+alignment	7272	12374	right flank	0	.	0	0	148,163,184

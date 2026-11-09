@@ -1,0 +1,8 @@
+track name="G100"
+alignment	0	5001	left flank	0	.	0	0	148,163,184
+alignment	5001	5137	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	5137	5289	m2	0	.	0	0	244,114,182
+alignment	5289	5441	m3	0	.	0	0	244,114,182
+alignment	5441	11815	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	11815	11937	m46	0	.	0	0	244,114,182
+alignment	11937	17093	right flank	0	.	0	0	148,163,184

@@ -1,0 +1,14 @@
+track name="G014"
+alignment	0	5013	left flank	0	.	0	0	148,163,184
+alignment	5013	5055	m1	0	.	0	0	52,211,153
+alignment	5055	5139	m2	0	.	0	0	52,211,153
+alignment	5139	5223	m3	0	.	0	0	52,211,153
+alignment	5223	5307	m4	0	.	0	0	52,211,153
+alignment	5307	5391	m5	0	.	0	0	52,211,153
+alignment	5391	5475	m6	0	.	0	0	52,211,153
+alignment	5475	5559	m7	0	.	0	0	52,211,153
+alignment	5559	5643	m8	0	.	0	0	52,211,153
+alignment	5643	5727	m9	0	.	0	0	52,211,153
+alignment	5727	5811	m10	0	.	0	0	52,211,153
+alignment	5811	5941	m11	0	.	0	0	52,211,153
+alignment	5941	11145	right flank	0	.	0	0	148,163,184

@@ -1,0 +1,4 @@
+track name="G081"
+alignment	0	5142	left flank	0	.	0	0	148,163,184
+alignment	5142	109550	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	109550	109550	right flank	0	.	0	0	148,163,184

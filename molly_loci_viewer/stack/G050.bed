@@ -1,0 +1,8 @@
+track name="G050"
+alignment	0	5360	left flank	0	.	0	0	148,163,184
+alignment	5360	5853	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	5853	6039	m4	0	.	0	0	96,165,250
+alignment	6039	6969	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	6969	7155	m5	0	.	0	0	96,165,250
+alignment	7155	119643	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	119643	124643	right flank	0	.	0	0	148,163,184

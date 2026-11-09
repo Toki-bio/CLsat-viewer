@@ -1,0 +1,6 @@
+track name="G053"
+alignment	0	0	left flank	0	.	0	0	148,163,184
+alignment	0	61716	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	61716	61902	m190	0	.	0	0	96,165,250
+alignment	61902	62159	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	62159	69133	right flank	0	.	0	0	148,163,184

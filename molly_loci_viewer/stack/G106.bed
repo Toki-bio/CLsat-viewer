@@ -1,0 +1,27 @@
+track name="G106"
+alignment	0	6370	left flank	0	.	0	0	148,163,184
+alignment	6370	6390	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	6390	6471	m2	0	.	0	0	244,114,182
+alignment	6471	6552	m3	0	.	0	0	244,114,182
+alignment	6552	6633	m4	0	.	0	0	244,114,182
+alignment	6633	6714	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	6714	6795	m6	0	.	0	0	244,114,182
+alignment	6795	6876	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	6876	6957	m8	0	.	0	0	244,114,182
+alignment	6957	7038	m9	0	.	0	0	244,114,182
+alignment	7038	7119	m10	0	.	0	0	244,114,182
+alignment	7119	7200	m11	0	.	0	0	244,114,182
+alignment	7200	7281	m12	0	.	0	0	244,114,182
+alignment	7281	7362	m13	0	.	0	0	244,114,182
+alignment	7362	7443	m14	0	.	0	0	244,114,182
+alignment	7443	7524	m15	0	.	0	0	244,114,182
+alignment	7524	7605	m16	0	.	0	0	244,114,182
+alignment	7605	7686	m17	0	.	0	0	244,114,182
+alignment	7686	7767	m18	0	.	0	0	244,114,182
+alignment	7767	7848	m19	0	.	0	0	244,114,182
+alignment	7848	8901	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	8901	8982	m21	0	.	0	0	244,114,182
+alignment	8982	9063	m22	0	.	0	0	244,114,182
+alignment	9063	9144	m23	0	.	0	0	244,114,182
+alignment	9144	9224	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	9224	15333	right flank	0	.	0	0	148,163,184

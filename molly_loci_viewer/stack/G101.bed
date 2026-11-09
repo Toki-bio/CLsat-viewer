@@ -1,0 +1,13 @@
+track name="G101"
+alignment	0	5154	left flank	0	.	0	0	148,163,184
+alignment	5154	5290	m1	0	.	0	0	244,114,182
+alignment	5290	5442	m2	0	.	0	0	244,114,182
+alignment	5442	5890	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	5890	6042	m6	0	.	0	0	244,114,182
+alignment	6042	6490	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	6490	6642	m10	0	.	0	0	244,114,182
+alignment	6642	6793	m11	0	.	0	0	244,114,182
+alignment	6793	6938	m12	0	.	0	0	244,114,182
+alignment	6938	7092	m13	0	.	0	0	244,114,182
+alignment	7092	7214	m14	0	.	0	0	244,114,182
+alignment	7214	12476	right flank	0	.	0	0	148,163,184

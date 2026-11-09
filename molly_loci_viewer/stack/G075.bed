@@ -1,0 +1,14 @@
+track name="G075"
+alignment	0	5084	left flank	0	.	0	0	148,163,184
+alignment	5084	5134	m1	0	.	0	0	52,211,153
+alignment	5134	5219	m2	0	.	0	0	52,211,153
+alignment	5219	5303	m3	0	.	0	0	52,211,153
+alignment	5303	5387	m4	0	.	0	0	52,211,153
+alignment	5387	5471	m5	0	.	0	0	52,211,153
+alignment	5471	5555	m6	0	.	0	0	52,211,153
+alignment	5555	5639	m7	0	.	0	0	52,211,153
+alignment	5639	5723	m8	0	.	0	0	52,211,153
+alignment	5723	5807	m9	0	.	0	0	52,211,153
+alignment	5807	5891	m10	0	.	0	0	52,211,153
+alignment	5891	5951	m11	0	.	0	0	52,211,153
+alignment	5951	11047	right flank	0	.	0	0	148,163,184

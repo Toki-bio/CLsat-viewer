@@ -1,0 +1,6 @@
+track name="G105"
+alignment	0	0	left flank	0	.	0	0	148,163,184
+alignment	0	30921	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	30921	31107	m130	0	.	0	0	96,165,250
+alignment	31107	31400	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	31400	36407	right flank	0	.	0	0	148,163,184

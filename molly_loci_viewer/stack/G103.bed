@@ -1,0 +1,5 @@
+track name="G103"
+alignment	0	3643	left flank	0	.	0	0	148,163,184
+alignment	3643	43111	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	43111	43399	m212	0	.	0	0	96,165,250
+alignment	43399	48526	right flank	0	.	0	0	148,163,184

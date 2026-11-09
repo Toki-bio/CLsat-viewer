@@ -1,0 +1,4 @@
+track name="G096"
+alignment	0	5004	left flank	0	.	0	0	148,163,184
+alignment	5004	168772	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	168772	173772	right flank	0	.	0	0	148,163,184

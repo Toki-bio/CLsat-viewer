@@ -1,0 +1,8 @@
+track name="G021"
+alignment	0	6778	left flank	0	.	0	0	148,163,184
+alignment	6778	28492	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	28492	28679	m1	0	.	0	0	96,165,250
+alignment	28679	64403	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	64403	64591	m23	0	.	0	0	96,165,250
+alignment	64591	571243	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	571243	577646	right flank	0	.	0	0	148,163,184

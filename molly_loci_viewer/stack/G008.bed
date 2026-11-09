@@ -1,0 +1,18 @@
+track name="G008"
+alignment	0	5090	left flank	0	.	0	0	148,163,184
+alignment	5090	5151	m1	0	.	0	0	52,211,153
+alignment	5151	5235	m2	0	.	0	0	52,211,153
+alignment	5235	5319	m3	0	.	0	0	52,211,153
+alignment	5319	5403	m4	0	.	0	0	52,211,153
+alignment	5403	5487	m5	0	.	0	0	52,211,153
+alignment	5487	5571	m6	0	.	0	0	52,211,153
+alignment	5571	5655	m7	0	.	0	0	52,211,153
+alignment	5655	5739	m8	0	.	0	0	52,211,153
+alignment	5739	5823	m9	0	.	0	0	52,211,153
+alignment	5823	5907	m10	0	.	0	0	52,211,153
+alignment	5907	5991	m11	0	.	0	0	52,211,153
+alignment	5991	6075	m12	0	.	0	0	52,211,153
+alignment	6075	6161	m13	0	.	0	0	52,211,153
+alignment	6161	6247	m14	0	.	0	0	52,211,153
+alignment	6247	6336	m15	0	.	0	0	52,211,153
+alignment	6336	11401	right flank	0	.	0	0	148,163,184

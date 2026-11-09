@@ -1,0 +1,6 @@
+track name="G104"
+alignment	0	5034	left flank	0	.	0	0	148,163,184
+alignment	5034	5039	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	5039	5225	m2	0	.	0	0	96,165,250
+alignment	5225	30424	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	30424	35424	right flank	0	.	0	0	148,163,184

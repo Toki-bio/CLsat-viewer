@@ -1,0 +1,5 @@
+track name="G095"
+alignment	0	5020	left flank	0	.	0	0	148,163,184
+alignment	5020	5168	m1	0	.	0	0	96,165,250
+alignment	5168	80160	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	80160	80160	right flank	0	.	0	0	148,163,184

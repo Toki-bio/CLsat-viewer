@@ -1,0 +1,7 @@
+track name="G089"
+alignment	0	5929	left flank	0	.	0	0	148,163,184
+alignment	5929	33736	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	33736	33992	m27	0	.	0	0	248,113,113
+alignment	33992	57720	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	57720	57824	m56	0	.	0	0	248,113,113
+alignment	57824	62920	right flank	0	.	0	0	148,163,184

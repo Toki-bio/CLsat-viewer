@@ -1,0 +1,14 @@
+track name="G046"
+alignment	0	5000	left flank	0	.	0	0	148,163,184
+alignment	5000	5122	m1	0	.	0	0	244,114,182
+alignment	5122	5274	m2	0	.	0	0	244,114,182
+alignment	5274	5426	m3	0	.	0	0	244,114,182
+alignment	5426	5578	m4	0	.	0	0	244,114,182
+alignment	5578	5730	m5	0	.	0	0	244,114,182
+alignment	5730	5882	m6	0	.	0	0	244,114,182
+alignment	5882	6034	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	6034	6186	m8	0	.	0	0	244,114,182
+alignment	6186	7092	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	7092	7244	m15	0	.	0	0	244,114,182
+alignment	7244	7380	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	7380	12381	right flank	0	.	0	0	148,163,184

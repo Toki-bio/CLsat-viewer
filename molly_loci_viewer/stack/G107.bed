@@ -1,0 +1,4 @@
+track name="G107"
+alignment	0	5989	left flank	0	.	0	0	148,163,184
+alignment	5989	89763	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	89763	95732	right flank	0	.	0	0	148,163,184

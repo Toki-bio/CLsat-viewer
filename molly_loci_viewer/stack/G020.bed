@@ -1,0 +1,4 @@
+track name="G020"
+alignment	0	5018	left flank	0	.	0	0	148,163,184
+alignment	5018	286798	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	286798	291807	right flank	0	.	0	0	148,163,184

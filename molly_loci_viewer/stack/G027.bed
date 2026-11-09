@@ -1,0 +1,4 @@
+track name="G027"
+alignment	0	6168	left flank	0	.	0	0	148,163,184
+alignment	6168	295166	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	295166	301900	right flank	0	.	0	0	148,163,184

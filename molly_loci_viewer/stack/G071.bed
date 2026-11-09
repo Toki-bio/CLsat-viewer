@@ -1,0 +1,20 @@
+track name="G071"
+alignment	0	0	left flank	0	.	0	0	148,163,184
+alignment	0	16177	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	16177	16363	m65	0	.	0	0	96,165,250
+alignment	16363	16549	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	16549	16735	m67	0	.	0	0	96,165,250
+alignment	16735	17669	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	17669	17855	m72	0	.	0	0	96,165,250
+alignment	17855	18041	m73	0	.	0	0	96,165,250
+alignment	18041	18413	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	18413	18599	m76	0	.	0	0	96,165,250
+alignment	18599	18786	m77	0	.	0	0	96,165,250
+alignment	18786	18972	m78	0	.	0	0	96,165,250
+alignment	18972	19158	m79	0	.	0	0	96,165,250
+alignment	19158	19345	m80	0	.	0	0	96,165,250
+alignment	19345	19530	m81	0	.	0	0	96,165,250
+alignment	19530	19716	m82	0	.	0	0	96,165,250
+alignment	19716	19889	m83	0	.	0	0	96,165,250
+alignment	19889	20013	m84	0	.	0	0	96,165,250
+alignment	20013	25013	right flank	0	.	0	0	148,163,184

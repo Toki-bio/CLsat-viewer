@@ -1,0 +1,5 @@
+track name="G091"
+alignment	0	6558	left flank	0	.	0	0	148,163,184
+alignment	6558	6692	m1	0	.	0	0	251,146,60
+alignment	6692	8704	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	8704	13871	right flank	0	.	0	0	148,163,184

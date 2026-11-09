@@ -1,0 +1,4 @@
+track name="G070"
+alignment	0	5034	left flank	0	.	0	0	148,163,184
+alignment	5034	348645	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	348645	353645	right flank	0	.	0	0	148,163,184

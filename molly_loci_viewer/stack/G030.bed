@@ -1,0 +1,11 @@
+track name="G030"
+alignment	0	5742	left flank	0	.	0	0	148,163,184
+alignment	5742	61326	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	61326	61512	m299	0	.	0	0	96,165,250
+alignment	61512	61703	m300	0	.	0	0	96,165,250
+alignment	61703	62125	m301	0	.	0	0	96,165,250
+alignment	62125	62365	m302	0	.	0	0	96,165,250
+alignment	62365	62567	m303	0	.	0	0	96,165,250
+alignment	62567	62753	m304	0	.	0	0	96,165,250
+alignment	62753	382882	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	382882	388582	right flank	0	.	0	0	148,163,184

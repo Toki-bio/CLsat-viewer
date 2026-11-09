@@ -1,0 +1,10 @@
+track name="G015"
+alignment	0	5531	left flank	0	.	0	0	148,163,184
+alignment	5531	5595	m1	0	.	0	0	52,211,153
+alignment	5595	5679	m2	0	.	0	0	52,211,153
+alignment	5679	6099	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	6099	6183	m8	0	.	0	0	52,211,153
+alignment	6183	6267	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	6267	6351	m10	0	.	0	0	52,211,153
+alignment	6351	6399	m11	0	.	0	0	52,211,153
+alignment	6399	11561	right flank	0	.	0	0	148,163,184

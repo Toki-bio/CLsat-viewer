@@ -1,0 +1,4 @@
+track name="G102"
+alignment	0	5777	left flank	0	.	0	0	148,163,184
+alignment	5777	182592	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	182592	182592	right flank	0	.	0	0	148,163,184

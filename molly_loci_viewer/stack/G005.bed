@@ -1,0 +1,4 @@
+track name="G005"
+alignment	0	5000	left flank	0	.	0	0	148,163,184
+alignment	5000	237837	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	237837	242889	right flank	0	.	0	0	148,163,184

@@ -1,0 +1,5 @@
+track name="G108"
+alignment	0	5779	left flank	0	.	0	0	148,163,184
+alignment	5779	10586	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	10586	10718	m29	0	.	0	0	45,212,191
+alignment	10718	17278	right flank	0	.	0	0	148,163,184

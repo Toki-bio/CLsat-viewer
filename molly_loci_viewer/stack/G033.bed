@@ -1,0 +1,33 @@
+track name="G033"
+alignment	0	5755	left flank	0	.	0	0	148,163,184
+alignment	5755	6040	m1	0	.	0	0	74,222,128
+alignment	6040	6359	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	6359	6675	m2	0	.	0	0	74,222,128
+alignment	6675	6860	m3	0	.	0	0	74,222,128
+alignment	6860	7048	m4	0	.	0	0	74,222,128
+alignment	7048	7234	m5	0	.	0	0	74,222,128
+alignment	7234	7419	m6	0	.	0	0	74,222,128
+alignment	7419	7606	m7	0	.	0	0	74,222,128
+alignment	7606	7791	m8	0	.	0	0	74,222,128
+alignment	7791	7975	m9	0	.	0	0	74,222,128
+alignment	7975	8161	m10	0	.	0	0	74,222,128
+alignment	8161	8347	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	8347	8531	m12	0	.	0	0	74,222,128
+alignment	8531	8720	m13	0	.	0	0	74,222,128
+alignment	8720	35168	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	35168	35435	m104	0	.	0	0	74,222,128
+alignment	35435	35621	m105	0	.	0	0	74,222,128
+alignment	35621	40758	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	40758	40941	m121	0	.	0	0	74,222,128
+alignment	40941	43499	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	43499	43687	m130	0	.	0	0	74,222,128
+alignment	43687	43872	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	43872	44057	m132	0	.	0	0	74,222,128
+alignment	44057	44242	m133	0	.	0	0	74,222,128
+alignment	44242	44429	m134	0	.	0	0	74,222,128
+alignment	44429	44614	m135	0	.	0	0	74,222,128
+alignment	44614	44802	m136	0	.	0	0	74,222,128
+alignment	44802	44989	m137	0	.	0	0	74,222,128
+alignment	44989	47658	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	47658	47845	m152	0	.	0	0	74,222,128
+alignment	47845	53689	right flank	0	.	0	0	148,163,184

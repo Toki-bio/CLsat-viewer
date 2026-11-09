@@ -1,0 +1,11 @@
+track name="G040"
+alignment	0	5001	left flank	0	.	0	0	148,163,184
+alignment	5001	5049	m1	0	.	0	0	167,139,250
+alignment	5049	5133	m2	0	.	0	0	167,139,250
+alignment	5133	5300	m3	0	.	0	0	167,139,250
+alignment	5300	5805	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	5805	5887	m10	0	.	0	0	167,139,250
+alignment	5887	6729	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	6729	6813	m21	0	.	0	0	167,139,250
+alignment	6813	6891	m22	0	.	0	0	167,139,250
+alignment	6891	11891	right flank	0	.	0	0	148,163,184

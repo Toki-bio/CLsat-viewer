@@ -1,0 +1,14 @@
+track name="G082"
+alignment	0	5002	left flank	0	.	0	0	148,163,184
+alignment	5002	5138	m1	0	.	0	0	244,114,182
+alignment	5138	5290	m2	0	.	0	0	244,114,182
+alignment	5290	5442	m3	0	.	0	0	244,114,182
+alignment	5442	5594	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	5594	5746	m5	0	.	0	0	244,114,182
+alignment	5746	5898	m6	0	.	0	0	244,114,182
+alignment	5898	7722	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	7722	7874	m19	0	.	0	0	244,114,182
+alignment	7874	8026	m20	0	.	0	0	244,114,182
+alignment	8026	8178	m21	0	.	0	0	244,114,182
+alignment	8178	8319	m22	0	.	0	0	244,114,182
+alignment	8319	13696	right flank	0	.	0	0	148,163,184

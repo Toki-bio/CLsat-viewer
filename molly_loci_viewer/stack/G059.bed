@@ -1,0 +1,19 @@
+track name="G059"
+alignment	0	6106	left flank	0	.	0	0	148,163,184
+alignment	6106	6171	m1	0	.	0	0	52,211,153
+alignment	6171	6255	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	6255	6339	m3	0	.	0	0	52,211,153
+alignment	6339	6591	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	6591	6675	m7	0	.	0	0	52,211,153
+alignment	6675	6759	m8	0	.	0	0	52,211,153
+alignment	6759	6843	not anchored (left-shifted)	0	.	0	0	203,213,225
+alignment	6843	6927	m9	0	.	0	0	52,211,153
+alignment	6927	7011	m10	0	.	0	0	52,211,153
+alignment	7011	7095	m11	0	.	0	0	52,211,153
+alignment	7095	7179	m12	0	.	0	0	52,211,153
+alignment	7179	7263	m13	0	.	0	0	52,211,153
+alignment	7263	7347	m14	0	.	0	0	52,211,153
+alignment	7347	7431	m15	0	.	0	0	52,211,153
+alignment	7431	7515	m16	0	.	0	0	52,211,153
+alignment	7515	7596	m17	0	.	0	0	52,211,153
+alignment	7596	13008	right flank	0	.	0	0	148,163,184
