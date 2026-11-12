@@ -420,7 +420,7 @@
       </div>
 
       <div class="hint" id="detailHint"><b style="color:#fbbf24;">Bars are overlaid, not stacked</b> &mdash; every family's track is drawn at each scan window position with the tallest behind, so each colour&rsquo;s height is that family&rsquo;s own bitscore, not a cumulative total. Colors = CLsat consensus.
-        <span style="color:#5a6070;font-weight:600;">&#9632; grey</span> = background/noise (below 50 bits) &mdash; shown in the flanks and at internal breaks so a real hit can be judged against the floor, and so &ldquo;no satellite&rdquo; is distinguishable from &ldquo;not scanned&rdquo;.
+        <span style="color:#5a6070;font-weight:600;">&#9632; grey</span> = background/noise (below <span id="satBitsTxt">50</span> bits) &mdash; shown in the flanks and at internal breaks so a real hit can be judged against the floor, and so &ldquo;no satellite&rdquo; is distinguishable from &ldquo;not scanned&rdquo;.
         <span style="color:#64748b;font-weight:600;">&#9636; hatched</span> in the scaffold view = not searched (only loci and their flanks were scanned).
         <span style="color:#ff5c5c;font-weight:600;">&#9632; red</span> in the scaffold view = contig edge: the array is truncated by the assembly, so that boundary is <b>not</b> a biological array end.
         <br><span style="color:#94a3b8;">Segment boundaries</span> are placed on a 1&nbsp;kb grid, at the edge of the first bin in which the competing subfamily dominates, and may therefore sit up to 1&nbsp;kb before the per-window signal transition.</div>
@@ -497,6 +497,7 @@ function applyViewerConfig(cfg){
   }
   WINDOW_STEP = cfg.window_step || Math.max(...FAMILIES.map(f => CLSAT_STEP[f]), 1);
   if (cfg.sat_bits != null) SAT_BITS = +cfg.sat_bits;
+  { const sb = document.getElementById("satBitsTxt"); if (sb) sb.textContent = SAT_BITS; }
   if (cfg.edge_tol != null) EDGE_TOL = +cfg.edge_tol;
   if (cfg.flank_view != null) FLANK_VIEW = +cfg.flank_view;
   CLUSTER_SEQS = {}; CLUSTER_TO_CLSAT = {}; CLSAT_TO_CLUSTERS = {};
@@ -530,11 +531,45 @@ function applyViewerConfig(cfg){
   if (mi && ASM_ORDER.length) mi.innerHTML = 'A locus-resolved browser for the satellite arrays catalogued across ' + ASM_ORDER.length +
     ' assemblies (<span class="k">' + ASM_ORDER.map(esc_).join(", ") + '</span>) in run <span class="k">' + esc_(cfg.run_name || "") + '</span>. Every array in the catalogue is a ' +
     '<b>segmented MASTER locus</b> &mdash; a contiguous satellite-similar domain, split where the dominant family changes along the array.';
+  fillManualCounts();
   console.log("[viewer] config applied: " + FAMILIES.length + " families, " + ASM_ORDER.length + " assemblies, lists " +
               ORTHO_LOCI.length + "/" + FLAGGED_LOCI.length + "/" + FULL_TABLE.length);
 }
 
-const VIEWER_VERSION = "v3.0-config-20261015";
+/** In-page manual: every count and locus name of the run comes from the lists in viewer_config.json. */
+function fillManualCounts(){
+  const cat = FLAGGED_LOCI.filter(d => d.cat !== "CANDIDATE_UNCATALOGUED"), cand = FLAGGED_LOCI.length - cat.length;
+  const nOf = c => cat.filter(d => d.cat === c).length;
+  const contra = cat.filter(d => d.cat === "UNIQUE_SEED_CONTRADICTION").map(d => d.id);
+  const ids = a => a.slice(0, 8).join(", ") + (a.length > 8 ? ", \u2026" : "");
+  const pl = (n, one, many) => n + " " + (n === 1 ? one : many);
+  const other = [
+    [nOf("SEGMENT_RESOLVED_AMBIGUOUS"), "ambiguous segment call", "ambiguous segment calls"],
+    [nOf("SEED_CONFLICT_RESOLVED_AMBIGUOUS"), "ambiguous seed-conflict call", "ambiguous seed-conflict calls"],
+    [nOf("NO_SEED_RESOLVED"), "locus resolved without an initial seed", "loci resolved without an initial seed"],
+    [nOf("NO_SEED_AMBIGUOUS"), "locus without a seed and with a small margin", "loci without a seed and with a small margin"],
+  ].filter(x => x[0] > 0).map(x => pl(x[0], x[1], x[2]));
+  const known = contra.length + nOf("SEGMENT_RESOLVED_AMBIGUOUS") + nOf("SEED_CONFLICT_RESOLVED_AMBIGUOUS") + nOf("NO_SEED_RESOLVED") + nOf("NO_SEED_AMBIGUOUS");
+  if (cat.length > known) other.push(pl(cat.length - known, "locus with another flag", "loci with another flag"));
+  const v = {
+    ortho: ORTHO_LOCI.length,
+    has: ORTHO_LOCI.filter(d => d.n > 0).length,
+    priv: ORTHO_LOCI.filter(d => d.n === 0).length,
+    priv2: ORTHO_LOCI.filter(d => d.n === 0 && d.nuf === 2).length,
+    maxasm: Math.max(0, ...ORTHO_LOCI.map(d => Object.keys(d.partners || {}).length)),
+    full: FULL_TABLE.filter(d => !String(d.id).startsWith("C")).length,
+    flagcat: cat.length,
+    candtxt: cand ? " (plus the " + pl(cand, "uncatalogued candidate", "uncatalogued candidates") + ", listed for inspection)" : "",
+    contratxt: contra.length ? pl(contra.length, "locus", "loci") + " (" + ids(contra) + ")" : "none in this run",
+    othertxt: other.length ? other.join(", ") : "none",
+  };
+  const lf = VIEWER_CONFIG && VIEWER_CONFIG.locus_fasta;
+  if (lf) v.fastatxt = "Reads the locus sequence stored with this viewer (each locus with " + (lf.flank || 0).toLocaleString() +
+    " bp of flank on each side, cut from its own assembly); a view wider than the stored piece is clipped to it.";
+  document.querySelectorAll(".mrun").forEach(e => { if (e.dataset.k in v) e.textContent = v[e.dataset.k]; });
+}
+
+const VIEWER_VERSION = "v3.3-config-20261112";
 console.log("%c[CLsat Viewer] " + VIEWER_VERSION + " loaded", "color:#f59e0b; font-weight:bold; font-size:14px;");
 // Show version in UI header
 document.addEventListener('DOMContentLoaded', () => {
@@ -642,7 +677,8 @@ function smithWaterman(query, subject, opts = {}) {
 
 /** Reverse complement a DNA string */
 function revComp(seq) {
-  const comp = {A:'T', T:'A', G:'C', C:'G', N:'N', a:'t', t:'a', g:'c', c:'g', n:'n'};
+  const comp = {A:'T', T:'A', G:'C', C:'G', N:'N', a:'t', t:'a', g:'c', c:'g', n:'n',
+                R:'Y', Y:'R', K:'M', M:'K', B:'V', V:'B', D:'H', H:'D', r:'y', y:'r', k:'m', m:'k', b:'v', v:'b', d:'h', h:'d'};  // S, W stay
   return seq.split('').reverse().map(c => comp[c] || c).join('');
 }
 
@@ -1291,8 +1327,8 @@ function collectTerminalTrim(result, rawSeq, genomicStart) {
   // ends of the fetched fragment: monomers sitting in the flanks, or in an adjacent
   // satellite array beyond the boundary of a split locus, are excluded here.
   const inside = (locStart != null) ? mons.filter(m => {
-    const ov = Math.min(m.gEnd, locEnd) - Math.max(m.gStart, locStart);
-    return ov > 0.5 * (m.gEnd - m.gStart);
+    const ov = Math.min(m.gEnd, locEnd) - Math.max(m.gStart, locStart + 1) + 1;
+    return ov > 0.5 * (m.gEnd - m.gStart + 1);
   }) : mons;
   let leftM = null, rightM = null;
   inside.forEach(m => {
@@ -1565,10 +1601,6 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
     const nBeforeOrig = flankBefore.length;
     const nAfterOrig = flankAfter.length;
 
-    html += '<div style="margin-top:10px; color:' + clsatColor + '; font-weight:bold; font-size:10px;">';
-    html += 'Array ' + (ai+1) + ' \u2014 ' + arr.hits.length + ' monomers (' + strand + ' strand, ' + dominantClsat + ') \u2014 flanks + consensus-anchored MSA';
-    html += '</div>';
-    html += '<div class="msaBlock">';
 
     // --- SAFETY: Re-split any hit wider than 1.3× consensus ---
     // Uses the shared splitWideHits function. Defense-in-depth for any
@@ -1580,7 +1612,16 @@ function renderMonomerMSA(containerId, result, rawSeq, genomicStart, scaffoldNam
     // so that isFirst (mi=0) = biological 5' start and isLast = biological 3' end.
     if (strand === '-') displayHits.reverse();
     // Re-create displayIndices to match (indices are only used for origIdx / monId)
-    const displayIndicesNew = displayHits.map((_,i) => i);
+    // the row id must be the monomer's index in arr.hits, which is what the map arrows use: the display order is
+    // reversed on the minus strand and a split hit gives two rows (GLM viewer audit #14)
+    const displayIndicesNew = displayHits.map((h, i) => {
+      const k = arr.hits.findIndex(o => o.start <= h.start && h.end <= o.end);
+      return k >= 0 ? k : i;
+    });
+    html += '<div style="margin-top:10px; color:' + clsatColor + '; font-weight:bold; font-size:10px;">';
+    html += 'Array ' + (ai+1) + ' \u2014 ' + displayHits.length + ' monomers (' + strand + ' strand, ' + dominantClsat + ') \u2014 flanks + consensus-anchored MSA';
+    html += '</div>';
+    html += '<div class="msaBlock">';
 
     // Align each monomer and build rows
     const projRows = [];
@@ -2318,6 +2359,36 @@ const bedCoord = document.getElementById("bedCoord");
 function setStatus(msg){ statusEl.textContent = msg; }
 function hasD3(){ return typeof d3 !== "undefined"; }
 
+// Visible "working" banner. The status box sits at the bottom of the sidebar, out of sight,
+// so during the ~40 s first load and the 1-2 s redraw of a big locus the page looked hung.
+let _busyEl = null, _busyT0 = 0, _busyTimer = null, _busyMsg = "";
+function _busyPaint(){
+  const s = Math.round((Date.now() - _busyT0) / 1000);
+  _busyEl.textContent = _busyMsg + (s >= 1 ? `  (${s} s)` : "");
+}
+function busy(msg){
+  if (!_busyEl){
+    _busyEl = document.createElement("div");
+    _busyEl.id = "busyBanner";
+    _busyEl.style.cssText = "position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:300;" +
+      "background:#1e293b; color:#e5e7eb; border:1px solid #3b82f6; border-radius:10px; padding:16px 26px;" +
+      "font-size:14px; max-width:70vw; text-align:center; box-shadow:0 6px 28px rgba(0,0,0,.7); display:none; pointer-events:none;";
+    document.body.appendChild(_busyEl);
+  }
+  if (!msg && _loadMsg) msg = _loadMsg;   // data still loading: a finished redraw must not hide the load box
+  if (!msg){ _busyEl.style.display = "none"; clearInterval(_busyTimer); _busyTimer = null; return; }
+  if (!_busyTimer){ _busyT0 = Date.now(); _busyTimer = setInterval(_busyPaint, 500); }
+  _busyMsg = msg; _busyPaint(); _busyEl.style.display = "block";
+}
+// Message of the data load in progress (null = everything is loaded). The box stays up for the whole load.
+let _loadMsg = null;
+function loading(msg){ _loadMsg = msg || null; busy(_loadMsg); }
+// Show the banner, let the browser paint it, then run the (synchronous) drawing work.
+function withBusy(msg, fn){
+  busy(msg);
+  requestAnimationFrame(() => setTimeout(() => { try { fn(); } finally { busy(null); } }, 0));
+}
+
 /* ============================================================================
    PARSERS
 ============================================================================ */
@@ -2553,13 +2624,13 @@ function populateLocusTable(){
     const typeColor = CLSAT_COLORS[r.type] || '#9ca3af';
     const isSel = currentLocus && currentLocus.id === r.id;
     const flagTip = (typeof FLAG_TOOLTIPS !== 'undefined' && FLAG_TOOLTIPS[r.flag]) ? FLAG_TOOLTIPS[r.flag] : r.flag;
-    html += '<tr data-id="' + r.id + '"' + (isSel ? ' class="selected"' : '') + '>' +
-      '<td style="color:#60a5fa; font-weight:600;">' + r.id + '</td>' +
-      '<td>' + r.sp + '</td>' +
-      '<td style="color:' + typeColor + ';">' + r.type + '</td>' +
+    html += '<tr data-id="' + esc_(r.id) + '"' + (isSel ? ' class="selected"' : '') + '>' +
+      '<td style="color:#60a5fa; font-weight:600;">' + esc_(r.id) + '</td>' +
+      '<td>' + esc_(r.sp) + '</td>' +
+      '<td style="color:' + typeColor + ';">' + esc_(r.type) + '</td>' +
       '<td style="text-align:right;" title="' + r.len.toLocaleString() + ' bp">' + r.nMono + '</td>' +
-      '<td title="' + flagTip + '"><span class="flagDot" style="background:' + flagColor + ';"></span>' + flagShort + '</td>' +
-      '<td style="color:#666; font-size:9px;">' + r.scf.slice(-10) + '</td>' +
+      '<td title="' + esc_(flagTip) + '"><span class="flagDot" style="background:' + flagColor + ';"></span>' + esc_(flagShort) + '</td>' +
+      '<td style="color:#666; font-size:9px;">' + esc_(r.scf.slice(-10)) + '</td>' +
       '</tr>';
   }
   locusTableBody.innerHTML = html;
@@ -2633,6 +2704,7 @@ function getOverviewSize(){
 
 function initOverviewChart(){
   const {w,h,margin,innerW,innerH} = getOverviewSize();
+  if (svgOver) svgOver.interrupt();   // stop a running auto-zoom: it would rescale the chart drawn next (audit #21)
   d3.select("#chartOverview").selectAll("*").remove();
 
   svgOver = d3.select("#chartOverview").append("svg").attr("width", w).attr("height", h);
@@ -2660,6 +2732,7 @@ function initOverviewChart(){
     .translateExtent([[0,0],[innerW,innerH]])
     .extent([[0,0],[innerW,innerH]])
     .on("zoom", (event)=>{
+      if (!xScaleOverBase || !currentOver) return;   // nothing is drawn (no scaffold yet, or no data for it)
       const zx = event.transform.rescaleX(xScaleOverBase);
       xScaleOver.domain(zx.domain());
       renderOverview();
@@ -2670,6 +2743,8 @@ function initOverviewChart(){
 
 function drawOverview(){
   initOverviewChart();
+  // forget the previous scaffold first: an early return below must not leave its scale and loci behind (audit #4)
+  currentOver = null; xScaleOverBase = null;
 
   const sp = selectedSpecies;
   const scf = scaffoldSel.value;
@@ -2937,13 +3012,13 @@ function renderOverview(){
     .attr("y", rectY)
     .attr("height", rectH)
     .style("cursor", "pointer")
-    .on("click", (event, d) => selectLocus(d));
+    .on("click", (event, d) => withBusy(`Drawing ${d.id}…`, () => selectLocus(d)));
   ent.append("title");
 
   const allRects = ent.merge(sel);
   allRects
     .style("cursor", "pointer")
-    .on("click", (event, d) => { event.stopPropagation(); selectLocus(d); })
+    .on("click", (event, d) => { event.stopPropagation(); withBusy(`Drawing ${d.id}…`, () => selectLocus(d)); })
     .attr("x", d => xScaleOver(d.start))
     .attr("width", d => Math.max(4, xScaleOver(d.end) - xScaleOver(d.start)))
     .attr("fill", "rgba(255,255,255,0.01)")  // nearly transparent but clickable
@@ -3020,7 +3095,15 @@ function initDetailChart(){
   svgDetail.call(zoomDetail).on("dblclick.zoom", null);
 }
 
+const FLANK_VIEW_EMPTY = '<span style="color:#64748b;">Select a locus and click &ldquo;Show flanks &amp; orthologs&rdquo;.</span>';
 function selectLocus(l){
+  if (currentLocus !== l){
+    // panels of the previous locus would stand under the new title (audit #8, #22)
+    for (const id of ["fastaResult", "monomerResult"]){ const e = document.getElementById(id); if (e) e.classList.remove("show"); }
+    const fs = document.getElementById("fastaSeq"); if (fs){ fs.textContent = ""; fs.dataset.region = ""; }
+    const fv = document.getElementById("flankView"); if (fv) fv.innerHTML = FLANK_VIEW_EMPTY;
+    const ji = document.getElementById("junctionInfo"); if (ji) ji.textContent = "";
+  }
   currentLocus = l;
   detailTitle.textContent = `${l.id} (${l.scf}:${l.start}-${l.end})`;
   detailTitle.style.color = "#60a5fa";
@@ -3037,7 +3120,7 @@ function selectLocus(l){
       if (sf && sf.subfamily){ sfLabel = sf.subfamily + (sf.confident ? "" : "?"); }
       badge.textContent = sfLabel + " | " + short;
       badge.title = (sf && sf.subfamily)
-        ? ("Sub-subfamily " + sf.subfamily + " (" + sf.pid + "% id, " + sf.bits + " bits" + (sf.second ? ("; 2nd: " + sf.second + " d=" + sf.delta) : "") + ")" + (sf.confident ? "" : " - low confidence"))
+        ? ("Sub-subfamily " + sf.subfamily + (sf.pid == null || sf.pid === "NA" ? (" (" + sf.bits + "% of the array in 1-kb pieces" + (sf.second ? ("; 2nd: " + sf.second + " " + (sf.bits - sf.delta).toFixed(1) + "%") : "") + ")") : (" (" + sf.pid + "% id, " + sf.bits + " bits" + (sf.second ? ("; 2nd: " + sf.second + " d=" + sf.delta) : "") + ")")) + (sf.confident ? "" : " - low confidence"))
         : ("Major family " + a.seed);
       badge.style.background = col;
       badge.style.color = "#0b0f17";
@@ -3103,6 +3186,7 @@ const FLAG_TOOLTIPS = {
 // WINDOW_STEP: see applyViewerConfig()
 
 function drawDetailForLocus(l){
+  detailTitle.textContent = `${l.id} (${l.scf}:${l.start}-${l.end})`;
   initDetailChart();
 
   const scfData = perWindowByScaffold.get(key(l.sp, l.scf)) || [];
@@ -3134,6 +3218,11 @@ function drawDetailForLocus(l){
   if (!inLocus.length){
     kpiWindows.textContent = "0";
     kpiMaxBits.textContent = "0";
+    if (_loadMsg){
+      detailTitle.textContent += " (per-window scores are still loading…)";
+      setStatus(statusEl.textContent + "\nPer-window scores are still loading; this locus is redrawn when they arrive.");
+      return;
+    }
     detailTitle.textContent += " (no per-window data)";
     setStatus(statusEl.textContent + "\nNo per-window data found for this locus.");
     return;
@@ -3350,6 +3439,8 @@ async function fetchTextMaybeGz(path){
 
 async function loadViaFetch(){
   setStatus("Loading viewer_config.json…");
+  loading("Loading viewer data: configuration…");
+  fileOk.textContent = "loading…";
   try {
     const cfgText = await fetchText("viewer_config.json");
     applyViewerConfig(JSON.parse(cfgText));
@@ -3361,6 +3452,7 @@ async function loadViaFetch(){
     throw e;
   }
   setStatus("Loading files via fetch()…");
+  loading("Loading viewer data: locus list…");
 
   // Load main files
   const [mText, aText, bText] = await Promise.all([
@@ -3377,6 +3469,12 @@ async function loadViaFetch(){
   populateSelectors();
 
   setStatus(`Loaded ${loci.length} loci. Now loading per-window bits files…`);
+  // Viewer directories written before the genome column existed (scaffold_lengths.tsv, MASTER_flank.bits.tsv):
+  // the genome of a contig is then the only genome that has loci on it; without this the flank track and the
+  // contig-edge marks of such a directory were dropped without a word.
+  const _spByScf = new Map();
+  for (const l of loci){ if (!_spByScf.has(l.scf)) _spByScf.set(l.scf, new Set()); _spByScf.get(l.scf).add(l.sp); }
+  const spOf = (sp, scf) => sp || (_spByScf.has(scf) && _spByScf.get(scf).size === 1 ? [..._spByScf.get(scf)][0] : "");
 
   // Scaffold lengths (optional — the page still works without them, it just cannot flag
   // contig edges). Format: scaffold \t length \t species
@@ -3387,7 +3485,7 @@ async function loadViaFetch(){
       const f = line.split("\t");
       if (f.length >= 2){
         const L = +f[1];
-        if (isFinite(L) && L > 0) scafLen.set(key(f[2] || "", f[0]), L);   // keyed by genome + contig
+        if (isFinite(L) && L > 0) scafLen.set(key(spOf(f[2], f[0]), f[0]), L);   // keyed by genome + contig
       }
     }
     console.log(`scaffold lengths: ${scafLen.size}`);
@@ -3396,6 +3494,7 @@ async function loadViaFetch(){
   }
 
   // Flank windows (optional). Same format as the in-locus bits files.
+  loading(`Loading viewer data: ${loci.length} loci listed; flank scores…`);
   try {
     const t = await fetchTextMaybeGz(FILE_FLANK_BITS);
     const rows = [];
@@ -3405,7 +3504,7 @@ async function loadViaFetch(){
       if (f.length < 4) continue;
       const pos = +f[1], b = +f[2];
       if (!isFinite(pos) || !isFinite(b)) continue;
-      rows.push({scf: f[0], sp: f[4] || "", pos, bits: b, clsat: f[3]});   // col 5 = genome
+      rows.push({scf: f[0], sp: spOf(f[4], f[0]), pos, bits: b, clsat: f[3]});   // col 5 = genome
     }
     for (const r of rows){
       const k = key(r.sp, r.scf);
@@ -3419,11 +3518,16 @@ async function loadViaFetch(){
   }
 
   // Load per-window bits files
+  const _nTracks = Object.keys(FILE_BITS_CLSAT).length, _doneTracks = [];
+  const _trackMsg = () => loading(`Loading per-window scores: ${_doneTracks.length} of ${_nTracks} families` +
+    (_doneTracks.length ? ` (${_doneTracks.join(", ")} done)` : "") + " — the first visit takes about a minute");
+  _trackMsg();
   const perWindowPromises = Object.entries(FILE_BITS_CLSAT).map(async ([clsat, file]) => {
     try {
       const text = await fetchTextMaybeGz(file);
       const rows = parsePerWindowBits(text, clsat);
       buildPerWindowIndex(rows);
+      _doneTracks.push(clsat); _trackMsg();
       return {clsat, count: rows.length};
     } catch (e) {
       console.warn(`Could not load ${file}: ${e.message}`);
@@ -3447,6 +3551,7 @@ async function loadViaFetch(){
 
   fileOk.textContent = "\u2713 data loaded";
   fileOk.className = "pill ok";
+  loading("Loading flank and orthology tables…");
 
   setStatus(
     `Loaded ${loci.length} loci, ${Object.keys(assignments).length} assignments\n` +
@@ -3472,7 +3577,17 @@ async function loadViaFetch(){
     updateAnalysisAvailability();
   } catch(e){ console.warn("analysis JSON load failed:", e.message); }
 
+  loading(null);
   if (hasD3()) drawOverview();
+  // a locus picked while the scores were still loading was drawn empty: draw it again now
+  if (currentLocus){
+    if (currentOver && currentOver.loci.includes(currentLocus)) selectLocus(currentLocus);
+    else {   // the user moved the overview to another scaffold meanwhile: redraw the lower panel only (audit #5)
+      drawDetailForLocus(currentLocus);
+      if (typeof drawBorderMarkers === "function") drawBorderMarkers();
+    }
+  }
+  if (window._listRerender) window._listRerender();
 }
 
 /* ============================================================================
@@ -3635,8 +3750,9 @@ function bindUIOnce(){
     const copyBtn = document.getElementById("copyFastaBtn");
     
     // Get current coordinates from detail view
-    const [start, end] = xScaleDetail.domain().map(Math.round);
-    const scf = currentLocus.scf;
+    const L0 = currentLocus;   // the locus this request belongs to
+    const [start, end] = clampToContig(L0, ...xScaleDetail.domain().map(Math.round));
+    const scf = L0.scf;
     const length = end - start + 1;
     
     
@@ -3665,13 +3781,14 @@ function bindUIOnce(){
     copyBtn.style.display = "none";
     
     try {
-      const got = await fetchSeq(scf, start, end);
+      const got = await fetchSeq(scf, start, end, L0);
+      if (currentLocus !== L0) return;   // another locus was selected meanwhile: its panel is not ours to fill
       const fasta = got.text;
       console.log("[FASTA] ✓ Success! Received", fasta.length, "characters from", got.src);
       statusEl.textContent = `${scf}:${got.start}-${got.end} (${got.end - got.start + 1} bp, from ${got.src})` + (got.note ? "; " + got.note : "");
       seqEl.textContent = fasta;
       // the box is reused by Analyze Monomers only for the view it was asked for, and only when nothing was clipped
-      seqEl.dataset.region = got.note ? "" : `${currentLocus.sp}|${scf}:${start}-${end}`;
+      seqEl.dataset.region = got.note ? "" : `${L0.sp}|${scf}:${start}-${end}`;
       copyBtn.style.display = "inline-block";
       setStatus(`FASTA sequence from ${got.src}:\n${scf}:${got.start}-${got.end}\n${fasta.length} characters` + (got.note ? "\n" + got.note : ""));
       
@@ -3688,6 +3805,7 @@ function bindUIOnce(){
         });
       };
     } catch (e) {
+      if (currentLocus !== L0) return;
       console.error("[FASTA] ✗ FAILED:", e);
       console.error("[FASTA] Error details:", e.message, e.stack);
       statusEl.textContent = "Error: " + e.message;
@@ -3713,17 +3831,19 @@ function bindUIOnce(){
     const copyBtn = document.getElementById("copyAlignmentBtn");
 
     // Get current coordinates and locus info
-    let [start, end] = xScaleDetail.domain().map(Math.round);
-    const scf = currentLocus.scf;
+    const L0 = currentLocus;   // the locus this analysis belongs to (the user may select another one while it runs)
+    let [start, end] = clampToContig(L0, ...xScaleDetail.domain().map(Math.round));
+    const viewStart = start, viewEnd = end;
+    const scf = L0.scf;
     const length = end - start + 1;
-    const viewRegion = `${currentLocus.sp}|${scf}:${start}-${end}`;   // the region the user is looking at
+    const viewRegion = `${L0.sp}|${scf}:${start}-${end}`;   // the region the user is looking at
 
     // Get consensus from assignment
-    const assignment = assignments[currentLocus.id];
+    const assignment = assignments[L0.id];
     const consensusName = assignment?.seed || FAMILIES[0];
 
     console.log("[MONOMER] === CLIENT-SIDE SW ANALYSIS START ===");
-    console.log("[MONOMER] Locus:", currentLocus.id);
+    console.log("[MONOMER] Locus:", L0.id);
     console.log("[MONOMER] Length:", length, "bp");
     console.log("[MONOMER] Scanning every family consensus (assigned family:", consensusName + ")");   // #53
 
@@ -3746,7 +3866,7 @@ function bindUIOnce(){
       start = Math.max(1, start - TRIM_FLANK_PAD);
       end = end + TRIM_FLANK_PAD;
       try {
-        const got = await fetchSeq(scf, start, end);
+        const got = await fetchSeq(scf, start, end, L0);
         sequence = got.text; start = got.start; end = got.end;   // offsets below count from what really came back
         console.log("[MONOMER] Got sequence from", got.src + ":", sequence.length, "chars", got.note);
       } catch (e) {
@@ -3760,13 +3880,14 @@ function bindUIOnce(){
           sequence = existingFasta;
           // Unpadded fallback: undo the pad so genomic-offset math below stays
           // correct (this sequence starts at the original, unpadded position).
-          start = start + TRIM_FLANK_PAD; end = end - TRIM_FLANK_PAD;
+          start = viewStart; end = viewEnd;   // exactly the box's region (the pad is smaller at a contig start, audit #17)
           console.log("[MONOMER] Using previously fetched FASTA (unpadded):", sequence.length, "chars");
         } else {
           throw new Error("Cannot fetch sequence from NCBI. Click 'Get FASTA' for this exact view first, then try again.");
         }
       }
 
+      if (currentLocus !== L0) return;
       mStatusEl.textContent = "Running Smith-Waterman alignment...";
 
       // Get user-selected identity threshold
@@ -3779,6 +3900,11 @@ function bindUIOnce(){
         mStatusEl.textContent = "Running Smith-Waterman: " + p.progress + " (" + (p.done + 1) + "/" + p.total + ")...";
       });
 
+      if (currentLocus !== L0){
+        // the result is of L0; shown now it would be stored on, and drawn over, the locus selected meanwhile (audit #7)
+        setStatus(statusEl.textContent + `\nMonomer analysis of ${L0.id} was dropped: another locus was selected while it ran.`);
+        return;
+      }
       if (!result.success) {
         mStatusEl.textContent = "No monomers found";
         listEl.innerHTML = '<div style="color:#fb7185; padding:8px;">' + result.message + '</div>';
@@ -3847,11 +3973,14 @@ function bindUIOnce(){
       if (_trs && !_trs._bound){ _trs._bound = true; _trs.addEventListener('change', renderTerminalTrim); }
 
       // Store result on locus for strand track overlay on detail chart
-      if (currentLocus) {
-        result.genomicStart = start;   // offsets in result are relative to the analysed window, not the locus
-        currentLocus._monomerResult = result;
-        renderStrandTrack();
-      }
+      result.genomicStart = start;   // offsets in result are relative to the analysed window, not the locus
+      L0._monomerResult = result;
+      renderStrandTrack();
+      // a window cut inside the array has no real flank: say so (audit #30)
+      if (viewStart > L0.start + 1 || viewEnd < L0.end)
+        mStatusEl.textContent += " \u2014 the analysed window ends inside the locus on " +
+          (viewStart > L0.start + 1 && viewEnd < L0.end ? "both sides" : viewStart > L0.start + 1 ? "the left" : "the right") +
+          ": the sequence shown as flank there is array sequence cut by the window";
 
       // Generate a simple text summary for copy
       const summaryLines = ['# Monomer analysis (all family consensuses; assigned ' + consensusName + ') in ' + scf + ':' + start + '-' + end];
@@ -3881,6 +4010,7 @@ function bindUIOnce(){
       setStatus('Monomer analysis (client-side SW):\n' + result.message + '\nConsensus: ' + consensusName + ', Avg identity: ' + avgPct + '%');
 
     } catch (e) {
+      if (currentLocus !== L0) return;
       console.error("[MONOMER] FAILED:", e);
       mStatusEl.textContent = "Error: " + e.message;
       listEl.innerHTML = '<div style="color:#fb7185; padding:8px;">' +
@@ -3896,14 +4026,21 @@ function bindUIOnce(){
   });
 }
 
+/** The view can be panned beyond the contig: cut a region to [1, contig length] (audit #33). */
+function clampToContig(l, start, end){
+  const sl = scafLen.get(key(l.sp, l.scf));
+  if (isFinite(sl) && sl > 0 && end > sl) end = sl;
+  return [Math.max(1, start), end];
+}
+
 /** Sequence for scf:start-end of the current locus. Reads seq/<locus>.fa.gz written by satpipe (viewer.locus_fasta:
  *  the locus +/- the flank view, cut from its own assembly) and slices it; NCBI only when the run has no such file.
  *  Returns {text, start, end, src, note}: start/end are what was really returned (the view clipped to the stored piece). */
 const LOCUS_SEQ_CACHE = new Map();
-async function fetchSeq(scf, start, end){
+async function fetchSeq(scf, start, end, L = currentLocus){
   const lf = VIEWER_CONFIG && VIEWER_CONFIG.locus_fasta;
-  if (lf && currentLocus && currentLocus.scf === scf){
-    const id = currentLocus.id;
+  if (lf && L && L.scf === scf){
+    const id = L.id;
     let rec = LOCUS_SEQ_CACHE.get(id);
     if (!rec){
       const txt = await fetchTextMaybeGz((lf.dir || "seq") + "/" + id + ".fa");
@@ -3950,11 +4087,13 @@ async function fetchNCBIFasta(accession, start, end) {
 function jumpToLocusId(id){
   const l = loci.find(x => x.id === id);
   if (!l){ setStatus(`Locus ${id} not found`); return; }
-  selectSpecies(l.sp, true);
-  scaffoldSel.value = l.scf;
-  drawOverview();
-  selectLocus(l);
-  populateLocusTable(); // refresh highlight
+  withBusy(`Drawing ${id}…`, () => {
+    selectSpecies(l.sp, true);
+    scaffoldSel.value = l.scf;
+    drawOverview();
+    selectLocus(l);
+    populateLocusTable(); // refresh highlight
+  });
 }
 
 /* ============================================================================
@@ -3981,7 +4120,7 @@ function jumpToJunction(which){
   if (!currentLocus){ setStatus("Select a locus first."); return; }
   const l = currentLocus;
   const info = document.getElementById("junctionInfo");
-  const mono = (flankData && flankData[l.id]) ? flankData[l.id].mono : 146;
+  const mono = (flankData && flankData[l.id] && flankData[l.id].mono > 0) ? flankData[l.id].mono : 146;
   const pad = Math.max(3*mono, 600);
   let dom;
   if (which === "start"){
@@ -4014,8 +4153,42 @@ function drawBorderMarkers(){
   if (!currentLocus || typeof gMainDetail === "undefined" || !gMainDetail) return;
   const l = currentLocus;
   const {innerH} = getDetailSize();
-  gMainDetail.selectAll("line.border, text.borderLbl").remove();
+  gMainDetail.selectAll("line.border, text.borderLbl, .nbrLocus").remove();
   const [xmin, xmax] = xScaleDetail.domain();
+  // Other catalogue loci in view. The flank scan reads straight into a neighbouring array, so
+  // without this its tall bars look like CLsat the catalogue missed. A segment of the same
+  // array (split where the family changes) touches the focal locus; say so.
+  const nbrs = loci.filter(n => n !== l && n.sp === l.sp && n.scf === l.scf && n.end > xmin && n.start < xmax);
+  const SEG_GAP = 1000;   // segment boundaries sit on a 1 kb grid
+  const nbrLabel = n => {
+    const fam = (assignments[n.id] && assignments[n.id].seed) || "?";
+    const gap = n.start >= l.end ? n.start - l.end : (n.end <= l.start ? l.start - n.end : 0);
+    return `${n.id} (${fam}) — ` + (gap <= SEG_GAP ? "same array, separate catalogue locus (split where the family changes)"
+                                                    : `another catalogue locus, ${gap.toLocaleString()} bp away`);
+  };
+  for (const n of nbrs){
+    const a = Math.max(n.start, xmin), b = Math.min(n.end, xmax);
+    const col = CLSAT_COLORS[(assignments[n.id] || {}).seed] || "#9ca3af";
+    gMainDetail.append("rect").attr("class","nbrLocus")
+      .attr("x", xScaleDetail(a)).attr("width", Math.max(1, xScaleDetail(b) - xScaleDetail(a)))
+      .attr("y", 0).attr("height", innerH).attr("fill", col).attr("opacity", 0.10).style("pointer-events","none");
+    gMainDetail.append("rect").attr("class","nbrLocus")
+      .attr("x", xScaleDetail(a)).attr("width", Math.max(1, xScaleDetail(b) - xScaleDetail(a)))
+      .attr("y", 0).attr("height", 5).attr("fill", col);
+    // label inside the plot: at the band edge facing the focal locus when the band is wide,
+    // otherwise starting just inside it so it never runs off the chart
+    const right = n.start >= l.end, W = xScaleDetail.range()[1];
+    const xa = xScaleDetail(a), xb = xScaleDetail(b), LBL = 430;
+    let tx, anchor;
+    if (right){ tx = (W - xa > LBL) ? xa + 4 : xb - 4; anchor = (W - xa > LBL) ? "start" : "end"; }
+    else      { tx = (xb > LBL) ? xb - 4 : xa + 4;     anchor = (xb > LBL) ? "end" : "start"; }
+    gMainDetail.append("text").attr("class","nbrLocus")
+      .attr("x", tx).attr("y", 40).attr("text-anchor", anchor).attr("fill", col).attr("font-size","10px")
+      .attr("stroke", "#070b12").attr("stroke-width", 3).attr("paint-order", "stroke")
+      .style("cursor","pointer").on("click", () => jumpToLocusId(n.id))
+      .text(right ? nbrLabel(n) + " ▸" : "◂ " + nbrLabel(n));
+  }
+  const inNbr = p => { const n = nbrs.find(n => p >= n.start && p <= n.end); return n ? ` (inside ${n.id})` : ""; };
   const range = xmax - xmin;
   const fullSpan = currentLocus.end - currentLocus.start;
   if (range > fullSpan * 0.6) return;  // only near a junction
@@ -4054,9 +4227,9 @@ function drawBorderMarkers(){
       else break;
     }
     if (lo !== null && lo >= xmin && lo <= xmax)
-      marks.push({pos: lo, label: "scan limit", col: "#94a3b8", dim: true});
+      marks.push({pos: lo, label: "scan limit" + inNbr(lo), col: "#94a3b8", dim: true});
     if (hi !== null && hi >= xmin && hi <= xmax)
-      marks.push({pos: hi, label: "scan limit", col: "#94a3b8", dim: true});
+      marks.push({pos: hi, label: "scan limit" + inNbr(hi), col: "#94a3b8", dim: true});
   }
   // A scan window is two monomers wide, so no window can START later than (end - window).
   // The final ~2 monomers of an array therefore carry no bar. Everywhere else the flank scan
@@ -4195,7 +4368,7 @@ function showFlanks(){
   if (sfd && sfd.subfamily){
     html += `<div style="margin-bottom:6px; font-size:11px;">Sub-subfamily: `
           + `<b style="color:${CLSAT_COLORS[sfd.major]||'#9ca3af'};">${sfd.subfamily}</b> `
-          + `<span style="color:#64748b;">(${sfd.pid}% id` + (sfd.second ? `, 2nd ${sfd.second} d=${sfd.delta}` : ``) + `)${sfd.confident?'':' - low conf'}</span></div>`;
+          + `<span style="color:#64748b;">(` + ((sfd.pid == null || sfd.pid === "NA") ? `${sfd.bits}% of array` + (sfd.second ? `, 2nd ${sfd.second} ${(sfd.bits - sfd.delta).toFixed(1)}%` : ``) : `${sfd.pid}% id` + (sfd.second ? `, 2nd ${sfd.second} d=${sfd.delta}` : ``)) + `)${sfd.confident?'':' - low conf'}</span></div>`;
   }
   // Show the terminal-monomer record only when it plausibly belongs to this locus: the
   // record must carry the monomer length of the locus's assigned family.
@@ -4395,6 +4568,7 @@ function bindEndsFlanksUI(){
   // No server auto-start needed.
 
   loadViaFetch().catch(e=>{
+    loading(null);
     fileOk.textContent = "fetch failed";
     fileOk.className = "pill err";
     setStatus(`Fetch load failed: ${e.message}\n\nEnsure files are in the same directory.`);
@@ -4495,7 +4669,7 @@ function bindEndsFlanksUI(){
       <b>Scaffold Overview</b>. You can also type an ID (e.g. <code>L152</code>) into <b>Find locus</b> and press <b>Go</b>.</li>
     <li><span class="k">2. Zoom in.</span> Mouse-wheel to zoom, drag to pan. Zoom until individual monomers resolve &mdash;
       monomer-level tools need the array to be readable, not the whole scaffold.</li>
-    <li><span class="k">3. Get FASTA.</span> Fetches the locus sequence from NCBI E-utilities (nothing runs locally).</li>
+    <li><span class="k">3. Get FASTA.</span> <span class="mrun" data-k="fastatxt">Fetches the locus sequence from NCBI E-utilities (nothing runs locally). This works only for assemblies whose contig names are GenBank accessions; for the others use Copy BED and cut the sequence from your own copy of the assembly.</span></li>
     <li><span class="k">4. Analyze Monomers.</span> Splits the fetched sequence into individual monomers.</li>
     <li><span class="k">5. Inspect below.</span> Monomer list &rarr; monomer map &rarr; MSA &rarr; terminal-monomer trim.</li>
   </ul>
@@ -4562,27 +4736,26 @@ function bindEndsFlanksUI(){
   <p>Three sets, opened from the buttons in the sidebar. In all three, <b>clicking any row opens that locus</b>, and
   partner/ortholog chips jump straight to the partner locus in another genome.</p>
   <ul>
-    <li><b>Orthologous loci</b> &mdash; the <b>91</b> loci with at least one usable unique flank, scored by how many
-      other lineages they are positionally orthologous to (flank identity &ge;80%, &ge;200&nbsp;bp; single best hit per
-      target assembly). <b>58</b> have at least one partner; <b>33</b> are private. In this six-assembly set the most a
-      locus reaches is <b>two</b> other lineages (no flank is anchorable in more), so the presets are: has an ortholog,
+    <li><b>Orthologous loci</b> &mdash; the <b class="mrun" data-k="ortho">&hellip;</b> loci of this run with at least one usable unique flank, scored by how many
+      other lineages they are positionally orthologous to (the rule of the run &mdash; flank lengths, identity and
+      length thresholds &mdash; is stated at the top of the list). <b class="mrun" data-k="has">&hellip;</b> have at least one partner; <b class="mrun" data-k="priv">&hellip;</b> are private.
+      In this run the most a locus reaches is <b class="mrun" data-k="maxasm">&hellip;</b> other assemblies. The presets are: has an ortholog,
       in both other lineages, private, and <b>strictly private</b> &mdash; both flanks unique yet no ortholog anywhere
-      (2 loci). The &ldquo;Orthologous to&rdquo; column reads <i>distinct assemblies, then total partner loci</i>,
+      (<b class="mrun" data-k="priv2">&hellip;</b> loci). The &ldquo;Orthologous to&rdquo; column reads <i>distinct assemblies, then total partner loci</i>,
       because one locus can have several partner loci inside the same assembly. Positional conservation does not imply
-      conserved content &mdash; many orthologous positions carry a <i>different</i> CLsat family in the two lineages.</li>
-    <li><b>Flank orthology table</b> &mdash; the full per-locus table for <b>all 627</b> catalogue loci (plus L541, which has no anchorable flank) (every assembly), with the
+      conserved content &mdash; an orthologous position can carry a <i>different</i> family in the two lineages.</li>
+    <li><b>Flank orthology table</b> &mdash; the full per-locus table for all <b class="mrun" data-k="full">&hellip;</b> catalogue loci (every assembly), with the
       sub-subfamily call and both flanks' cross-assembly orthology status. Filter by anchorable / has-ortholog /
       both-sided / same- vs different-family partner. L and R badges give each flank's class (blue = unique/anchorable,
       amber = low-complexity, grey = truncated, pink = satellite-adjacent, purple = telomeric; with the single-copy rule
       also orange = mostly tandem repeat, red = another copy in its own genome, slate = mostly masked repeated pieces,
       none of them an anchor); a red-bordered partner
       chip flags a different-family ortholog.</li>
-    <li><b>Flagged loci</b> &mdash; 28 catalogue loci annotated by arbitration (plus the 7 uncatalogued candidates C1&ndash;C7, listed for inspection) for one of three different reasons, not all equally noteworthy:
-      <b>L186</b> is the only genuine <b>seed/rescan contradiction</b> (rescan favours a different family by &ge;20 bits) and
-      is the one case worth treating as an open question. The other 27 are not errors: 24 segment-boundary calls and 2
-      seed-conflict calls sit within a flat 15-bit margin of their runner-up family (expected near real subfamily
-      transitions, and the margin varies widely underneath that cutoff &mdash; see &Delta;), plus 1 locus (L540) resolved
-      confidently without an initial seed. Columns show the seed call and its bitscore, the strongest competitor and its
+    <li><b>Flagged loci</b> &mdash; <b class="mrun" data-k="flagcat">&hellip;</b> catalogue loci annotated by arbitration<span class="mrun" data-k="candtxt"></span>, for different reasons, not all equally noteworthy.
+      A <b>seed/rescan contradiction</b> (the rescan favours a different family by &ge;20 bits) is the case worth treating as an
+      open question: <span class="mrun" data-k="contratxt">&hellip;</span>. The others are not errors: <span class="mrun" data-k="othertxt">&hellip;</span>.
+      Ambiguous calls sit within the ambiguity margin of their runner-up family (15 bits unless the run set another value; expected near real subfamily
+      transitions, and the margin varies widely underneath that cutoff &mdash; see &Delta;). Columns show the seed call and its bitscore, the strongest competitor and its
       bitscore, and the margin &Delta; between them.</li>
   </ul>
 
@@ -4608,7 +4781,7 @@ function bindEndsFlanksUI(){
   <table>
     <tr><th>Flag</th><th>Meaning</th></tr>
     <tr><td><code>UNIQUE_SEED_WITH_COMPETITOR</code></td><td>Clean seed call; a competitor scores but does not threaten it.</td></tr>
-    <tr><td><code>UNIQUE_SEED_CONTRADICTION</code></td><td class="tagC">The rescan confidently favours a <b>different</b> family than the seed (&Delta;&nbsp;&ge;&nbsp;20 bits). Only 1 locus (L186) &mdash; the one genuine contradiction in the catalogue.</td></tr>
+    <tr><td><code>UNIQUE_SEED_CONTRADICTION</code></td><td class="tagC">The rescan confidently favours a <b>different</b> family than the seed (&Delta;&nbsp;&ge;&nbsp;20 bits). In this run: <span class="mrun" data-k="contratxt">&hellip;</span>.</td></tr>
     <tr><td><code>SEED_CONFLICT_RESOLVED</code></td><td>Seeds from more than one subfamily fell in the locus; resolved by bitscore.</td></tr>
     <tr><td><code>SEED_CONFLICT_RESOLVED_AMBIGUOUS</code></td><td class="tagQ">As above, but the margin is small.</td></tr>
     <tr><td><code>SEGMENT_RESOLVED</code></td><td>Locus split at a sustained subfamily transition; each segment called cleanly.</td></tr>
@@ -4741,6 +4914,8 @@ function bindEndsFlanksUI(){
     });
   }
   search.addEventListener("input",render);
+  window._listRerender = () => { if (modal.classList.contains("open")){ const q = search.value, pr = preset; openList(mode);
+    search.value = q; if (PRESETS[mode].some(x => x[0] === pr)){ preset = pr; [...presetsEl.children].forEach((c, i) => c.classList.toggle("active", PRESETS[mode][i][0] === pr)); } render(); } };
   document.getElementById("listClose").addEventListener("click",()=>modal.classList.remove("open"));
   document.getElementById("helpClose").addEventListener("click",()=>help.classList.remove("open"));
   [modal,help].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) m.classList.remove("open"); }));
