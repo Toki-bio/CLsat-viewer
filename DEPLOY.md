@@ -3,7 +3,7 @@
 ## State on 2026-11-12 (read this first; the sections below are older)
 
 - The page source is the satpipe template: `satpipe/viewer_html/index.html` in Toki-bio/CLsat_workflow (main). Fix the page there, then copy it here.
-- Since 2026-11-12 the root `index.html`, `current/index.html` and `molly_loci_viewer/index.html` are the SAME file as that template (v3.3-config-20261112, satpipe 0f2e7ab). The root shows the published catalogue (627 + C1-C7), `current/` the final run run_gb_v2 (594 loci), `molly_loci_viewer/` the molly run (1040 loci). The molly-only parts (ortholog stacks, per-locus FASTA in `seq/`) switch on from that run's `viewer_config.json`; their generators are still Python files on the satpipe branch `flank-single-copy`, not in main.
+- Since 2026-11-12 the root `index.html`, `current/index.html` and `molly_loci_viewer/index.html` are the SAME file as that template (v3.4-config-20261112, satpipe cadd0f8). The root shows the published catalogue (627 + C1-C7), `current/` the final run run_gb_v2 (594 loci), `molly_loci_viewer/` the molly run (1040 loci). The molly-only parts (ortholog stacks, per-locus FASTA in `seq/`) switch on from that run's `viewer_config.json`; their generators are still Python files on the satpipe branch `flank-single-copy`, not in main.
 - The root data files are in the older format (no genome column in `scaffold_lengths.tsv` and `MASTER_flank.bits.tsv`); the page handles both.
 - Check before pushing a page change: old and new page must give the same window count, max bits and subtype label for every locus (headless Chrome), and the page must not report script errors.
 - This clone, `C:\work\CLsat-viewer` (main), is the one used for deploys now.
