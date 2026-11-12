@@ -2970,6 +2970,36 @@ function initDetailChart(){
   svgDetail.call(zoomDetail).on("dblclick.zoom", null);
 }
 
+// Visible "working" banner. The status box sits at the bottom of the sidebar, out of sight,
+// so during the ~40 s first load and the 1-2 s redraw of a big locus the page looked hung.
+let _busyEl = null, _busyT0 = 0, _busyTimer = null, _busyMsg = "";
+function _busyPaint(){
+  const s = Math.round((Date.now() - _busyT0) / 1000);
+  _busyEl.textContent = _busyMsg + (s >= 1 ? `  (${s} s)` : "");
+}
+function busy(msg){
+  if (!_busyEl){
+    _busyEl = document.createElement("div");
+    _busyEl.id = "busyBanner";
+    _busyEl.style.cssText = "position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:300;" +
+      "background:#1e293b; color:#e5e7eb; border:1px solid #3b82f6; border-radius:10px; padding:16px 26px;" +
+      "font-size:14px; max-width:70vw; text-align:center; box-shadow:0 6px 28px rgba(0,0,0,.7); display:none; pointer-events:none;";
+    document.body.appendChild(_busyEl);
+  }
+  if (!msg && _loadMsg) msg = _loadMsg;   // data still loading: a finished redraw must not hide the load box
+  if (!msg){ _busyEl.style.display = "none"; clearInterval(_busyTimer); _busyTimer = null; return; }
+  if (!_busyTimer){ _busyT0 = Date.now(); _busyTimer = setInterval(_busyPaint, 500); }
+  _busyMsg = msg; _busyPaint(); _busyEl.style.display = "block";
+}
+// Message of the data load in progress (null = everything is loaded). The box stays up for the whole load.
+let _loadMsg = null;
+function loading(msg){ _loadMsg = msg || null; busy(_loadMsg); }
+// Show the banner, let the browser paint it, then run the (synchronous) drawing work.
+function withBusy(msg, fn){
+  busy(msg);
+  requestAnimationFrame(() => setTimeout(() => { try { fn(); } finally { busy(null); } }, 0));
+}
+
 function selectLocus(l){
   currentLocus = l;
   detailTitle.textContent = `${l.id} (${l.scf}:${l.start}-${l.end})`;
@@ -3084,6 +3114,11 @@ function drawDetailForLocus(l){
   if (!inLocus.length){
     kpiWindows.textContent = "0";
     kpiMaxBits.textContent = "0";
+    if (_loadMsg){
+      detailTitle.textContent += " (per-window scores are still loading…)";
+      setStatus(statusEl.textContent + "\nPer-window scores are still loading; this locus is redrawn when they arrive.");
+      return;
+    }
     detailTitle.textContent += " (no per-window data)";
     setStatus(statusEl.textContent + "\nNo per-window data found for this locus.");
     return;
@@ -3300,6 +3335,7 @@ async function fetchTextMaybeGz(path){
 
 async function loadViaFetch(){
   setStatus("Loading viewer_config.json…");
+  loading("Loading viewer data: configuration…");
   try {
     const cfgText = await fetchText("viewer_config.json");
     applyViewerConfig(JSON.parse(cfgText));
@@ -3311,6 +3347,7 @@ async function loadViaFetch(){
     throw e;
   }
   setStatus("Loading files via fetch()…");
+  loading("Loading viewer data: locus list…");
 
   // Load main files
   const [mText, aText, bText] = await Promise.all([
@@ -3327,6 +3364,7 @@ async function loadViaFetch(){
   populateSelectors();
 
   setStatus(`Loaded ${loci.length} loci. Now loading per-window bits files…`);
+  loading(`Loading viewer data: ${loci.length} loci listed; per-window scores… the first visit can take about a minute`);
 
   // Scaffold lengths (optional — the page still works without them, it just cannot flag
   // contig edges). Format: scaffold \t length \t species
@@ -3396,6 +3434,7 @@ async function loadViaFetch(){
 
   fileOk.textContent = "\u2713 data loaded";
   fileOk.className = "pill ok";
+  loading("Loading flank and orthology tables…");
 
   setStatus(
     `Loaded ${loci.length} loci, ${Object.keys(assignments).length} assignments\n` +
@@ -3421,7 +3460,10 @@ async function loadViaFetch(){
     updateAnalysisAvailability();
   } catch(e){ console.warn("analysis JSON load failed:", e.message); }
 
+  loading(null);
   if (hasD3()) drawOverview();
+  // a locus picked while the scores were still loading was drawn empty: draw it again now
+  if (currentLocus && currentOver && currentOver.loci.includes(currentLocus)) selectLocus(currentLocus);
 }
 
 /* ============================================================================
@@ -4239,6 +4281,7 @@ function bindEndsFlanksUI(){
   // No server auto-start needed.
 
   loadViaFetch().catch(e=>{
+    loading(null);
     fileOk.textContent = "fetch failed";
     fileOk.className = "pill err";
     setStatus(`Fetch load failed: ${e.message}\n\nEnsure files are in the same directory.`);
