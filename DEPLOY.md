@@ -3,7 +3,7 @@
 ## State on 2026-11-12 (read this first; the sections below are older)
 
 - The page source is the satpipe template: `satpipe/viewer_html/index.html` in Toki-bio/CLsat_workflow (main). Fix the page there, then copy it here.
-- Since 2026-11-12 the root `index.html` and `current/index.html` are the SAME file as that template (v3.1-config-20261112, satpipe 2abfce8). The root shows the published catalogue (627 + C1-C7), `current/` the final run run_gb_v2 (594 loci).
+- Since 2026-11-12 the root `index.html` and `current/index.html` are the SAME file as that template (v3.2-config-20261112, satpipe 50b0256). The root shows the published catalogue (627 + C1-C7), `current/` the final run run_gb_v2 (594 loci).
 - The root data files are in the older format (no genome column in `scaffold_lengths.tsv` and `MASTER_flank.bits.tsv`); the page handles both.
 - Check before pushing a page change: old and new page must give the same window count, max bits and subtype label for every locus (headless Chrome), and the page must not report script errors.
 - This clone, `C:\work\CLsat-viewer` (main), is the one used for deploys now.
