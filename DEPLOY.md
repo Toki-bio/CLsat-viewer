@@ -1,6 +1,13 @@
 # Deploying this viewer — read before changing anything
 
-## State on 2026-11-12 (read this first; the sections below are older)
+## State on 2026-11-17 (read this first; the sections below are older)
+
+- The root now shows the catalogue of the revised paper: final run run_gb_v3 (594 loci + C1-C4; `wc -l MASTER.merged.bed` = 598). Its data files were moved here from `current/` (run_gb_v2 files, equal in content to run_gb_v3 after the flank-class fix of commit 184e022); its description is `CATALOGUE.md`.
+- The published (submitted) catalogue, 627 loci + C1-C7 (634 lines), moved to `submitted/` with a copy of the same page; it stays viewable at /submitted/.
+- `current/` is now only a redirect to the root, like `corrected/`. Do not put data files back into it.
+- Data-only change: the page (`index.html`, v3.4-config-20261112) is unchanged and still identical to the satpipe template, so VIEWER_VERSION was not bumped.
+
+## State on 2026-11-12
 
 - The page source is the satpipe template: `satpipe/viewer_html/index.html` in Toki-bio/CLsat_workflow (main). Fix the page there, then copy it here.
 - Since 2026-11-12 the root `index.html`, `current/index.html` and `molly_loci_viewer/index.html` are the SAME file as that template (v3.4-config-20261112, satpipe cadd0f8). The root shows the published catalogue (627 + C1-C7), `current/` the final run run_gb_v2 (594 loci), `molly_loci_viewer/` the molly run (1040 loci). The molly-only parts (ortholog stacks, per-locus FASTA in `seq/`) switch on from that run's `viewer_config.json`; their generators are still Python files on the satpipe branch `flank-single-copy`, not in main.

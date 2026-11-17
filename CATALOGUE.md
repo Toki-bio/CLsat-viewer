@@ -1,9 +1,7 @@
-# Current Darevskia catalogue viewer (revision, 2026-11-10)
+# Darevskia catalogue of the revised paper (main page since 2026-11-17)
 
-Two viewers, side by side:
-
-- **Old** (as submitted, before the review): https://toki-bio.github.io/CLsat-viewer/index.html
-- **Current** (this folder): https://toki-bio.github.io/CLsat-viewer/current/index.html
+- **Main page** (this catalogue): https://toki-bio.github.io/CLsat-viewer/ (until 2026-11-17 at `/current/`, which now redirects here)
+- **As submitted** (before the review, 627 loci + C1-C7): https://toki-bio.github.io/CLsat-viewer/submitted/
 
 The current viewer is built by `satpipe viewer` (Toki-bio/CLsat_workflow main 842945a) from run
 `monsoon:/scratch/sk4386/satpipe_final/run_gb_v2`, the final catalogue of the paper:
