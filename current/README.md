@@ -19,5 +19,7 @@ The current viewer is built by `satpipe viewer` (Toki-bio/CLsat_workflow main 84
   0.9, reciprocal, flanks extended 600/3000/5000 when unresolved). Orthology in the paper rests on HiFi reads.
 - 4 candidate loci outside the catalogue.
 
+Update 2026-11-17: `flanks.json` and the anchorable count follow the final run `run_gb_v3` (code e45eeb2), whose single-copy rule classes two more flanks as not single-copy (L456.1 left: masked; L486 left: repeated), leaving 53 single-copy flanks as in the paper. All other data files here equal run_gb_v3 in content (subfamily.json: identical calls for all 594 loci; flank_orthologs.json: byte-identical).
+
 The previous build of this folder (run_z3_v2, trio *D. unisexualis* copies unif/unim, 550 loci) is in the git
 history (commit 208fe0e).
