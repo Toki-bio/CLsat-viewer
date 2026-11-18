@@ -1,5 +1,11 @@
 >CLsat1.1_consensus
 AAACTTGTTGGTGTGTTTTCTATGCATTTCGACCTGAAAGAAGCTAGTTGGGATGTATTTGGCTTTTCTAACGTTCAGTTTGGCTTACTTGCGTGATTTTGCATTAACAGCTCAAATACAGCTAACTTTGGAAATGAACACGATGG
+>left_flank_2|unn
+--------------------------------------atttcttcaaattttcacctctaatattttttacaatcatttttgtcttattaacatttattttaaaccctgagacttctccataatttcttaatttcaatttaagtt
+>left_flank_1|unn
+ttcctattgattctcctggatcctcaacatcgtccgtgaacgccttgatcttatacgtatttttacctgctcttattcctttaatgttttcatcttcttttatgtcccttagtaggtattccaatgaggctataaataaaaggggg
+>left_flank_0|unn
+gataaggggtatccctgatgcgttcctttttttatgtc------------------------------------------------------------------------------------------------------------
 >m01|unn
 --------------------------------------GAATTTCTCCGTTATCTCGTTGTTTATGATTAGTCTGGCTGTTTGTTTATTTGCGTGATTTTGCATTAAGAGCTCAAATACACCTAACTTTGGAAATGAACACGATAG
 >m02|unn
@@ -12,3 +18,9 @@ AACCTTTTTGGTGTGTTTTCTATGCATTTCGACCTGAAAGAAGCTAGTTCGGATGTACTTGGCTTTTCTAACGTTCAGTT
 AAACTTGTTGGTGTGTTTTCTATGCATTTCGACCTGAAAGAAGCTCGTTCGGATGTATTGGGGTTTTCTAAGCTTCATTTTAGCTTATGTGCGTGATTTTGCATTAACAGCTCAAATACACCTAACTTTGGAAATAAACACGATGG
 >m06|unn
 AAACTTGTTGGTGTGTTTTCTATGCATTTCGACCTGAAAGTAGCTCGTTCGGATGT-TGTCGTGTCCCCAATGGTAACTGTAGCTAGCT---------------------------------------------------------
+>right_flank_1|unn
+-----------------------------------------------------------------------------------------gtcaagaacgcgcgccactccaagaagtcagcggaagatgtcttgaagtttattgta
+>right_flank_2|unn
+cagcacacagagaaacgtggaaagtccgtaaggattctgaggaggccatctcagagtcccccttaaatacattttgctgggtgactcccaattcccccctcccttctgccctaaaggtccgggggtaatcctcttccccacccggg
+>right_flank_3|unn
+atggcttggacaaaagagttaactgcttcggtctgcccgtgccattcatgggtgccttttacattgttattgcgatgctgacggttccg---------------------------------------------------------

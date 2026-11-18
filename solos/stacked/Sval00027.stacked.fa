@@ -1,5 +1,11 @@
 >CLsat3.2_consensus
 AAGCTTGTTCGTCTGTTTTCCATGCATTTCGACCCCAAAGAAGCTCGTTCGGATGTATTTGTGTTTTCTAACCTTCATTTTAACTTATTTGCGTG-----------------------------------------------------------------------------ACTTTGCATTCACAACTCAAAAACACC------------------------------------------------------------TATCTTTTGAAATAAACATGATAG
+>left_flank_2|val
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------tacttgagtccctgggtgcctctg
+>left_flank_1|val
+cagatcgcggtaagttgtccactgcgtctggttcccctccgtacttccacttaaagcggacgtctgaggggttcaccttctccgacgctgcctaa-----------------------------------------------------------------------------ttttcctggtggagaacccgtatcttc------------------------------------------------------------accttcttgccgtttgttgtgtgg
+>left_flank_0|val
+ggggtgtatcgggcacttcactcccccttcttcgcctccgctagtcgtcggtcaacctgagcatgtaaggttgccgaacgctgactcagtccgta-----------------------------------------------------------------------------gcgcgccctcgccagaagtcccattat------------------------------------------------------------------------------------
 >m01|val
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------TATCTTACTTAATAAGGACGATAG
 >m02|val
@@ -50,3 +56,9 @@ AAGCTTAATCGTCTGCTTTCTATGCATTTCGA-CCCAAAAAAGGACGTTTTGCTTAATTTGTG--TTCTAAGCATCATTT
 AAGCTTGTTCGTCTGTTTTCCATGCATATCGACCCCAAAGAAGGTCGTTCGGATGTATTTGTGTTTTCTATGTTTCATTTTAACTTATTTGCGTG-----------------------------------------------------------------------------ACTTTGCATTCACAACTCAATAATGCA------------------------------------------------------------AATCTTACTTAATAAGAACGATAG
 >m25|val
 AAGCCTATTCGTCTGCTTTCCATGCATTTCGATGCCAAAGAAGCTTGTTCGGATGTATTTGTGTTTTCTAACCTGTAGCCTTAT-------CAGG-----------------------------------------------------------------------------GGTTTGCATT-----------------------------------------------------------------------------------------------------
+>right_flank_1|val
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------gctcccaagctgggagg------------------------------------------------------------aaggagtaaaaaaaacatcgaggt
+>right_flank_2|val
+ttggttcaaaagagaaaggtttattctgctttccggagagcagaaggatcctgcctggtcatccaaaggcaggaacaagaacaatcagtttaagc-----------------------------------------------------------------------------aaaacttatatacctttcagagcactc------------------------------------------------------------tctccccctcccacagagttctat
+>right_flank_3|val
+tgaccatattaggaaaatccttcctttacccatataaggaatagccttatgatgttctgcagaccttataagggatttccttcctcctgaacttt-----------------------------------------------------------------------------ggcagggccc-----------------------------------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 # Stacked monomer view of a solo copy: cut the copy-vs-tiled-consensus alignment (aln/<id>.fa) at consensus position 1;
-# one row per monomer, columns = consensus positions 1..L plus the insertion columns any monomer needs. No realignment.
+# one row per monomer (UPPERCASE), columns = consensus positions 1..L plus the insertion columns any monomer needs;
+# flank rows above and below in lowercase, continued in the consensus frame. No realignment.
 import sys, csv
 from Bio import SeqIO
 CONS = {r.id: str(r.seq).upper().replace('-', '') for r in SeqIO.parse(sys.argv[1], 'fasta')}
@@ -23,7 +24,25 @@ def stack(fn):
             out.append(tl['pos'].get(q, '-')); ins = tl['ins'].get(q, []); out.append(''.join(ins) + '-' * (width[q] - len(ins)))
         return ''.join(out)
     cons = ''.join(c[q] + '-' * width[q] for q in range(L))
-    rows = [(f'{name}_consensus', cons)] + [(f'm{k + 1:02d}', row(tl)) for k, tl in enumerate(tiles)]
+    # flanks (lowercase in aln/<id>.fa) continued in the consensus frame without alignment: the base just before the
+    # copy sits in the column before the copy's first base; two rows on each side, written lowercase
+    core = [k for k, y in enumerate(b) if y.isupper()]
+    fL = ''.join(y for y in b[:core[0]] if y != '-').lower(); fR = ''.join(y for y in b[core[-1] + 1:] if y != '-').lower()
+    pos_core = [((off + sum(1 for x in a[:k] if x != '-')) % L) for k in (core[0], core[-1])]
+    p0, pe = pos_core
+    def frow(d):
+        return ''.join(d.get(q, '-') + '-' * width[q] for q in range(L))
+    left = {}; j = 0
+    for q_abs in range(p0 - 1, p0 - 1 - 2 * L, -1):
+        if j >= len(fL): break
+        left.setdefault(q_abs // L, {})[q_abs % L] = fL[-1 - j]; j += 1
+    right = {}; j = 0
+    for q_abs in range(pe + 1, pe + 1 + 2 * L):
+        if j >= len(fR): break
+        right.setdefault(q_abs // L, {})[q_abs % L] = fR[j]; j += 1
+    lrows = [(f'left_flank_{-k}', frow(left[k])) for k in sorted(left)]
+    rrows = [(f'right_flank_{k + 1}', frow(right[k])) for k in sorted(right)]
+    rows = [(f'{name}_consensus', cons)] + lrows + [(f'm{k + 1:02d}', row(tl)) for k, tl in enumerate(tiles)] + rrows
     rows = [(n, s) for n, s in rows if n.endswith('consensus') or s.strip('-')]
     return name, rows, recs[1].id
 if __name__ == '__main__':
