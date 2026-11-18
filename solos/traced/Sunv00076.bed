@@ -1,0 +1,5 @@
+track name="Sunv00076 monomers"
+alignment	1	452	left flank	0	.	1	452	160,160,160
+alignment	452	454	m02 CLsat1.1 2/146	0	.	452	454	255,179,0
+alignment	454	777	m01 CLsat1.1 93/146	0	.	454	777	255,179,0
+alignment	777	1092	right flank	0	.	777	1092	160,160,160

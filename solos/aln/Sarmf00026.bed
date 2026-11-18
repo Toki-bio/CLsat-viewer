@@ -1,0 +1,7 @@
+track name="Sarmf00026 monomers"
+alignment	0	300	left flank	0	.	0	300	160,160,160
+alignment	300	442	m01 CLsat3.2 142/146	0	.	300	442	30,136,229
+alignment	442	588	m02 CLsat3.2 146/146	0	.	442	588	0,150,136
+alignment	588	734	m03 CLsat3.2 146/146	0	.	588	734	30,136,229
+alignment	734	859	m04 CLsat3.2 125/146	0	.	734	859	255,179,0
+alignment	932	1232	right flank	0	.	932	1232	160,160,160

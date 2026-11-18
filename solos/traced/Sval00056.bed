@@ -1,0 +1,6 @@
+track name="Sval00056 monomers"
+alignment	0	302	left flank	0	.	0	302	160,160,160
+alignment	302	357	m01 CLsat3.2 41/146	0	.	302	357	255,179,0
+alignment	357	508	m02 CLsat3.2 146/146	0	.	357	508	0,150,136
+alignment	508	544	m03 CLsat3.2 36/146	0	.	508	544	255,179,0
+alignment	544	878	right flank	0	.	544	878	160,160,160

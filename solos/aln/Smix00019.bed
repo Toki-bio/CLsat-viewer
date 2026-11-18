@@ -1,0 +1,5 @@
+track name="Smix00019 monomers"
+alignment	0	300	left flank	0	.	0	300	160,160,160
+alignment	300	410	m01 CLsat3.2 110/146	0	.	300	410	255,179,0
+alignment	410	501	m02 CLsat3.2 91/146	0	.	410	501	255,179,0
+alignment	574	874	right flank	0	.	574	874	160,160,160

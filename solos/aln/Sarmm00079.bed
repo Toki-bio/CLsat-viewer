@@ -1,0 +1,5 @@
+track name="Sarmm00079 monomers"
+alignment	0	300	left flank	0	.	0	300	160,160,160
+alignment	300	325	m01 CLsat4 25/116	0	.	300	325	255,179,0
+alignment	325	439	m02 CLsat4 114/116	0	.	325	439	0,150,136
+alignment	497	797	right flank	0	.	497	797	160,160,160

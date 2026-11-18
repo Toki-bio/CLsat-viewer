@@ -1,0 +1,11 @@
+id	target	status	catalog_start	catalog_end	insertion_start	insertion_end	shift_start	shift_end	empty_site_filler_bp
+Sarmf00007	mix	empty	300	553	308	578	8	25	13
+Sarmf00007	unn	empty	300	553	308	578	8	25	13
+Sarmf00007	armm	empty	300	553	308	578	8	25	13
+Sarmm00039	unn	empty	300	552	308	598	8	46	4
+Sunv00151	mix	empty	300	554	308	579	8	25	13
+Sunv00151	unn	empty	300	554	308	579	8	25	13
+Sunv00151	armm	empty	300	554	308	579	8	25	13
+Sval00049	mix	empty	300	580	301	570	1	-10	12
+Sval00049	unn	empty	300	580	301	570	1	-10	12
+Sval00049	armm	empty	300	580	300	570	0	-10	13
