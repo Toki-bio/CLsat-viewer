@@ -9,3 +9,8 @@ Common frame before alignment (`prep_common_frame.py`): CLsat consensuses as dep
 stranded onto CLsat3.2; every Agi160 sequence onto clone AY184829, itself framed on the 147-bp unit. Alignment:
 MAFFT 7 L-INS-i (`--localpair --maxiterate 1000`). TRF records from the outgroup scan of the CLsat revision
 (TRF 2 5 7 80 10 50 2000).
+
+2026-11-18: flanks added to `Lagilis_147bp_arrays_monomers.aln.fa`. The region NC_046330.1:464,006-483,857 (chromosome W
+of L. agilis, rLacAgi1.pri) was fetched from NCBI (`NC_046330_464006_483857.fa`); both TRF arrays match it base for base.
+Rows `<array>_left_flank_N` / `_right_flank_N` (lowercase) hold the genome sequence next to each array, continued in the
+frame of the 147-bp unit without alignment, so the base next to the array sits in the column next to the array's end.
