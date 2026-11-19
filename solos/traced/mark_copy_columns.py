@@ -1,6 +1,6 @@
 # Case marking for the cross-assembly alignments: the source row is 300 bp flank + copy + 300 bp flank (unaligned input
 # aln/<id>.in.fa on KIT, first record). Columns holding the source copy are written UPPERCASE in every row; all other
-# columns (flanks) lowercase.
+# columns (flanks) lowercase. Every column between the first and last source-copy column counts as copy (2026-11-19).
 import sys, glob, csv, os
 from Bio import SeqIO
 SHOW = 300
@@ -14,6 +14,7 @@ for fn in sorted(glob.glob('traced/*.aln.fa')):
         if ch == '-': continue
         if SHOW <= k < SHOW + L[i]: copycols.add(c)
         k += 1
+    copycols = set(range(min(copycols), max(copycols) + 1))   # also columns where only other rows have bases
     with open(fn, 'w', encoding='utf-8', newline='\n') as f:
         for r in recs:
             s = ''.join(ch.upper() if c in copycols else ch.lower() for c, ch in enumerate(str(r.seq)))

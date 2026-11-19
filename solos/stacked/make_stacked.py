@@ -9,8 +9,9 @@ def stack(fn):
     a, b = str(recs[0].seq), str(recs[1].seq)
     name = recs[0].id.replace('_consensus_tiled', ''); c = CONS[name]; L = len(c)
     t = a.replace('-', '').upper(); off = (c + c).find(t[:40]); assert off >= 0
-    tiles = []; j = 0; p = None; cur = None
+    tiles = []; j = 0; p = None; cur = None; lead = []
     for x, y in zip(a, b):
+        if x == '-' and y.isupper() and cur is None: lead.append(y); continue   # copy bases before the first consensus base
         if x != '-':
             p = (off + j) % L; j += 1
             if cur is None or p == 0: cur = {'pos': {}, 'ins': {}}; tiles.append(cur)
@@ -33,7 +34,7 @@ def stack(fn):
     def frow(d):
         return ''.join(d.get(q, '-') + '-' * width[q] for q in range(L))
     left = {}; j = 0
-    for q_abs in range(p0 - 1, p0 - 1 - 2 * L, -1):
+    for q_abs in range(p0 - 1 - len(lead), p0 - 1 - len(lead) - 2 * L, -1):   # left flank ends before the unaligned start, if any
         if j >= len(fL): break
         left.setdefault(q_abs // L, {})[q_abs % L] = fL[-1 - j]; j += 1
     right = {}; j = 0
@@ -42,7 +43,12 @@ def stack(fn):
         right.setdefault(q_abs // L, {})[q_abs % L] = fR[j]; j += 1
     lrows = [(f'left_flank_{-k}', frow(left[k])) for k in sorted(left)]
     rrows = [(f'right_flank_{k + 1}', frow(right[k])) for k in sorted(right)]
-    rows = [(f'{name}_consensus', cons)] + lrows + [(f'm{k + 1:02d}', row(tl)) for k, tl in enumerate(tiles)] + rrows
+    lead_rows = []
+    if lead:   # not aligned: placed like the flanks, its last base in the column before the copy's first aligned base
+        d = {}
+        for j2, ch in enumerate(reversed(lead)): d[(p0 - 1 - j2) % L] = ch
+        lead_rows = [(f'm00_start_not_aligned_{len(lead)}bp', frow(d))]
+    rows = [(f'{name}_consensus', cons)] + lrows + lead_rows + [(f'm{k + 1:02d}', row(tl)) for k, tl in enumerate(tiles)] + rrows
     rows = [(n, s) for n, s in rows if n.endswith('consensus') or s.strip('-')]
     return name, rows, recs[1].id
 if __name__ == '__main__':

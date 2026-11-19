@@ -1,11 +1,13 @@
 >CLsat3.2_consensus
 AAGCTTGTTCGTCTGTTTTCCATGCATTTCGACCCCAAAGAAGCTCGTTCGGATGTATTTGTGTTTTCTAACCTTCATTTTAACTTATTTGCGTGACTTTGCATTCACAACTCAAAAACACCTATCT-TTTGAAATAAACATGATAG
 >left_flank_2|armf
----------------------------------------------------------------gtcccaagtaacccttaaatcagtttcagtattcatgttcaagtcaaaatagtccatcaggatt-ttttgggccttcttcacaa
+------------------------gtcccaagtaacccttaaatcagtttcagtattcatgttcaagtcaaaatagtccatcaggattttttgggccttcttcacaatctgattattcctaaataaa-gcatcattcattctccatc
 >left_flank_1|armf
-tctgattattcctaaataaagcatcattcattctccatctgaaagtgccctgcagagcagagcagaccagagcagagcagagcagaggtgagggtgagggtgagggtgagggtgagggtgagggtga-gggtgaggtgaggtgaggt
+tgaaagtgccctgcagagcagagcagaccagagcagagcagagcagaggtgagggtgagggtgagggtgagggtgagggtgagggtgagggtgaggtgaggtgaggtgaggtggggtgcggtggggt-gcggtggggtgcggtgggg
 >left_flank_0|armf
-gaggtggggtgcggtggggtgcggtggggtgcggtggggtggggtagggtagggtagggaccc------------------------------------------------------------------------------------
+tggggtagggtagggtagggaccc---------------------------------------------------------------------------------------------------------------------------
+>m00_start_not_aligned_39bp|armf
+------------------------CATATTGACCCCAAAGGAGCACGTTTGACTATCTTTGGG------------------------------------------------------------------------------------
 >m01|armf
 ---------------------------------------------------------------CTCACTGCACTTCATTTGGCCTTCTTTGCGTGACTATGCATTCACACCTCAAAAACACCAAACTAACTGAAGTAAGCCTGATAG
 >m02|armf

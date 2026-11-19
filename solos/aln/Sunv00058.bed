@@ -1,5 +1,6 @@
 track name="Sunv00058 monomers"
 alignment	0	300	left flank	0	.	0	300	160,160,160
+alignment	300	307	start not aligned to CLsat3.1 (7 bp)	0	.	300	307	255,179,0
 alignment	307	379	m01 CLsat3.1 59/146	0	.	307	379	255,179,0
 alignment	379	531	m02 CLsat3.1 146/146	0	.	379	531	0,150,136
 alignment	531	677	m03 CLsat3.1 146/146	0	.	531	677	30,136,229

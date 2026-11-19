@@ -22,8 +22,9 @@ def monomers(fn):
     for k, y in enumerate(b):
         if y != '-': res_of_col[k] = r; r += 1
     N = r
-    tiles = []; j = 0; cur = None; p = None; seen = []
+    tiles = []; j = 0; cur = None; p = None; seen = []; lead = []
     for k, (x, y) in enumerate(zip(a, b)):
+        if x == '-' and y.isupper() and cur is None: lead.append(res_of_col[k]); continue   # copy bases before the first consensus base
         if x != '-':
             p = (off + j) % L; j += 1
             if cur is None or p == 0: cur = []; tiles.append(cur); seen.append(set())
@@ -31,10 +32,11 @@ def monomers(fn):
         elif y.isupper() and cur is not None: cur.append(res_of_col[k])
     core = [res_of_col[k] for k, y in enumerate(b) if y.isupper()]
     mons = [(min(t), max(t), len(s) / L) for t, s in zip(tiles, seen) if t]
-    return name, L, N, core[0], core[-1], mons
+    return name, L, N, core[0], core[-1], mons, lead
 def feats(i, fn, strand_rc):
-    name, L, N, c0, c1, mons = monomers(fn)
+    name, L, N, c0, c1, mons, lead = monomers(fn)
     F = [('left flank', 0, c0 - 1, COL['flank']), ('right flank', c1 + 1, N - 1, COL['flank'])]
+    if lead: F.append((f'start not aligned to {name} ({len(lead)} bp)', min(lead), max(lead), COL['part']))
     for k, (s, e, cov) in enumerate(mons):
         col = COL['part'] if cov < 0.9 else (COL['m1'] if k % 2 == 0 else COL['m2'])
         F.append((f'm{k + 1:02d} {name} {round(cov * L)}/{L}', s, e, col))
@@ -69,10 +71,16 @@ for fn in sorted(glob.glob('aln/*.fa')):
             if rc:
                 s, e = N - 1 - e, N - 1 - s
                 nm = {'left flank': 'right flank', 'right flank': 'left flank'}.get(nm, nm)   # flanks named in genomic order
+            if i in INS:                                 # corrected copy: flanks from the insertion, features clipped to it
+                if nm in ('left flank', 'right flank'): continue
+                s, e = max(s, INS[i][0]), min(e, INS[i][1])
+                if e < s: continue
             G.append((nm, s, e, col))
+        if i in INS:
+            G += [('left flank', 0, INS[i][0] - 1, COL['flank']), ('right flank', INS[i][1] + 1, len(tcol) - 1, COL['flank'])]
         write_bed(f'traced/{i}.bed', G, tcol, f'{i} monomers')
         if i in INS:                                     # uppercase = insertion from the empty sites
-            s, e = INS[i]; up = set(tcol[s:e + 1])
+            s, e = INS[i]; up = set(range(tcol[s], tcol[e] + 1))   # whole span, also columns where only other rows have bases
             with open(tr, 'w', encoding='utf-8', newline='\n') as f:
                 for r in recs:
                     q = ''.join(ch.upper() if k in up else ch.lower() for k, ch in enumerate(str(r.seq)))

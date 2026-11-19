@@ -1,5 +1,6 @@
 track name="Sarmm00078 monomers"
 alignment	0	300	left flank	0	.	0	300	160,160,160
+alignment	300	337	start not aligned to CLsat1.3 (37 bp)	0	.	300	337	255,179,0
 alignment	337	432	m01 CLsat1.3 95/146	0	.	337	432	255,179,0
 alignment	441	589	m02 CLsat1.3 116/146	0	.	441	589	255,179,0
 alignment	589	803	m03 CLsat1.3 146/146	0	.	589	803	30,136,229
