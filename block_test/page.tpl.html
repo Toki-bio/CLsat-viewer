@@ -1,0 +1,167 @@
+<title>Parental Block Test</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* layout: one reading column; figures full column width, each with a short caption that says what to look at */
+:root{
+  --bg:#f7f8f6; --panel:#ffffff; --fg:#1d2321; --muted:#5d6763; --line:#d9ddd9;
+  --val:#d9822b; --nai:#7347a6; --mix:#2f74b5; --close:#8a918e; --array:#e9e2c8;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#151918;--panel:#1d2221;--fg:#e4e8e6;--muted:#9aa3a0;--line:#343b39;--val:#f0a04f;--nai:#a98be0;--mix:#6aa6e0;--close:#7d8582;--array:#3d3826;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#151918;--panel:#1d2221;--fg:#e4e8e6;--muted:#9aa3a0;--line:#343b39;--val:#f0a04f;--nai:#a98be0;--mix:#6aa6e0;--close:#7d8582;--array:#3d3826;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.55}
+main{max-width:1080px;margin:0 auto;padding-block:28px 60px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:34px}
+h1{font-size:1.7rem;margin:0;text-wrap:balance;font-weight:600}
+h2{font-size:1.15rem;margin:0 0 6px;font-weight:600;text-wrap:balance}
+p{margin:0;max-width:72ch}
+.lede{color:var(--muted)}
+.sp{font-style:italic}
+.key{display:flex;flex-wrap:wrap;gap:16px;font-size:.88rem;color:var(--muted)}
+.key span::before{content:"";display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:-1px;background:var(--c)}
+.fig{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;display:grid;gap:10px;min-width:0}
+.tog{display:flex;gap:6px;flex-wrap:wrap}.tog button{font:inherit;font-size:.85rem;padding:4px 10px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--fg);cursor:pointer}.tog button[aria-pressed="true"]{border-color:var(--fg);font-weight:600}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+canvas{width:100%;display:block}
+.cap{font-size:.88rem;color:var(--muted)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+table{border-collapse:collapse;font-size:.88rem}
+td,th{padding:4px 10px;border-bottom:1px solid var(--line);text-align:left}
+td.num,th.num{text-align:right}
+.wrap{overflow-x:auto}
+section{display:grid;gap:12px;min-width:0}
+</style>
+<main>
+<header style="display:grid;gap:10px">
+  <h1>Parental block test of the hybrid assemblies</h1>
+  <p class="lede">Short reads of two parental-species animals were mapped to each assembly of a hybrid (minimap2, short-read mode; reads with mapping quality ≥ 30 counted): for <i>D. unisexualis</i>, <i>D. valentini</i> 5_38 and <i>D. raddei nairensis</i> 17_78; for <i>D. armeniaca</i>, two pairs of animals not used to split its assembly (<i>D. valentini</i> 38_75 with <i>D. mixta</i> DM2, and 33_75 with DM3). In each 100-kb block the differences per aligned base were summed for each animal. The block is called for the animal whose reads differ less, when the margin is at least 25% and each animal has at least 300 reads in it.</p>
+  <div class="key"><span style="--c:var(--val)"><i>D. valentini</i> reads / block called <i>D. valentini</i></span><span style="--c:var(--nai)"><i>D. raddei nairensis</i> reads / block called <i>D. raddei nairensis</i></span><span style="--c:var(--mix)"><i>D. mixta</i> reads / block called <i>D. mixta</i></span><span style="--c:var(--close)">no clear call</span></div>
+</header>
+
+<section>
+  <h2>1. Every block of the four hybrid assemblies</h2>
+  <p>Each dot is one 100-kb block: how much the reads of each of two parental-species animals differ from the assembly there. A block above the diagonal fits the animal on the x axis; below it, the animal on the y axis. Reads of the matching species differ at about 0.6–1.2% of bases (sequencing error plus the difference between two animals of one species); reads of the other species at about 2.5–2.8%.</p>
+  <h3 style="margin:6px 0 0;font-size:1rem"><i>D. unisexualis</i>: reads of <i>D. valentini</i> 5_38 and <i>D. raddei nairensis</i> 17_78</h3>
+  <div class="row" id="scat"></div>
+  <h3 style="margin:10px 0 0;font-size:1rem"><i>D. armeniaca</i>: reads of animals not used to split the assembly</h3>
+  <div class="tog" id="armtog"><button id="armp0" aria-pressed="true"><i>D. valentini</i> 38_75 + <i>D. mixta</i> DM2</button><button id="armp1" aria-pressed="false"><i>D. valentini</i> 33_75 + <i>D. mixta</i> DM3</button></div>
+  <div class="row" id="scat_arm"></div>
+</section>
+
+<section>
+  <h2>2. One unn contig, block by block</h2>
+  <p>Section 1 counts blocks; this section follows them along one contig. A run of blocks called for the wrong parent, inside a contig that otherwise matches the expected parent, is a switch: the assembly joined a piece of the other subgenome to this contig. Such pieces are rare in all four assemblies, and only one of them carries a CLsat array:</p>
+  <div class="wrap"><table id="swtab"><thead><tr><th>Assembly</th><th class="num">Blocks called for the other parent</th><th class="num">Contigs with such blocks</th><th>CLsat arrays in or next to them</th></tr></thead><tbody></tbody></table></div>
+  <p class="cap">Block counts as in section 1 (<i>D. armeniaca</i>: first pair of animals). A block is 100 kb, so 117 blocks are about 11.7 Mb. An array counts when it lies within one block of a block called for the other parent.</p>
+  <p>That one array is L17 on the contig drawn below. Its CLsat1.1 is the <i>D. valentini</i> type, although unn is the <i>D. raddei nairensis</i> assembly; the graph shows why: the array lies in the <i>D. valentini</i> piece joined to the end of this contig. This is the exception named in the Results (all other unn arrays on contigs with called blocks sit next to <i>D. raddei nairensis</i> blocks).</p>
+  <p id="trk_p"></p>
+  <div class="fig"><canvas id="trk"></canvas><canvas id="trk2"></canvas><div class="cap" id="trk_cap"></div></div>
+</section>
+
+<section id="readsec">
+  <h2>3. The reads themselves</h2>
+  <p id="reads_p"></p>
+  <div class="fig"><canvas id="map"></canvas><div class="cap" id="map_cap"></div></div>
+  <div id="pile" style="display:grid;gap:14px"></div>
+</section>
+</main>
+<script>
+const D=/*DATA*/null;
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function setup(cv,w,h){const r=window.devicePixelRatio||1;cv.width=w*r;cv.height=h*r;cv.style.aspectRatio=w+'/'+h;const g=cv.getContext('2d');g.scale(r,r);g.font='12px '+css('--sans');return g}
+const pct=x=>(100*x).toFixed(1)+'%';
+// 1. scatter
+let armPair=0;
+function panel(host,pts,nm,lab,xs,ys,keys){
+  // pts: [x diff, y diff, call]; xs/ys: [species label, colour token]; keys: call letters for x and y species
+  const nx=pts.filter(b=>b[2]===keys[0]).length, ny=pts.filter(b=>b[2]===keys[1]).length, nc=pts.length-nx-ny;
+  const f=document.createElement('div');f.className='fig';
+  f.innerHTML=`<div><b>${nm}</b> <span class="cap">${lab}</span></div><canvas></canvas><div class="cap num">${pts.length.toLocaleString()} called blocks: ${nx.toLocaleString()} <i>${xs[0]}</i> (${pct(nx/pts.length)}), ${ny.toLocaleString()} <i>${ys[0]}</i> (${pct(ny/pts.length)}), ${nc} close</div>`;
+  host.appendChild(f);
+  const W=440,H=400,L=52,B=44,T=10,R=12,mx=0.045,g=setup(f.querySelector('canvas'),W,H);
+  const X=v=>L+(W-L-R)*Math.min(v,mx)/mx, Y=v=>H-B-(H-B-T)*Math.min(v,mx)/mx;
+  g.strokeStyle=css('--line');g.fillStyle=css('--muted');g.lineWidth=1;
+  for(let t=0;t<=0.04001;t+=0.01){g.beginPath();g.moveTo(X(t),Y(0));g.lineTo(X(t),Y(mx));g.moveTo(X(0),Y(t));g.lineTo(X(mx),Y(t));g.stroke();
+    g.textAlign='center';g.fillText((t*100).toFixed(0)+'%',X(t),H-B+16);g.textAlign='right';g.fillText((t*100).toFixed(0)+'%',L-6,Y(t)+4)}
+  g.strokeStyle=css('--muted');g.setLineDash([4,4]);g.beginPath();g.moveTo(X(0),Y(0));g.lineTo(X(mx),Y(mx));g.stroke();g.setLineDash([]);
+  g.textAlign='center';g.fillText('differences, '+xs[0]+' reads',L+(W-L-R)/2,H-8);
+  g.save();g.translate(14,T+(H-B-T)/2);g.rotate(-Math.PI/2);g.fillText('differences, '+ys[0]+' reads',0,0);g.restore();
+  const col={};col[keys[0]]=css(xs[1]);col[keys[1]]=css(ys[1]);col.c=css('--close');g.globalAlpha=0.35;
+  for(const p of pts){g.fillStyle=col[p[2]]||col.c;g.fillRect(X(p[0])-1.2,Y(p[1])-1.2,2.4,2.4)}g.globalAlpha=1;
+}
+function scatter(){
+  const host=document.getElementById('scat');host.innerHTML='';
+  const VAL=['D. valentini','--val'],NAI=['D. raddei nairensis','--nai'],MIX=['D. mixta','--mix'];
+  [['unv',0,'<i>D. valentini</i> side'],['unn',1,'<i>D. raddei nairensis</i> side']].forEach(([nm,h,lab])=>
+    panel(host,D.blocks.filter(b=>b[0]===h).map(b=>[b[1],b[2],b[3]]),nm,lab,VAL,NAI,['v','n']));
+  const ha=document.getElementById('scat_arm');ha.innerHTML='';
+  [['armf',0,'<i>D. valentini</i> side'],['armm',1,'<i>D. mixta</i> side']].forEach(([nm,h,lab])=>
+    panel(ha,D.arm.filter(b=>b[0]===h&&b[1]===armPair).map(b=>[b[2],b[3],b[4]]),nm,lab,VAL,MIX,['v','m']));
+}
+[0,1].forEach(k=>document.getElementById('armp'+k).addEventListener('click',()=>{armPair=k;[0,1].forEach(j=>document.getElementById('armp'+j).setAttribute('aria-pressed',String(j===k)));scatter()}));
+// 2. contig track (whole contig, then the last 2.1 Mb enlarged so the array is visible)
+function drawTrack(cv,x0,x1,W,H,tick){
+  const tr=D.track.filter(r=>r[0]+1e5>x0&&r[0]<x1), arr=D.array;
+  const L=56,R=12,T=12,mid=Math.round(H*0.6),B=40,g=setup(cv,W,H);
+  const X=s=>L+(W-L-R)*(Math.min(Math.max(s,x0),x1)-x0)/(x1-x0), mx=0.04, Y=v=>mid-(mid-T)*Math.min(v,mx)/mx;
+  const maxc=Math.max(...tr.map(r=>Math.max(r[1],r[3]))), Yc=c=>H-B-(H-B-mid-14)*c/maxc;
+  if(arr[1]>x0&&arr[0]<x1){g.fillStyle=css('--array');g.fillRect(X(arr[0]),T,Math.max(4,X(arr[1])-X(arr[0])),H-B-T);
+    g.fillStyle=css('--fg');g.textAlign='right';g.font='600 12px '+css('--sans');g.fillText('L17, CLsat1.1 array, 334 kb ▸',X(arr[0])-4,T+12);g.font='12px '+css('--sans')}
+  g.strokeStyle=css('--line');g.fillStyle=css('--muted');g.lineWidth=1;
+  for(let t=0;t<=0.04001;t+=0.01){g.beginPath();g.moveTo(L,Y(t));g.lineTo(W-R,Y(t));g.stroke();g.textAlign='right';g.fillText((t*100).toFixed(0)+'%',L-6,Y(t)+4)}
+  for(let m=Math.ceil(x0/tick)*tick;m<=x1;m+=tick){g.textAlign='center';g.fillText((m/1e6).toFixed(tick<1e6?1:0)+' Mb',X(m),H-B+28)}
+  g.textAlign='left';g.fillText('differences per base',L+4,T+12);g.fillText('reads per block (mapping quality ≥ 30)',L+4,mid+26);
+  [['--nai',2],['--val',4]].forEach(([c,k])=>{g.strokeStyle=css(c);g.lineWidth=1.4;g.beginPath();let on=false;for(const r of tr){if(r[k]==null||r[k-1]<50){on=false;continue}const x=X(r[0]+5e4),y=Y(r[k]);on?g.lineTo(x,y):g.moveTo(x,y);on=true}g.stroke()});
+  [['--nai',1],['--val',3]].forEach(([c,k])=>{g.strokeStyle=css(c);g.lineWidth=1;g.beginPath();let first=true;for(const r of tr){const x=X(r[0]+5e4),y=Yc(r[k]);first?g.moveTo(x,y):g.lineTo(x,y);first=false}g.stroke()});
+  for(const r of tr){g.fillStyle=r[5]==='v'?css('--val'):r[5]==='n'?css('--nai'):r[5]==='c'?css('--close'):'transparent';g.fillRect(X(r[0]),H-B+4,Math.max(1,X(r[0]+1e5)-X(r[0])),8)}
+  g.fillStyle=css('--muted');g.textAlign='right';g.fillText('call',L-6,H-B+12);
+}
+function swtab(){
+  document.querySelector('#swtab tbody').innerHTML=D.sw.map(r=>`<tr><td>${r.asm}</td><td class="num">${r.wrong} of ${r.tot.toLocaleString()} (${(100*r.wrong/r.tot).toFixed(1)}%)</td><td class="num">${r.ctg}</td><td>${r.loci.length?r.loci.join(', '):'none'}</td></tr>`).join('');
+}
+function track(){
+  const tr=D.track, sw=tr.find(r=>r[5]==='v'), arr=D.array;
+  document.getElementById('trk_p').innerHTML=`Contig ${D.contig} of unn (${(D.contig_len/1e6).toFixed(1)} Mb). Up to ${(sw[0]/1e6).toFixed(1)} Mb the <i>D. raddei nairensis</i> reads fit; from there to the end the <i>D. valentini</i> reads fit. This is a switch in the GenBank assembly. The 334-kb CLsat1.1 array L17 is the last 1.4% of the contig: a thin shaded strip at the right edge of the upper graph, enlarged in the lower one. It sits in the <i>D. valentini</i> part. Its blocks get no call: reads made of array alone cannot be placed uniquely.`;
+  drawTrack(document.getElementById('trk'),0,D.contig_len,1040,330,2e6);
+  drawTrack(document.getElementById('trk2'),21e6,D.contig_len,1040,300,2e5);
+  const inA=tr.filter(r=>r[0]>=Math.floor(arr[0]/1e5)*1e5+1e5);
+  document.getElementById('trk_cap').innerHTML=`Upper graph: the whole contig; lower graph: its last 2.1 Mb. Lines in the upper half: differences per aligned base of each animal's reads (blocks with fewer than 50 reads not drawn). Lines in the lower half: reads per block. Strip at the bottom: the block call. In the ${inA.length} array blocks too few reads map with mapping quality ≥ 30 for a call (fewer than 300 for at least one animal).`;
+}
+// 3a. map of the contig with the three read windows
+function readmap(){
+  const W=1040,H=120,L=20,R=20,y=46,g=setup(document.getElementById('map'),W,H),X=s=>L+(W-L-R)*s/D.contig_len,tr=D.track,arr=D.array;
+  for(const r of tr){g.fillStyle=r[5]==='v'?css('--val'):r[5]==='n'?css('--nai'):css('--close');g.fillRect(X(r[0]),y,Math.max(1,X(r[0]+1e5)-X(r[0])),14)}
+  g.fillStyle=css('--array');g.fillRect(X(arr[0]),y-6,Math.max(4,X(arr[1])-X(arr[0])),26);
+  g.fillStyle=css('--muted');g.font='12px '+css('--sans');g.textAlign='center';
+  for(let m=0;m<=22;m+=2)g.fillText(m+' Mb',X(m*1e6),y+34);
+  const sw=tr.find(r=>r[5]==='v')[0];g.textAlign='left';g.fillText('switch at '+(sw/1e6).toFixed(1)+' Mb',X(sw)-60,y-10);
+  const R_=D.reads?D.reads.windows:[];
+  R_.forEach((w,k)=>{const x=X((w.s+w.e)/2);g.strokeStyle=css('--fg');g.lineWidth=1.5;g.beginPath();g.moveTo(x,y+16);g.lineTo(x,y+52);g.stroke();
+    g.fillStyle=css('--fg');g.textAlign=k===2?'right':k===1?'left':'right';g.font='600 12px '+css('--sans');g.fillText(`window ${k+1}`,x+(k===1?4:-4),y+66);g.font='12px '+css('--sans')});
+  g.textAlign='left';g.fillStyle=css('--muted');g.fillText('unn contig '+D.contig+', coloured by block call; shaded box = array L17',L,14);
+  document.getElementById('map_cap').innerHTML='Reads of both animals were mapped to the whole unn assembly; only those that landed in three windows of this contig were kept and are drawn below. Window 1: 18.50 Mb, in the <i>D. raddei nairensis</i> part. Window 2: 19.50 Mb, in the <i>D. valentini</i> part after the switch. Window 3: the start of the array L17 at 22.78 Mb, shown only to explain why arrays get no call.';
+}
+// 3. reads
+function pile(){
+  const P=document.getElementById('pile'), R=D.reads;
+  if(!R){document.getElementById('reads_p').textContent='Read alignments are being prepared.';return}
+  document.getElementById('reads_p').innerHTML=R.note;
+  R.windows.forEach(w=>{
+    const f=document.createElement('div');f.className='fig';
+    f.innerHTML=`<div><b>${w.title}</b> <span class="cap num">${D.contig}:${w.s.toLocaleString()}–${w.e.toLocaleString()}</span></div><canvas></canvas><div class="cap">${w.cap}</div>`;P.appendChild(f);
+    const W=1040,rowH=5,gap=3,L=8,Rr=8,MAXL=40;
+    const lanes={};['nai','val'].forEach(an=>{const rs=w.reads.filter(r=>r.a===an).sort((a,b)=>a.p-b.p),ends=[];rs.forEach(r=>{let i=ends.findIndex(e=>e<r.p-2);if(i<0){i=ends.length;ends.push(0)}ends[i]=r.e;r.lane=i});lanes[an]=Math.min(MAXL,Math.max(1,ends.length));w['full_'+an]=ends.length});
+    const H=24+(lanes.nai+lanes.val)*(rowH+gap)+40,g=setup(f.querySelector('canvas'),W,H),X=p=>L+(W-L-Rr)*(p-w.s)/(w.e-w.s);
+    if(w.arr){g.fillStyle=css('--array');g.fillRect(X(Math.max(w.s,w.arr)),0,X(w.e)-X(Math.max(w.s,w.arr)),H-18)}
+    let y0=14;
+    ['nai','val'].forEach(an=>{
+      g.fillStyle=css('--muted');g.textAlign='left';g.fillText((an==='nai'?'D. raddei nairensis 17_78':'D. valentini 5_38')+(w['full_'+an]>MAXL?`  (first ${MAXL} of ${w['full_'+an]} rows of reads shown)`:''),L,y0-2);
+      for(const r of w.reads.filter(r=>r.a===an&&r.lane<MAXL)){const y=y0+4+r.lane*(rowH+gap);g.globalAlpha=r.q>=30?0.85:0.25;g.fillStyle=css(an==='nai'?'--nai':'--val');g.fillRect(X(r.p),y,Math.max(1,X(r.e)-X(r.p)),rowH);g.fillStyle=css('--fg');g.globalAlpha=1;for(const m of r.m){g.fillRect(X(m)-1,y-1,2,rowH+2)}}
+      y0+=lanes[an]*(rowH+gap)+20});
+    g.fillStyle=css('--muted');for(let k=0;k<=4;k++){const p=w.s+k*(w.e-w.s)/4;g.textAlign=k===0?'left':k===4?'right':'center';g.fillText(Math.round(p).toLocaleString(),X(p),H-4)}
+  });
+}
+function all(){scatter();swtab();track();readmap();pile()}
+all();matchMedia('(prefers-color-scheme: dark)').addEventListener('change',all);
+new MutationObserver(all).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+</script>
